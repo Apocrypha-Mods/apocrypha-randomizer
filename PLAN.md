@@ -73,7 +73,11 @@ can be reused here) already has:
 Copy what you need into this repo, or depend on it by path while it is
 private. Don't edit `apocrypha-desktop` from here.
 
-## 4. Architecture (proposal: refine after the formats research)
+## 4. Architecture
+
+The refined crate layout and build order are in
+[`docs/research/formats.md`](docs/research/formats.md) §4; the sketch below is
+the shape.
 
 ```
 crates/
@@ -142,8 +146,11 @@ mod. The existing add-ons (Bodyworks, Motion) show the pattern.
 ## 6. Biggest unknowns (attack first)
 
 - **Kraken on Linux:** many Elden Ring files are Oodle Kraken-compressed and
-  the game's decoder is a Windows DLL. We need a permissively licensed decoder,
-  or our own. Writing can likely use zstd or uncompressed files; verify that the
+  the game's decoder is a Windows DLL. The only pure-Rust decoder,
+  `oozextract`, is labelled MIT but calls itself a port of GPL code, so keep it
+  behind a feature flag in its own crate and get a legal opinion before it
+  ships. Fallbacks: run the game's own DLL under Wine through a tiny helper, or
+  write a clean-room decoder. Writing can likely use zstd or uncompressed files; verify that the
   game accepts them through me3.
 - **Archive file names:** the archives store name hashes, not names. The name
   list's licence and origin need checking.
