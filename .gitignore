@@ -1,0 +1,8 @@
+/target
+/scratch
+*.dcx
+*.bdt
+*.bhd
+regulation.bin
+.env
+.claude/
