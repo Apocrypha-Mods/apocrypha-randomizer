@@ -157,7 +157,19 @@ mod. The existing add-ons (Bodyworks, Motion) show the pattern.
 - **Param field layouts:** Paramdex has no licence, so layouts for the tables
   we touch must be learned from data and documented here.
 - **The logic graph:** the largest body of hand-authored facts in the project.
-  Budget for it.
+  Budget for it. `docs/spec/10-open-questions.md` lists every body of facts we
+  must derive (location and enemy annotations, boss event templates, item-check
+  rewrites, flag ranges and more).
+
+## 6a. Decisions still open (Nova)
+
+- **Crash-fix DLL.** Mixing base-game and DLC enemies tends to crash without a
+  helper that raises the game's memory limits. Build our own (a separate clean
+  effort), rely on a loader feature, or keep base and DLC enemies separate by
+  default.
+- **Fog-gate randomizer compatibility.** Support a third-party fog-gate tool,
+  build our own later, or neither.
+- **Archipelago multiworld.** In or out of scope.
 
 ## 7. Working rules
 
