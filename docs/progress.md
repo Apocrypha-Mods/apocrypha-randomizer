@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | extraction in progress | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 414 script awards, 112 NPC gifts, 191 flag-awarded (boss) rewards, 1,293 shop rows and 10 starting classes, with bosses and graces placed and named. Open: gathering nodes, the remaining gift lots, the area graph, and the play-through review. |
+| 3. Game model | extraction in progress | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots (per map), 414 script awards, 112 NPC gifts, 191 flag-awarded (boss) rewards, 1,293 shop rows and 10 starting classes, with bosses and graces placed and named. Of the lots no source reaches, 293 are flagged and hold named items. Open: those, the area graph, and the play-through review. |
 
 ## Phase 0: setup
 
@@ -224,7 +224,8 @@ EMEVD, MSB or play), and the evidence either way.
 | `EquipParamGoods` | goods type | — | Read off the item names: 0 is other items, 1 crafting materials, 2 upgrade materials, 3 Great Runes, quest items and sorceries, 4 incantations, 6 letters and notes, 7 tutorials. |
 | `EquipParamWeapon` | reinforce type | — | 32 of 33 values are rows of ReinforceParamWeapon, the start of an upgrade path. A path ending at +10 is somber (Moonveil: 2200); one ending at +25 is regular. |
 | `GameAreaParam` | defeat flag | runes ×2, position | Round rune values on boss-like ids; the flags look like event flags; three floats. |
-| `BonfireWarpParam` | grace name, sub category | found flag, entity id, position | 419 of 422 names are PlaceName ids. The flags are unique per grace, in 71000–76960. |
+| `BonfireWarpParam` | grace name, sub category, entity id | found flag, position | 419 of 422 names are PlaceName ids, and 419 entity ids are assets placed in the maps. The flags are unique per grace, in 71000–76960. |
+| `AssetEnvironmentGeometryParam` | pick-up lot, its prompt | break lot | Rows are asset models (99683 is AEG099_683). The pick-up lot is set in exactly the rows where the prompt (an ActionButtonParam row) is; 99% are ItemLotParam_map rows. A second lot column holds 15 values. |
 
 Two developer commands support this:
 
@@ -541,6 +542,7 @@ below.
 | treasure | MSB treasure events: the part they sit on, the ItemLotParam_map row they give | 3,506 | 3,505 |
 | enemy drop | a placed enemy's NpcParam lot (`_enemy` or `_map`) that carries a flag: drops once | 133 | all |
 | repeat drop | the same with no flag: drops on every roll; counted once per map | 4,488 | none |
+| gather | placed assets whose model's AssetEnvironmentGeometryParam row has a pick-up or break lot; counted once per map and lot | 2,169 | almost none: they grow back |
 | event | lots the scripts award (`award_item_lot`, `_b`) | 414 | 413 |
 | gift | lots the talk scripts award (`AWARD_ITEM_LOT`), calls followed | 112 | 87 |
 | boss reward | lots awarded on a flag (`item_lot_for_flag`) | 191 | all |
@@ -555,8 +557,10 @@ the asset whose entity id the grace row names, and they name the maps.
 ### What the extraction settled
 
 - **Script arguments.** `fs_emevd::catalogue::uses` gives every use of an
-  instruction with all its argument words, filled in from the call that
-  starts the event, so pairs like a flag and a lot stay together.
+  instruction with all its argument words, filled in from the calls that
+  start the event, so pairs like a flag and a lot stay together. Calls are
+  followed through shared events that start other shared events, though no
+  extra lot turned up that way.
 - **2004[76] takes a flag, not a boss entity**, and is renamed
   `item_lot_for_flag`. Its word 0 is used as a flag elsewhere in all 207 uses.
   In the map scripts it is the boss's defeat flag (the same number as the
@@ -574,8 +578,32 @@ the asset whose entity id the grace row names, and they name the maps.
 ### Gaps: what the extraction does not reach yet
 
 When Phase 3 started, 902 ItemLotParam_map lots and 985 ItemLotParam_enemy
-lots held items that nothing in the model gave. The talk scripts bring the map
-lots down to 772. Grouped by id, they are:
+lots held items that nothing in the model gave. The talk scripts and
+gathering bring the map lots down to 652. Sorted by whether the lot carries a
+flag and whether its items have names:
+
+| | items named | items unnamed |
+| --- | --- | --- |
+| flagged (one-time) | **293** | 16 |
+| not flagged | 326 | 17 |
+
+All 985 unreached enemy lots are unflagged, on NpcParam rows that no map
+places. The 293 that matter fall in a few groups:
+
+- **Numbered by map,** for example 1036430010, the Confessor set in m60_36_43,
+  where the map's treasures are 1036430000, …20 and …30 (12xxxxxx in m12,
+  21xxxxxx Rada Fruit in m21, 2049xxxxxx in the Land of Shadow). Neither the
+  lot nor its flag is in any map we read, any script word, or any talk
+  constant. They are either cut content or placed in a way not found yet;
+  checking two or three in play would settle which.
+- **The 99 map files not found by name** hold 20 of them. Their parts are
+  named `m463600_0000` and so on.
+- **15 are numbered after an enemy's entity id** (564 enemy entity ids are
+  lot rows, and 533 of those lots are already reached through scripts).
+- **Low ids,** such as 40500–40666 (Smithing Stone [1], Golden Rune [1]) with
+  flags 540500 and up, look like old test rows.
+
+The groups below are what was found as the gaps were worked through:
 
 - [x] **NPC dialogue gifts.** These were mostly the 100000s (164 of 189 of
       them flagged). Since `fs-esd`, 112 gifts are found: the grace menu gives
@@ -583,10 +611,13 @@ lots down to 772. Grouped by id, they are:
       Ranni, Hyetta and the others give theirs. 59 lots in the 100000s are
       still unreached, many in runs (101580–101583): perhaps the
       uncatalogued shop-range commands, or computed arguments.
-- [ ] **Gathering nodes and other asset pick-ups.** Rada Fruit, mushrooms,
-      Glass Shards and Poisonbloom; unflagged ones in the 990000s and
-      4,636,000s, flagged ones in `m12` and `m21`.
-- [ ] **Tutorials** (the 50000s: "About Sites of Grace").
+- [x] **Gathering nodes.** These are reached through the asset's model:
+      120 models with a lot are placed 18,056 times, and they give Golden
+      Sunflowers, Knot Resin, Ghost Glovewort and so on. 199 more models carry
+      a lot but are placed in no map we read; their items mostly have no
+      name, so they look unused.
+- [ ] **Tutorials** (the 50000s: "About Sites of Grace"). Their lots are not
+      referenced; the game probably gives tutorials some other way.
 - [ ] **Unflagged enemy lots on NpcParam rows that no map places.**
 - [ ] **133 treasures whose lot is not a row**, and 54 whose lot holds no
       item.
@@ -599,7 +630,8 @@ lots down to 772. Grouped by id, they are:
 
 ### Still to do for the gate
 
-- [ ] Close the gaps above: gathering nodes next.
+- [ ] **Settle the 293 flagged, named lots:** check two or three of the
+      map-numbered ones in play, and name the 99 maps.
 - [ ] **The area graph and key-item requirements**, authored here (PLAN.md §1,
       rule 4). The coverage report's areas and grace names are the starting
       point.

@@ -205,58 +205,95 @@ impl Use {
 }
 
 /// Every use of instruction `bank[id]` that `script` runs: the uses written
-/// in it with no placeholders, and one use per call that starts an event
-/// holding the instruction (from `script` itself, or from `common`), with
-/// the call's arguments copied in.
+/// in it with no placeholders, and one use per chain of calls that starts an
+/// event holding the instruction (from `script` itself, or from `common`),
+/// with the calls' arguments copied in. A called event that starts another
+/// with its own placeholders is followed too, as deep as the scripts go.
 pub fn uses(script: &Emevd, common: Option<&Emevd>, bank: u32, id: u32) -> Vec<Use> {
-    let is = |ins: &Instruction| (ins.bank, ins.id) == (bank, id);
     let local: HashMap<u32, &Event> = script.events.iter().map(|e| (e.id as u32, e)).collect();
     let shared: HashMap<u32, &Event> = common
         .map(|c| c.events.iter().map(|e| (e.id as u32, e)).collect())
         .unwrap_or_default();
     let mut out = Vec::new();
     for ev in &script.events {
-        for (i, ins) in ev.instructions.iter().enumerate() {
-            if is(ins) && !ev.parameters.iter().any(|p| p.instruction == i as i64) {
+        let walk = Walk {
+            local: &local,
+            shared: &shared,
+            want: (bank, id),
+        };
+        walk.event(ev, None, true, 0, &mut out);
+    }
+    out
+}
+
+/// How deep calls are followed; Elden Ring's scripts go 3 deep.
+const MAX_CALL_DEPTH: usize = 8;
+
+struct Walk<'a> {
+    local: &'a HashMap<u32, &'a Event>,
+    shared: &'a HashMap<u32, &'a Event>,
+    want: (u32, u32),
+}
+
+impl Walk<'_> {
+    /// The instructions of `ev` that a call fills in (`call` is the call's
+    /// event arguments), or, with no call, those that need nothing filled in.
+    fn event(
+        &self,
+        ev: &Event,
+        call: Option<(&[u8], i64)>,
+        in_script: bool,
+        depth: usize,
+        out: &mut Vec<Use>,
+    ) {
+        for (j, ins) in ev.instructions.iter().enumerate() {
+            let params: Vec<&Parameter> = ev
+                .parameters
+                .iter()
+                .filter(|p| p.instruction == j as i64)
+                .collect();
+            // With no call, only what is written whole; with one, only what
+            // the call fills in (the rest is reported without the call).
+            let args = match call {
+                None if params.is_empty() => ins.args.clone(),
+                None => continue,
+                Some(_) if params.is_empty() => continue,
+                Some((from, _)) => {
+                    let mut args = ins.args.clone();
+                    for p in params {
+                        let (src, dst, n) = (p.source as usize, p.target as usize, p.size as usize);
+                        if let (Some(v), true) = (from.get(src..src + n), dst + n <= args.len()) {
+                            args[dst..dst + n].copy_from_slice(v);
+                        }
+                    }
+                    args
+                }
+            };
+            if (ins.bank, ins.id) == self.want {
                 out.push(Use {
                     event: ev.id,
-                    caller: None,
-                    args: ins.args.clone(),
+                    caller: call.map(|c| c.1),
+                    args: args.clone(),
                 });
             }
-            if !EVENT_STARTS.contains(&(ins.bank, ins.id)) || ins.args.len() < 8 {
+            if !EVENT_STARTS.contains(&(ins.bank, ins.id))
+                || args.len() < 8
+                || depth >= MAX_CALL_DEPTH
+            {
                 continue;
             }
-            let target = u32::from_le_bytes(ins.args[4..8].try_into().unwrap());
-            let Some(called) = local.get(&target).or_else(|| shared.get(&target)) else {
-                continue;
-            };
-            let call = &ins.args[8..];
-            for (j, dest) in called.instructions.iter().enumerate() {
-                let params: Vec<&Parameter> = called
-                    .parameters
-                    .iter()
-                    .filter(|p| p.instruction == j as i64)
-                    .collect();
-                if !is(dest) || params.is_empty() {
-                    continue;
-                }
-                let mut args = dest.args.clone();
-                for p in params {
-                    let (src, dst, n) = (p.source as usize, p.target as usize, p.size as usize);
-                    if let (Some(from), true) = (call.get(src..src + n), dst + n <= args.len()) {
-                        args[dst..dst + n].copy_from_slice(from);
-                    }
-                }
-                out.push(Use {
-                    event: called.id,
-                    caller: Some(ev.id),
-                    args,
-                });
+            let target = u32::from_le_bytes(args[4..8].try_into().unwrap());
+            // A shared event can only start shared events.
+            let found = in_script
+                .then(|| self.local.get(&target))
+                .flatten()
+                .map(|e| (e, true))
+                .or_else(|| self.shared.get(&target).map(|e| (e, false)));
+            if let Some((called, local)) = found {
+                self.event(called, Some((&args[8..], ev.id)), local, depth + 1, out);
             }
         }
     }
-    out
 }
 
 /// Every value an instruction's word takes: written directly, or filled in at
@@ -424,5 +461,59 @@ mod tests {
         assert_eq!((got[0].word(0), got[0].word(1)), (Some(9), Some(10)));
         assert_eq!((got[1].event, got[1].caller), (7, Some(0)));
         assert_eq!((got[1].word(0), got[1].word(1)), (Some(1234), Some(555)));
+    }
+
+    #[test]
+    fn calls_are_followed_through_a_shared_event_that_starts_another() {
+        let ins = |bank, id, words: &[u32]| Instruction {
+            bank,
+            id,
+            args: words.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            layer: None,
+        };
+        let pass = |instruction, target, source| Parameter {
+            instruction,
+            target,
+            source,
+            size: 4,
+            unk: 0,
+        };
+        // Shared event 7 starts shared event 8 with its own argument 0;
+        // event 8 awards the lot it is given.
+        let outer = Event {
+            id: 7,
+            rest: 0,
+            instructions: vec![ins(2000, 6, &[0, 8, 0])],
+            parameters: vec![pass(0, 8, 0)],
+        };
+        let inner = Event {
+            id: 8,
+            rest: 0,
+            instructions: vec![ins(2003, 4, &[0])],
+            parameters: vec![pass(0, 0, 0)],
+        };
+        let common = Emevd {
+            events: vec![outer, inner],
+            ..Default::default()
+        };
+        let map = Emevd {
+            events: vec![Event {
+                id: 0,
+                rest: 0,
+                instructions: vec![ins(2000, 6, &[0, 7, 555])],
+                parameters: vec![],
+            }],
+            ..Default::default()
+        };
+        let got = uses(&map, Some(&common), 2003, 4);
+        assert_eq!(got.len(), 1);
+        assert_eq!(
+            (got[0].event, got[0].caller, got[0].word(0)),
+            (8, Some(7), Some(555))
+        );
+        assert!(
+            uses(&common, None, 2003, 4).is_empty(),
+            "on its own the shared script awards nothing whole"
+        );
     }
 }

@@ -246,6 +246,46 @@ fn npc_item_lots_point_at_item_lot_rows() {
     }
 }
 
+/// An asset model's pick-up lot is set exactly when its prompt is, and both
+/// point at their tables.
+#[test]
+fn asset_pick_ups_have_a_lot_and_a_prompt() {
+    let reg = regulation_or_skip!();
+    let l = layout::for_table("AssetEnvironmentGeometryParam").unwrap();
+    let p = reg.table("AssetEnvironmentGeometryParam").unwrap();
+    let (lot, button, broken) = (
+        l.field("pick_item_lot"),
+        l.field("pick_action_button"),
+        l.field("break_item_lot"),
+    );
+    let both = p
+        .rows
+        .iter()
+        .filter(|r| (lot.get(&r.data, 0) == -1) == (button.get(&r.data, 0) == -1))
+        .count();
+    assert_eq!(both, p.rows.len(), "a lot exactly when a prompt");
+    for (f, table, min) in [
+        (lot, "ItemLotParam_map", 98.0),
+        (button, "ActionButtonParam", 95.0),
+        (broken, "ItemLotParam_map", 85.0),
+    ] {
+        let rows = ids(reg, table);
+        let distinct: HashSet<i64> = p
+            .rows
+            .iter()
+            .map(|r| f.get(&r.data, 0))
+            .filter(|&v| v != -1)
+            .collect();
+        let hit = distinct.iter().filter(|v| rows.contains(v)).count();
+        eprintln!(
+            "{}: {hit}/{} distinct values are {table} rows",
+            f.name,
+            distinct.len()
+        );
+        assert!(pct(hit, distinct.len()) >= min, "{}", f.name);
+    }
+}
+
 /// The game's English text tables (`GoodsName`, `PlaceName`, …), each merged
 /// across its DLC parts.
 fn text() -> Option<&'static HashMap<String, HashMap<i32, String>>> {

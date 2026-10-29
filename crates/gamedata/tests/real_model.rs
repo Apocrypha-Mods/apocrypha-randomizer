@@ -50,6 +50,7 @@ fn every_kind_of_location_is_found() {
         (Kind::EnemyDrop, 120),
         (Kind::Event, 400),
         (Kind::Gift, 100),
+        (Kind::Gather, 2_000),
         (Kind::BossReward, 180),
         (Kind::Shop, 1_200),
         (Kind::Starting, 10),
@@ -160,6 +161,19 @@ fn melinas_gifts_come_from_the_grace_menu() {
                 .any(|l| l.kind == Kind::Gift && l.map.is_none() && l.flag.is_some()),
             "{item}: {:?}",
             at.iter().map(|l| (l.kind, &l.source)).collect::<Vec<_>>()
+        );
+    }
+}
+
+#[test]
+fn plants_and_nodes_are_gathered() {
+    let m = model_or_skip!();
+    for item in ["Golden Sunflower", "Knot Resin", "Ghost Glovewort [2]"] {
+        assert!(
+            giving(m, item)
+                .iter()
+                .any(|l| l.kind == Kind::Gather && l.map.is_some() && l.flag.is_none()),
+            "{item} grows somewhere"
         );
     }
 }

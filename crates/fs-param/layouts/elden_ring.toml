@@ -397,10 +397,12 @@ That each records the grace as found is to be confirmed in play."""
 name = "entity_id"
 offset = 0x08
 kind = "u32"
-confidence = "probable"
+confidence = "confirmed"
 evidence = """
 A different value in each row, shaped like map entity ids (10001950: map
-m10_00, entity 1950). To be confirmed against MSB."""
+m10_00, entity 1950). 419 of the 422 are the entity ids of assets placed in
+the maps (AEG099_060, the grace itself); gamedata/tests/real_model.rs checks
+it."""
 
 [[layout.field]]
 name = "sub_category_id"
@@ -424,3 +426,42 @@ offset = 0x30
 kind = "i32"
 confidence = "confirmed"
 evidence = "419 of the 422 distinct values are ids in the game's PlaceName text: the grace's name."
+
+# --- Assets ------------------------------------------------------------------
+
+[[layout]]
+type = "ASSET_GEOMETORY_PARAM_ST"
+row_size = 320
+tables = ["AssetEnvironmentGeometryParam"]
+
+[[layout.field]]
+name = "break_item_lot"
+offset = 0xB0
+kind = "i32"
+confidence = "probable"
+evidence = """
+-1 in 24,087 of 24,106 rows; the 15 other values are rows of ItemLotParam_map
+(92%), Golden Runes among them. Rows are asset models (row 99683 is model
+AEG099_683). A second lot, set apart from the pick-up one; probably what the
+asset gives when broken, to be settled in play."""
+
+[[layout.field]]
+name = "pick_action_button"
+offset = 0xB4
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+-1 in exactly the 23,782 rows where pick_item_lot is -1; every other value is
+a row of ActionButtonParam (98% of 57): the prompt to pick the asset."""
+
+[[layout.field]]
+name = "pick_item_lot"
+offset = 0xB8
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+A row of ItemLotParam_map in 99% of its 319 distinct values, set exactly when
+pick_action_button is: what picking the asset gives. The lots are plants,
+nodes and the like (Golden Sunflower, Knot Resin, Ghost Glovewort), none of
+which any map treasure or script gives; 120 such models are placed 18,056
+times."""

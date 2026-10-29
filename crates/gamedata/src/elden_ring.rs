@@ -7,6 +7,9 @@
 //! - **Enemy drops:** each placed enemy's NpcParam names an ItemLotParam_enemy
 //!   row and an ItemLotParam_map row. A lot with a flag drops once; one
 //!   without drops on every roll.
+//! - **Gathering:** an asset's model is a row of
+//!   AssetEnvironmentGeometryParam (AEG099_683 is row 99683), whose pick-up
+//!   and break lots every asset of that model gives.
 //! - **Events:** the lots the scripts award (`award_item_lot`, `_b`) and
 //!   award on a flag (`item_lot_for_flag`, mostly a boss's defeat flag), with
 //!   each event's arguments filled
@@ -39,6 +42,8 @@ const LOT_MAP: &str = "ItemLotParam_map";
 const LOT_ENEMY: &str = "ItemLotParam_enemy";
 const ENEMY_TYPES: [i64; 2] = [2, 10];
 const TREASURE: i64 = 4;
+/// Assets: the part type of every map object (573,966 of them).
+const ASSET: i64 = 13;
 /// The ten classes' starting equipment in CharaInitParam.
 const CLASSES: std::ops::RangeInclusive<i32> = 3000..=3009;
 
@@ -270,6 +275,47 @@ pub fn extract(s: &Sources) -> Result<Model> {
         });
     }
 
+    // What each placed asset gives when picked or broken, by its model.
+    let geometry = layout("AssetEnvironmentGeometryParam");
+    let asset_lots: HashMap<i32, [i32; 2]> = s
+        .reg
+        .table("AssetEnvironmentGeometryParam")?
+        .rows
+        .iter()
+        .map(|r| {
+            let lot = |f| geometry.field(f).get(&r.data, 0) as i32;
+            (r.id, [lot("pick_item_lot"), lot("break_item_lot")])
+        })
+        .filter(|(_, l)| l.iter().any(|&v| v > 0))
+        .collect();
+    // (map, lot, how) -> (the first such asset, how many)
+    let mut gathered: BTreeMap<(MapId, i32, &str), (&[u8], usize)> = BTreeMap::new();
+    for (map, msb) in &s.maps {
+        let models: Vec<Option<i32>> = msb
+            .table("MODEL_PARAM_ST")
+            .entries
+            .iter()
+            .map(|e| entry_name(e).as_deref().and_then(asset_model))
+            .collect();
+        for e in &msb.table("PARTS_PARAM_ST").entries {
+            if part("type").get(e, 0) != Some(ASSET) {
+                continue;
+            }
+            let Some(lots) = part("model")
+                .get(e, 0)
+                .and_then(|i| models.get(usize::try_from(i).ok()?).copied().flatten())
+                .and_then(|m| asset_lots.get(&m))
+            else {
+                continue;
+            };
+            for (lot, how) in lots.iter().zip(["picked", "broken"]) {
+                if *lot > 0 {
+                    gathered.entry((*map, *lot, how)).or_insert((e, 0)).1 += 1;
+                }
+            }
+        }
+    }
+
     // Every lot something references, so that chains stop before them.
     let mut lots = Lots {
         rows: HashMap::new(),
@@ -307,6 +353,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
     );
     refs.extend(awards.iter().map(|a| a.lot));
     refs.extend(gifts.iter().map(|g| g.2));
+    refs.extend(gathered.keys().map(|k| k.1));
     for r in npcs.values() {
         for (t, f) in [
             (LOT_ENEMY, "item_lot_enemy_id"),
@@ -401,6 +448,23 @@ pub fn extract(s: &Sources) -> Result<Model> {
             l.position = Some(en.position);
             model.locations.push(l);
         }
+    }
+
+    // Gathering, once per map and lot.
+    for (&(map, lot, how), &(e, n)) in &gathered {
+        if lots.row(LOT_MAP, lot).is_none() {
+            continue;
+        }
+        let name = entry_name(e).unwrap_or_default();
+        let mut l = at_lot(
+            Kind::Gather,
+            Some(map),
+            format!("{name} ({how}, ×{n})"),
+            LOT_MAP,
+            lot,
+        );
+        l.position = Some(position(e));
+        model.locations.push(l);
     }
 
     // Script awards, each lot once.
@@ -558,6 +622,14 @@ pub fn extract(s: &Sources) -> Result<Model> {
     Ok(model)
 }
 
+/// An asset model's row in AssetEnvironmentGeometryParam: AEG099_683 is
+/// 99683.
+fn asset_model(name: &str) -> Option<i32> {
+    let (a, b) = name.strip_prefix("AEG")?.split_once('_')?;
+    let (a, b) = (a.parse::<i32>().ok()?, b.get(..3)?.parse::<i32>().ok()?);
+    Some(a * 1000 + b)
+}
+
 /// A part's position (probable, PARTS_PARAM_ST.position).
 fn position(e: &[u8]) -> [f32; 3] {
     let f = field("PARTS_PARAM_ST", "position");
@@ -632,4 +704,17 @@ pub fn totals(model: &Model) -> BTreeMap<Kind, (usize, usize)> {
         e.1 += usize::from(l.map.is_some());
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_asset_models_row_is_read_from_its_name() {
+        assert_eq!(asset_model("AEG099_683"), Some(99_683));
+        assert_eq!(asset_model("AEG463_670"), Some(463_670));
+        assert_eq!(asset_model("c4720"), None);
+        assert_eq!(asset_model("AEG099"), None);
+    }
 }
