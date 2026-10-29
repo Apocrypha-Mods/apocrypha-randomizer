@@ -12,6 +12,7 @@ use clap::{Parser, Subcommand};
 use fs_dvdbnd::Dvd;
 use rayon::prelude::*;
 
+mod boot_test;
 mod check;
 mod columns;
 mod flags;
@@ -141,6 +142,13 @@ enum Command {
     Logic { game: PathBuf },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
+    /// Build a mod folder of files we write, for checking that the game
+    /// accepts them (Phase 1, step 3).
+    BootTest {
+        game: PathBuf,
+        /// The mod folder to write.
+        out: PathBuf,
+    },
     /// Write one file out of the archives, by path or by hash.
     Extract {
         game: PathBuf,
@@ -175,6 +183,7 @@ fn main() {
             jobs,
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
+        Command::BootTest { game, out } => boot_test::run(game, out),
         Command::Model { game, dump } => model::run(game, dump),
         Command::Logic { game } => logic::run(game),
         Command::Flags { game } => flags::run(game),

@@ -166,10 +166,16 @@ How "round-trip byte for byte" is checked:
       of any list it is given. One clean option is to build our own list from
       the game: names inside binders, path strings in the exe, and patterns
       such as map and character ids.
-- [ ] **Step 3: the game accepts files we write.** Rewrite one map file and
-      one event script as zstd or deflate and boot through me3. Saved for later
-      on request; the code it needs (`Header::with_algorithm`, `compress`) is in
-      place.
+- [ ] **Step 3: the game accepts files we write.** `apoc-fs boot-test <game>
+      <out>` builds the mod folder, every file written by our code and
+      compressed with zstd:
+      - `regulation.bin`, with the Vagabond starting with Moonveil;
+      - `item_dlc02.msgbnd.dcx`, with Moonveil renamed "Moonveil (Apocrypha
+        boot test)";
+      - the Stranded Graveyard's map and event script, rewritten unchanged.
+
+      Built on 2026-10-29 (`scratch/boot-test-mod`). It waits on a launch
+      through me3: check the class screen, then the first area.
 - [ ] **Legal opinion on `oozextract`** before anything that ships enables
       `fs-dcx/kraken`.
 
