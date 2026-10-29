@@ -22,7 +22,11 @@ mod windows {
         let Ok(path) = std::env::var("APOC_NATIVE_LOG") else {
             return;
         };
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             let _ = writeln!(f, "{line}");
         }
     }
@@ -30,7 +34,11 @@ mod windows {
     /// Called by Windows as the module is loaded and unloaded.
     #[unsafe(no_mangle)]
     #[allow(non_snake_case)]
-    pub extern "system" fn DllMain(_module: *mut c_void, reason: u32, _reserved: *mut c_void) -> i32 {
+    pub extern "system" fn DllMain(
+        _module: *mut c_void,
+        reason: u32,
+        _reserved: *mut c_void,
+    ) -> i32 {
         if reason == DLL_PROCESS_ATTACH {
             std::thread::spawn(|| {
                 note(&format!(
