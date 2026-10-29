@@ -42,8 +42,12 @@ the same options always gives the same game.
 ### 2.2 Merchants
 
 - Shop stock can be shuffled with everything else.
-- How random the shops are is the player's choice, as in §2.1. Pricing is
-  open.
+- How random the shops are is the player's choice: a **merchants** shuffle
+  slider, 0–100%, for how much of their stock is put in play.
+- Pricing is open. Until it is decided, a shop row keeps its own price and
+  stock, whatever item it now sells.
+- Rows paid for in items (Dragon Communion, remembrance trades) stay as they
+  are.
 
 ### 2.3 Where things land: the player's bias
 
@@ -91,6 +95,13 @@ The DLC weight of §2.3 applies to the mixed setting.
 - The ten classes' starting equipment can be randomized.
 - Nova's choice is **fully random**: any weapon, armour, talisman or spell,
   usable or not.
+- A **starting gear** shuffle slider, 0–100%, sets how much of it is put in
+  play.
+- Each slot takes an item of its own sort: weapons for weapon slots (not
+  arrows or bolts), armour for the same body part, talismans, and spells.
+- The other starting goods, such as the flasks, stay as they are, and key
+  items never start in a class's hands, since the player's class is not
+  known in advance.
 
 ### 2.7 Weapon levels and auto-upgrade
 

@@ -6,6 +6,10 @@
 //!   moves; in between, each item moves with that chance, drawn from the
 //!   seed. Items that move trade places among the slots of the items that
 //!   moved.
+//! - **Merchants and starting gear** each have a shuffle slider too: how
+//!   much of the shops' stock, and of the classes' starting weapons, armour,
+//!   talismans and spells, is put in play. What lands there leans by its own
+//!   category's bias.
 //! - **Bias** (0–100%): where moved items lean. At 0% any free slot is as
 //!   likely as any other. Higher, key items lean towards deep slots (late in
 //!   the game and hard to get at), which chains them behind one another, and
@@ -33,10 +37,32 @@ pub enum Category {
     Quest,
     /// Consumables and crafting materials.
     Consumable,
+    /// Not a kind of item but a kind of slot: what merchants sell.
+    Merchant,
+    /// Not a kind of item but a kind of slot: the classes' starting weapons,
+    /// armour, talismans and spells.
+    Starting,
 }
 
 impl Category {
-    pub const ALL: [Category; 10] = [
+    /// Every slider, item categories and kinds of slot alike.
+    pub const ALL: [Category; 12] = [
+        Category::Key,
+        Category::Weapon,
+        Category::Armour,
+        Category::Talisman,
+        Category::Spell,
+        Category::AshOfWar,
+        Category::SpiritAsh,
+        Category::Upgrade,
+        Category::Quest,
+        Category::Consumable,
+        Category::Merchant,
+        Category::Starting,
+    ];
+
+    /// The categories of item.
+    pub const ITEMS: [Category; 10] = [
         Category::Key,
         Category::Weapon,
         Category::Armour,
@@ -62,6 +88,8 @@ impl Category {
             Category::Upgrade => "upgrades",
             Category::Quest => "quest",
             Category::Consumable => "consumables",
+            Category::Merchant => "merchants",
+            Category::Starting => "starting-gear",
         }
     }
 
@@ -73,16 +101,16 @@ impl Category {
 /// Every slider of a seed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Options {
-    shuffle: [u8; 10],
-    bias: [u8; 10],
+    shuffle: [u8; 12],
+    bias: [u8; 12],
 }
 
 impl Default for Options {
     /// Everything moves, with no lean: the plainest shuffle.
     fn default() -> Self {
         Options {
-            shuffle: [100; 10],
-            bias: [0; 10],
+            shuffle: [100; 12],
+            bias: [0; 12],
         }
     }
 }

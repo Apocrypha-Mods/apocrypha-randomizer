@@ -3,12 +3,20 @@
 //! the area map asks for) only where the logic can reach them, so every seed
 //! can be finished.
 //!
-//! - **What moves.** The unit is one item slot of an item-lot row (an
-//!   [`Unit`]): the pick-up flag and the slot's chance stay where they are,
-//!   and only the item (its kind, id and count) moves. The locations shuffled
-//!   are treasure, one-time enemy drops, script awards, NPC gifts and boss
-//!   rewards ([`SHUFFLED`]). Shops, gathering, farmable drops and starting
-//!   equipment stay as they are.
+//! - **What moves.** The unit ([`Unit`]) is one place an item sits, of three
+//!   kinds ([`Place`]):
+//!   - an item slot of an item-lot row: treasure, one-time enemy drops,
+//!     script awards, NPC gifts and boss rewards ([`SHUFFLED`]). The pick-up
+//!     flag and the slot's chance stay; only the item, its kind and its count
+//!     move;
+//!   - a shop row: the item moves, while the price and stock stay with the
+//!     row. Dragon Communion and other rows paid for in items stay as they
+//!     are;
+//!   - a class's starting weapon, armour, talisman or spell slot, which takes
+//!     only an item of its own sort ([`fits`]) and never a key item.
+//!
+//!   Gathering, farmable drops and other starting goods (the flasks) stay as
+//!   they are.
 //! - **The player's sliders** ([`options`]): for each category of item, how
 //!   much of it moves (the rest stays where the unmodded game has it) and
 //!   how strongly what moves leans towards deep slots ([`depth`]).
@@ -65,11 +73,34 @@ pub const SHUFFLED: [Kind; 5] = [
 /// can corner itself, rarely, and a retry draws again from the same seed.
 const ATTEMPTS: usize = 20;
 
-/// One item slot of an item-lot row, at a location.
+/// The classes' starting slots that are put in play: weapons, armour,
+/// talismans and spells (CharaInitParam fields).
+const STARTING: [(&str, ItemKind); 4] = [
+    ("weapon", ItemKind::Weapon),
+    ("protector", ItemKind::Protector),
+    ("accessory", ItemKind::Accessory),
+    ("magic", ItemKind::Goods),
+];
+/// The ten classes' CharaInitParam rows.
+const CLASSES: std::ops::RangeInclusive<i32> = 3000..=3009;
+
+/// What kind of place a unit is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    /// Slot `slot` of an item-lot row.
+    Lot,
+    /// A ShopLineupParam row.
+    Shop,
+    /// Value `slot` of a CharaInitParam field.
+    Start(&'static str),
+}
+
+/// One place an item sits, at a location.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Unit {
     /// Index into the model's locations.
     pub location: usize,
+    pub place: Place,
     pub table: String,
     pub row: i32,
     pub slot: usize,
@@ -84,6 +115,60 @@ impl Unit {
     pub fn sure(&self) -> bool {
         self.item.chance == 1000
     }
+
+    /// The slider that decides whether this place's item moves.
+    pub fn slider(&self) -> Category {
+        match self.place {
+            Place::Lot => self.category,
+            Place::Shop => Category::Merchant,
+            Place::Start(_) => Category::Starting,
+        }
+    }
+}
+
+/// An armour piece's body part: the hundreds digit of its id.
+fn body_part(id: i32) -> i32 {
+    (id / 100) % 10
+}
+
+/// Arrows and bolts, which are weapons to the game but go in no hand.
+fn is_ammo(id: i32) -> bool {
+    (50_000_000..54_000_000).contains(&id)
+}
+
+/// Whether the item now at unit `item` may go in the place of unit `slot`.
+pub fn fits(slot: &Unit, item: &Unit) -> bool {
+    let it = &item.item;
+    match slot.place {
+        Place::Lot => true,
+        // Shops sell from the equipment tables only.
+        Place::Shop => it.kind != ItemKind::CustomWeapon,
+        Place::Start(field) => {
+            item.category != Category::Key
+                && match field {
+                    "weapon" => it.kind == ItemKind::Weapon && !is_ammo(it.id),
+                    "protector" => {
+                        it.kind == ItemKind::Protector
+                            && body_part(it.id) == body_part(slot.item.id)
+                    }
+                    "accessory" => it.kind == ItemKind::Accessory,
+                    "magic" => item.category == Category::Spell,
+                    _ => false,
+                }
+        }
+    }
+}
+
+/// ShopLineupParam's numbering of item kinds.
+fn shop_type(kind: ItemKind) -> Option<i64> {
+    Some(match kind {
+        ItemKind::Weapon => 0,
+        ItemKind::Protector => 1,
+        ItemKind::Accessory => 2,
+        ItemKind::Goods => 3,
+        ItemKind::Gem => 4,
+        ItemKind::CustomWeapon => return None,
+    })
 }
 
 /// ItemLotParam's numbering of item kinds.
@@ -211,8 +296,98 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                 };
                 out.push(Unit {
                     location: i,
+                    place: Place::Lot,
                     table: lot.table.clone(),
                     row,
+                    slot,
+                    category: category(&item, &goods_type, &keys),
+                    item,
+                });
+            }
+        }
+    }
+
+    // Shop rows paid for in runes alone.
+    let shop = for_table("ShopLineupParam").ok_or_else(|| format_err("no shop layout"))?;
+    let shop_rows: HashMap<i32, Vec<u8>> = reg
+        .table("ShopLineupParam")?
+        .rows
+        .into_iter()
+        .map(|r| (r.id, r.data))
+        .collect();
+    let mut sold = BTreeSet::new();
+    for (i, l) in model.locations.iter().enumerate() {
+        if l.kind != Kind::Shop || bound.location_unused[i] {
+            continue;
+        }
+        let (Some(row), Some(terms)) = (l.shop_row(), &l.terms) else {
+            continue;
+        };
+        if terms.currency != 0 || !terms.cost.is_empty() || !sold.insert(row) {
+            continue;
+        }
+        let Some(data) = shop_rows.get(&row) else {
+            continue;
+        };
+        let kind = match shop.field("equip_type").get(data, 0) {
+            0 => ItemKind::Weapon,
+            1 => ItemKind::Protector,
+            2 => ItemKind::Accessory,
+            3 => ItemKind::Goods,
+            4 => ItemKind::Gem,
+            _ => continue,
+        };
+        let id = shop.field("equip_id").get(data, 0) as i32;
+        if id <= 0 {
+            continue;
+        }
+        let item = Item {
+            kind,
+            id,
+            count: 1,
+            chance: 1000,
+            name: names.get(&(kind, id)).map(|n| n.to_string()),
+        };
+        out.push(Unit {
+            location: i,
+            place: Place::Shop,
+            table: "ShopLineupParam".into(),
+            row,
+            slot: 0,
+            category: category(&item, &goods_type, &keys),
+            item,
+        });
+    }
+
+    // The classes' starting weapons, armour, talismans and spells.
+    let init = for_table("CharaInitParam").ok_or_else(|| format_err("no class layout"))?;
+    for r in reg.table("CharaInitParam")?.rows {
+        if !CLASSES.contains(&r.id) {
+            continue;
+        }
+        let source = format!("CharaInitParam {}", r.id);
+        let Some(i) = model.locations.iter().position(|l| l.source == source) else {
+            continue;
+        };
+        for (field, kind) in STARTING {
+            let f = init.field(field);
+            for slot in 0..f.count {
+                let id = f.get(&r.data, slot) as i32;
+                if id <= 0 {
+                    continue;
+                }
+                let item = Item {
+                    kind,
+                    id,
+                    count: 1,
+                    chance: 1000,
+                    name: names.get(&(kind, id)).map(|n| n.to_string()),
+                };
+                out.push(Unit {
+                    location: i,
+                    place: Place::Start(field),
+                    table: "CharaInitParam".into(),
+                    row: r.id,
                     slot,
                     category: category(&item, &goods_type, &keys),
                     item,
@@ -248,11 +423,18 @@ pub fn gives<'a>(
     keys: &BTreeSet<&str>,
 ) -> Vec<Vec<&'a str>> {
     let model = bound.model;
+    // Shops whose rows are units give what the plan puts there instead.
+    let shops: BTreeSet<usize> = units
+        .iter()
+        .filter(|u| u.place == Place::Shop)
+        .map(|u| u.location)
+        .collect();
     let mut out: Vec<Vec<&'a str>> = model
         .locations
         .iter()
-        .map(|l| {
-            if SHUFFLED.contains(&l.kind) || l.kind == Kind::Starting {
+        .enumerate()
+        .map(|(i, l)| {
+            if SHUFFLED.contains(&l.kind) || l.kind == Kind::Starting || shops.contains(&i) {
                 return Vec::new();
             }
             l.items
@@ -333,10 +515,10 @@ fn attempt(
     rng: &mut Rng,
 ) -> std::result::Result<Vec<usize>, String> {
     let n = units.len();
-    // Which items move: each with its category's shuffle chance.
+    // Which items move: each with its slider's shuffle chance.
     let moving: Vec<bool> = units
         .iter()
-        .map(|u| rng.below(100) < usize::from(options.shuffle(u.category)))
+        .map(|u| rng.below(100) < usize::from(options.shuffle(u.slider())))
         .collect();
     let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();
     let mut key_units: Vec<usize> = (0..n)
@@ -347,6 +529,9 @@ fn attempt(
         .collect();
     rng.shuffle(&mut key_units);
     rng.shuffle(&mut rest);
+    // Weapons with a set affinity first: shops cannot take them, so they
+    // must not be the last left over.
+    rest.sort_by_key(|&u| units[u].item.kind != ItemKind::CustomWeapon);
 
     // Key items, by assumed fill, leaning deep.
     let lean = KEY_LEAN * strength(options.bias(Category::Key));
@@ -360,7 +545,12 @@ fn attempt(
             .collect();
         let walk = bound.walk_holding(&gives(bound, units, &placed, keys), &held);
         let free: Vec<usize> = (0..n)
-            .filter(|&u| placed[u].is_none() && open_for_key(u) && walk.taken[units[u].location])
+            .filter(|&u| {
+                placed[u].is_none()
+                    && open_for_key(u)
+                    && fits(&units[u], &units[k])
+                    && walk.taken[units[u].location]
+            })
             .collect();
         let weights: Vec<u64> = free
             .iter()
@@ -373,6 +563,23 @@ fn attempt(
             ));
         };
         placed[free[at]] = Some(k);
+    }
+
+    // Starting slots next: each takes an item of its own sort, any one.
+    let starts: Vec<usize> = (0..n)
+        .filter(|&u| placed[u].is_none() && matches!(units[u].place, Place::Start(_)))
+        .collect();
+    for u in starts {
+        let ok: Vec<usize> = (0..rest.len())
+            .filter(|&i| fits(&units[u], &units[rest[i]]))
+            .collect();
+        if ok.is_empty() {
+            return Err(format!(
+                "nothing to start with in {} {}",
+                units[u].row, units[u].slot
+            ));
+        }
+        placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
     }
 
     // Everything else, each item towards slots as deep as it is worth.
@@ -393,8 +600,24 @@ fn attempt(
             })
             .collect();
         let b = rng.weighted(&weights).ok_or("more items than slots")?;
-        let slots = &mut bands[b];
-        let u = slots.swap_remove(rng.below(slots.len()));
+        // A slot of the band that takes the item, else any slot that does.
+        let mut pick = None;
+        for _ in 0..16 {
+            let i = rng.below(bands[b].len());
+            if fits(&units[bands[b][i]], &units[from]) {
+                pick = Some((b, i));
+                break;
+            }
+        }
+        let pick = pick
+            .or_else(|| {
+                bands.iter().enumerate().find_map(|(b, slots)| {
+                    let i = slots.iter().position(|&u| fits(&units[u], &units[from]))?;
+                    Some((b, i))
+                })
+            })
+            .ok_or_else(|| format!("no slot left takes item {}", units[from].item.id))?;
+        let u = bands[pick.0].swap_remove(pick.1);
         placed[u] = Some(from);
     }
     Ok(placed
@@ -416,9 +639,50 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
     }
 }
 
-/// Write a plan into the item-lot tables.
+/// Write a plan into the item-lot, shop and class tables.
 pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
-    let tables: BTreeSet<&str> = units.iter().map(|u| u.table.as_str()).collect();
+    let rows_of = |param: &fs_param::Param| -> HashMap<i32, usize> {
+        param
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (r.id, i))
+            .collect()
+    };
+    let shop = for_table("ShopLineupParam").ok_or_else(|| format_err("no shop layout"))?;
+    let mut param = reg.table("ShopLineupParam")?;
+    let rows = rows_of(&param);
+    for (u, unit) in units
+        .iter()
+        .enumerate()
+        .filter(|(_, u)| u.place == Place::Shop)
+    {
+        let item = item_at(units, plan, u);
+        let kind = shop_type(item.kind)
+            .ok_or_else(|| format_err(format!("item {} cannot be sold", item.id)))?;
+        let data = &mut param.rows[rows[&unit.row]].data;
+        shop.field("equip_id").set(data, 0, i64::from(item.id))?;
+        shop.field("equip_type").set(data, 0, kind)?;
+    }
+    reg.set_table("ShopLineupParam", &param)?;
+    let init = for_table("CharaInitParam").ok_or_else(|| format_err("no class layout"))?;
+    let mut param = reg.table("CharaInitParam")?;
+    let rows = rows_of(&param);
+    for (u, unit) in units.iter().enumerate() {
+        let Place::Start(field) = unit.place else {
+            continue;
+        };
+        let item = item_at(units, plan, u);
+        let data = &mut param.rows[rows[&unit.row]].data;
+        init.field(field).set(data, unit.slot, i64::from(item.id))?;
+    }
+    reg.set_table("CharaInitParam", &param)?;
+
+    let tables: BTreeSet<&str> = units
+        .iter()
+        .filter(|u| u.place == Place::Lot)
+        .map(|u| u.table.as_str())
+        .collect();
     for table in tables {
         let layout =
             for_table(table).ok_or_else(|| format_err(format!("no layout for {table}")))?;
@@ -434,7 +698,11 @@ pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
             .enumerate()
             .map(|(i, r)| (r.id, i))
             .collect();
-        for (u, unit) in units.iter().enumerate().filter(|(_, u)| u.table == table) {
+        for (u, unit) in units
+            .iter()
+            .enumerate()
+            .filter(|(_, u)| u.place == Place::Lot && u.table == table)
+        {
             let item = item_at(units, plan, u);
             let data = &mut param.rows[rows[&unit.row]].data;
             id.set(data, unit.slot, i64::from(item.id))?;
@@ -612,6 +880,7 @@ mod tests {
             .enumerate()
             .map(|(i, l)| Unit {
                 location: i,
+                place: Place::Lot,
                 table: "ItemLotParam_map".into(),
                 row: i as i32,
                 slot: 0,

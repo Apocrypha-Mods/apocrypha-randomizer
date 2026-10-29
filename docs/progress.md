@@ -637,6 +637,23 @@ the seed.
 - **Weights are whole numbers** from our own `exp`, built from plain
   arithmetic, so every platform draws the same.
 - **Every option goes into the spoiler log.**
+- **Merchants and starting gear** are slots too, each with its own shuffle
+  slider: 661 shop rows paid for in runes (a row keeps its price and stock)
+  and 68 starting slots of the ten classes (weapons, armour, talismans,
+  spells). [`fits`] keeps each slot to items it can take:
+  - no weapon with a set affinity in a shop;
+  - armour for the same body part;
+  - no arrows in a hand;
+  - no key item in a class's hands.
+
+  Gate rerun with them, 2026-10-29: 10,000 default seeds in 1,120 s, 2,000
+  at full bias in 222 s, and 2,000 with merchants and starting gear held
+  still in 164 s, none failing. These ran on three threads beside the
+  Cyberpunk lab, hence the time.
+
+  The starting slots are filled first, after the key items. With shops in
+  play, key items average a depth of 0.42 at no bias, as merchants stand
+  early, and 0.70 at full bias.
 - **Gate rerun, 2026-10-29** (nice 19, four threads), none failing:
   - 10,000 seeds with the default sliders, in 567 s;
   - 2,000 with every bias at 100%, in 113 s;

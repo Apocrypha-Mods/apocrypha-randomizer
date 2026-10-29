@@ -109,9 +109,68 @@ fn every_category_has_items() {
     let (s, m) = or_skip!();
     let b = Bound::new(graph(), m);
     let units = items::units(m, &b, &s.reg).unwrap();
-    for c in items::Category::ALL {
+    for c in items::Category::ITEMS {
         let n = units.iter().filter(|u| u.category == c).count();
         eprintln!("{:<13} {n}", c.name());
         assert!(n > 0, "no {} in the shuffled slots", c.name());
+    }
+}
+
+#[test]
+fn every_item_lands_in_a_place_that_takes_it() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let count = |p: fn(&items::Place) -> bool| units.iter().filter(|u| p(&u.place)).count();
+    let shops = count(|p| *p == items::Place::Shop);
+    let starts = count(|p| matches!(p, items::Place::Start(_)));
+    eprintln!("{shops} shop rows, {starts} starting slots");
+    assert!(shops > 500 && starts > 50);
+    for seed in 0..10 {
+        let plan = items::shuffle(&b, &units, seed, &items::Options::default()).unwrap();
+        for (u, unit) in units.iter().enumerate() {
+            assert!(
+                items::fits(unit, &units[plan.placed[u]]),
+                "seed {seed}: {:?} {} {} given item {}",
+                unit.place,
+                unit.row,
+                unit.slot,
+                units[plan.placed[u]].item.id
+            );
+        }
+    }
+}
+
+#[test]
+fn shops_and_classes_are_written() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let plan = items::shuffle(&b, &units, 11, &items::Options::default()).unwrap();
+    let mut reg = fs_param::Regulation::open(std::path::Path::new(
+        &std::env::var_os("APOC_ER_STOCK").unwrap(),
+    ))
+    .unwrap();
+    items::apply(&mut reg, &units, &plan).unwrap();
+    let shop = fs_param::layout::for_table("ShopLineupParam").unwrap();
+    let init = fs_param::layout::for_table("CharaInitParam").unwrap();
+    let (shops, classes) = (
+        reg.table("ShopLineupParam").unwrap(),
+        reg.table("CharaInitParam").unwrap(),
+    );
+    for (u, unit) in units.iter().enumerate() {
+        let now = items::item_at(&units, &plan, u);
+        let got = match unit.place {
+            items::Place::Shop => {
+                let r = shops.rows.iter().find(|r| r.id == unit.row).unwrap();
+                shop.field("equip_id").get(&r.data, 0)
+            }
+            items::Place::Start(field) => {
+                let r = classes.rows.iter().find(|r| r.id == unit.row).unwrap();
+                init.field(field).get(&r.data, unit.slot)
+            }
+            items::Place::Lot => continue,
+        };
+        assert_eq!(got, i64::from(now.id), "{:?} {}", unit.place, unit.row);
     }
 }
