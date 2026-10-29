@@ -594,8 +594,12 @@ places. The 293 that matter fall in a few groups:
   where the map's treasures are 1036430000, …20 and …30 (12xxxxxx in m12,
   21xxxxxx Rada Fruit in m21, 2049xxxxxx in the Land of Shadow). Neither the
   lot nor its flag is in any map we read, any script word, or any talk
-  constant. They are either cut content or placed in a way not found yet;
-  checking two or three in play would settle which.
+  constant. **Checked in play (2026-10-29): the Confessor set is not found in
+  m60_36_43.** It is only bought (the model has it in the Twin Maiden Husks'
+  shop) or worn by the Confessor class (CharaInitParam 3006), and both match
+  the model. So this lot is cut content, and the group as a whole is taken
+  to be unused leftovers, not a source we are missing. The randomizer leaves
+  them alone.
 - **The 99 map files not found by name** hold 20 of them. Their parts are
   named `m463600_0000` and so on.
 - **15 are numbered after an enemy's entity id** (564 enemy entity ids are
@@ -630,8 +634,8 @@ The groups below are what was found as the gaps were worked through:
 
 ### Still to do for the gate
 
-- [ ] **Settle the 293 flagged, named lots:** check two or three of the
-      map-numbered ones in play, and name the 99 maps.
+- [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
+      play, above). Naming the 99 maps would account for 20 of them.
 - [ ] **The area graph and key-item requirements**, authored here (PLAN.md §1,
       rule 4). The coverage report's areas and grace names are the starting
       point.
