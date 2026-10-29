@@ -15,6 +15,11 @@
 #   play, so the randomizer neither counts on it nor puts anything there.
 # - `shop_rows` place, or rule out, ranges of shop rows that no merchant's
 #   talk script opens.
+# - `currency` names the item a shop price is paid in, by ShopLineupParam
+#   `currency`, where it is not runes.
+# - An `on_sale` entry says what turns on a flag that puts shop rows on sale,
+#   where the model does not tie it to a boss or an item handed over in talk.
+#   A row whose flag nothing explains is never counted as got.
 #
 # `apoc-fs logic <game>` checks every name against the game and walks the
 # vanilla game from the start.
@@ -863,3 +868,237 @@ last = 9999999
 unused = true
 sure = false
 note = "Plain starter weapons, armour, staves and dragon incantations (600000, 900000, 1600100, 1600400, 9000000, 9001000): lists no script opens, taken to be leftovers."
+
+# --- What puts shop rows on sale ------------------------------------------------------
+
+[currency]
+1 = "Dragon Heart"
+2 = "Starlight Shards"
+4 = "Lost Ashes of War"
+5 = "Heart of Bayle"
+
+# The Twin Maiden Husks' bell-bearing stock. The game shows no script taking
+# the bearing, but the bearings' goods ids run in the same order as the flags:
+# 8945–8948 with 11109745–748, 8951–8965 with 11109751–765, 2008902–2008909
+# with 11109792–799, and each bearing's name matches the stock.
+
+[[on_sale]]
+flag = 11109745
+items = ["Bone Peddler's Bell Bearing"]
+note = "The Husks' Thin Beast Bones, Hefty Beast Bone."
+
+[[on_sale]]
+flag = 11109746
+items = ["Meat Peddler's Bell Bearing"]
+note = "The Husks' Sliver of Meat, Lump of Flesh, Turtle Neck Meat."
+
+[[on_sale]]
+flag = 11109747
+items = ["Medicine Peddler's Bell Bearing"]
+note = "The Husks' the four boluses."
+
+[[on_sale]]
+flag = 11109748
+items = ["Gravity Stone Peddler's Bell Bearing"]
+note = "The Husks' Gravity Stone Fan and Chunk."
+
+[[on_sale]]
+flag = 11109751
+items = ["Smithing-Stone Miner's Bell Bearing [1]"]
+note = "The Husks' Smithing Stone [1] and [2]."
+
+[[on_sale]]
+flag = 11109752
+items = ["Smithing-Stone Miner's Bell Bearing [2]"]
+note = "The Husks' Smithing Stone [3] and [4], Explosive Stone."
+
+[[on_sale]]
+flag = 11109753
+items = ["Smithing-Stone Miner's Bell Bearing [3]"]
+note = "The Husks' Smithing Stone [5] and [6]."
+
+[[on_sale]]
+flag = 11109754
+items = ["Smithing-Stone Miner's Bell Bearing [4]"]
+note = "The Husks' Smithing Stone [7] and [8], Ruin Fragment."
+
+[[on_sale]]
+flag = 11109755
+items = ["Somberstone Miner's Bell Bearing [1]"]
+note = "The Husks' Somber Smithing Stone [1] and [2]."
+
+[[on_sale]]
+flag = 11109756
+items = ["Somberstone Miner's Bell Bearing [2]"]
+note = "The Husks' Somber Smithing Stone [3] and [4], Cracked Crystal."
+
+[[on_sale]]
+flag = 11109757
+items = ["Somberstone Miner's Bell Bearing [3]"]
+note = "The Husks' Somber Smithing Stone [5] and [6]."
+
+[[on_sale]]
+flag = 11109758
+items = ["Somberstone Miner's Bell Bearing [4]"]
+note = "The Husks' Somber Smithing Stone [7] and [8], Sanctuary Stone."
+
+[[on_sale]]
+flag = 11109759
+items = ["Somberstone Miner's Bell Bearing [5]"]
+note = "The Husks' Somber Smithing Stone [9]."
+
+[[on_sale]]
+flag = 11109760
+items = ["Glovewort Picker's Bell Bearing [1]"]
+note = "The Husks' Grave Glovewort [1] to [3]."
+
+[[on_sale]]
+flag = 11109761
+items = ["Glovewort Picker's Bell Bearing [2]"]
+note = "The Husks' Grave Glovewort [4] to [6]."
+
+[[on_sale]]
+flag = 11109762
+items = ["Glovewort Picker's Bell Bearing [3]"]
+note = "The Husks' Grave Glovewort [7] to [9]."
+
+[[on_sale]]
+flag = 11109763
+items = ["Ghost-Glovewort Picker's Bell Bearing [1]"]
+note = "The Husks' Ghost Glovewort [1] to [3]."
+
+[[on_sale]]
+flag = 11109764
+items = ["Ghost-Glovewort Picker's Bell Bearing [2]"]
+note = "The Husks' Ghost Glovewort [4] to [6]."
+
+[[on_sale]]
+flag = 11109765
+items = ["Ghost-Glovewort Picker's Bell Bearing [3]"]
+note = "The Husks' Ghost Glovewort [7] to [9]."
+
+[[on_sale]]
+flag = 11109792
+items = ["Herbalist's Bell Bearing"]
+note = "The Husks' Rada Fruit."
+
+[[on_sale]]
+flag = 11109793
+items = ["Mushroom-Seller's Bell Bearing [1]"]
+note = "The Husks' Redflesh Mushroom, Mushroom."
+
+[[on_sale]]
+flag = 11109794
+items = ["Mushroom-Seller's Bell Bearing [2]"]
+note = "The Husks' Whiteflesh Mushroom, Toxic Mushroom."
+
+[[on_sale]]
+flag = 11109795
+items = ["Greasemonger's Bell Bearing"]
+note = "The Husks' Knot Resin, Root Resin."
+
+[[on_sale]]
+flag = 11109796
+items = ["Moldmonger's Bell Bearing"]
+note = "The Husks' Fly Mold."
+
+[[on_sale]]
+flag = 11109797
+items = ["Igon's Bell Bearing"]
+note = "The Husks' Igon's Harpoon."
+
+[[on_sale]]
+flag = 11109798
+items = ["Spellmachinist's Bell Bearing"]
+sure = false
+note = "The Husks' Rabbath's Greatbolt: by the order of ids; the name does not say."
+
+[[on_sale]]
+flag = 11109799
+items = ["String-Seller's Bell Bearing"]
+note = "The Husks' String."
+
+# The Husks resell some tools once the player has one: m11_10's events
+# 11100796 and 11100797 set these flags when the item's own flag is on (60020,
+# 60120, 60130, 60500, the flags the rows also carry).
+
+[[on_sale]]
+flag = 11109774
+items = ["Flask of Wondrous Physick"]
+note = "Resold once held."
+
+[[on_sale]]
+flag = 11109775
+items = ["Crafting Kit"]
+note = "Resold once held."
+
+[[on_sale]]
+flag = 11109776
+items = ["Whetstone Knife"]
+note = "Resold once held."
+
+[[on_sale]]
+flag = 11109777
+items = ["Talisman Pouch"]
+note = "Resold once held."
+
+# Miriel, Pastor of Vows, takes the same scrolls and prayerbooks as Sellen
+# and Corhyn, whose scripts the model reads. Hers passes them through a call,
+# which is not followed, so the pairs are written here: the books in her
+# script's constants (8850, 8851, 8855, …) sit next to these flags, and each
+# pair is the one the game gives for Sellen or Corhyn.
+
+[[on_sale]]
+flag = 1037469300
+items = ["Conspectus Scroll"]
+note = "Miriel: Glintstone Cometshard and what comes with it."
+
+[[on_sale]]
+flag = 1037469301
+items = ["Royal House Scroll"]
+note = "Miriel: Glintblade Phalanx and what comes with it."
+
+[[on_sale]]
+flag = 1037469316
+items = ["Academy Scroll"]
+note = "Miriel: Great Glintstone Shard and what comes with it."
+
+[[on_sale]]
+flag = 1037469305
+items = ["Fire Monks' Prayerbook"]
+note = "Miriel: O, Flame! and what comes with it."
+
+[[on_sale]]
+flag = 1037469306
+items = ["Giant's Prayerbook"]
+note = "Miriel: Giantsflame Take Thee and what comes with it."
+
+[[on_sale]]
+flag = 1037469307
+items = ["Godskin Prayerbook"]
+note = "Miriel: Black Flame and what comes with it."
+
+[[on_sale]]
+flag = 1037469308
+items = ["Two Fingers' Prayerbook"]
+note = "Miriel: Lord's Heal and what comes with it."
+
+[[on_sale]]
+flag = 1037469309
+items = ["Assassin's Prayerbook"]
+note = "Miriel: Assassin's Approach and what comes with it."
+
+[[on_sale]]
+flag = 1037469312
+items = ["Golden Order Principia"]
+note = "Miriel: Radagon's Rings of Light and what comes with it."
+
+[[on_sale]]
+flag = 1037469314
+items = ["Dragon Cult Prayerbook"]
+note = "Miriel: Lightning Spear and what comes with it."
+
+[[on_sale]]
+flag = 1037469315
+items = ["Ancient Dragon Prayerbook"]
+note = "Miriel: Ancient Dragons' Lightning Spear and what comes with it."

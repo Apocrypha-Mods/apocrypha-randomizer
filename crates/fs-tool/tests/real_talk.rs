@@ -117,3 +117,41 @@ fn open_shop_opens_a_range_of_shop_rows() {
     eprintln!("OPEN_SHOP: {hit}/{} distinct first rows are rows", v.len());
     assert!(hit * 100 >= v.len() * 75);
 }
+
+#[test]
+fn handing_over_a_book_puts_its_spells_on_sale() {
+    let s = sources_or_skip!();
+    let flags_for = |script: &str, goods: i32| -> Vec<u32> {
+        s.talk
+            .iter()
+            .filter(|(_, n, _)| n == script)
+            .flat_map(|(_, _, e)| fs_esd::handover::handovers(e))
+            .filter(|h| h.goods == goods)
+            .flat_map(|h| h.flags)
+            .collect()
+    };
+    // Sellen takes the scroll first; Corhyn sets the flag first.
+    for (script, goods, flag) in [
+        ("t316211400", 8850, 1044369244), // Conspectus Scroll: Glintstone Cometshard
+        ("t316211400", 8866, 1044369250), // Academy Scroll: Great Glintstone Shard
+        ("t351001100", 8862, 11109881),   // Golden Order Principia: Radagon's Rings of Light
+        ("t351001100", 8865, 11109884),   // Ancient Dragon Prayerbook
+    ] {
+        assert_eq!(
+            flags_for(script, goods),
+            vec![flag],
+            "{script} taking {goods}"
+        );
+    }
+    // Each flag goes on sale with the shop rows it names.
+    let shop = fs_param::layout::for_table("ShopLineupParam").unwrap();
+    let on_sale: HashSet<i64> = s
+        .reg
+        .table("ShopLineupParam")
+        .unwrap()
+        .rows
+        .iter()
+        .map(|r| shop.field("on_sale_flag").get(&r.data, 0))
+        .collect();
+    assert!(on_sale.contains(&1044369244) && on_sale.contains(&11109881));
+}

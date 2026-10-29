@@ -115,6 +115,38 @@ pub struct Location {
     /// a stock two merchants share. Got at whichever is reached first.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub also: Vec<Spot>,
+    /// For a shop row, what buying it asks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terms: Option<Terms>,
+}
+
+/// What a shop row asks besides reaching its merchant.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct Terms {
+    pub price: i32,
+    /// What the price is paid in: 0 for runes, else a ShopLineupParam
+    /// `currency` that the logic names an item for (dragon communion's
+    /// Dragon Hearts).
+    #[serde(skip_serializing_if = "is_zero")]
+    pub currency: u8,
+    /// Items spent besides the price: a remembrance, for its trades.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cost: Vec<Item>,
+    /// The flag that puts the row on sale.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_sale: Option<u32>,
+    /// The boss (its GameAreaParam row) whose defeat turns that flag on, when
+    /// the event scripts set the two together.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after_boss: Option<i32>,
+    /// Items whose handing over in talk turns that flag on, any one of them:
+    /// Sellen puts Glintstone Cometshard on sale for the Conspectus Scroll.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub handed: Vec<Item>,
+}
+
+fn is_zero(v: &u8) -> bool {
+    *v == 0
 }
 
 /// A place in a map.
@@ -248,6 +280,7 @@ mod tests {
             items: vec![],
             flag: None,
             also: vec![],
+            terms: None,
         }
     }
 

@@ -12,6 +12,17 @@ pub type Id = (i32, i32);
 /// script or map gives, such as the Spectral Steed Whistle's (100000).
 pub const AWARD_ITEM_LOT: Id = (1, 104);
 
+/// Turns an event flag on or off: argument 0 the flag, argument 1 the state
+/// (1 on, 0 off). Sellen's script sets 1044369244 here, the flag that puts
+/// Glintstone Cometshard on sale (ShopLineupParam 100057).
+pub const SET_EVENT_FLAG: Id = (1, 11);
+
+/// Takes an item from the player: argument 0 its type (3 for goods, as in
+/// ShopLineupParam), argument 1 its id, argument 2 how many (-1 for all).
+/// Sellen's script takes the Conspectus Scroll (8850) here, just before
+/// setting the flag that puts Glintstone Cometshard on sale.
+pub const TAKE_ITEM: Id = (1, 52);
+
 /// Opens a shop on a range of ShopLineupParam rows: argument 0 the first row,
 /// argument 1 the last (100000 to 100024, 100050 to 100074, …). 37 of the 47
 /// distinct first rows are rows of the table; the ranges cover 550 of its

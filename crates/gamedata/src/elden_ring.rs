@@ -20,7 +20,11 @@
 //!   whose talk scripts open a range holding it (`SHOP_RANGES`: shops,
 //!   dragon communion, puppets and exchanges). A row the Twin Maiden Husks
 //!   resell (bell-bearing stock) is placed with its merchant, and at the
-//!   Roundtable only when nobody else sells it.
+//!   Roundtable only when nobody else sells it. Each row's [`Terms`] say
+//!   what buying it asks: its currency, the items its material set spends,
+//!   and the flag that puts it on sale, with the boss whose defeat sets that
+//!   flag (an event run that marks one boss defeated and sets it) or the
+//!   items whose handing over in talk does (`fs_esd::handover`).
 //! - **Starting:** the ten classes' CharaInitParam rows (3000–3009).
 //!
 //! A lot may run on into the rows after it: rows that follow a lot directly
@@ -194,7 +198,12 @@ pub fn extract(s: &Sources) -> Result<Model> {
     let mut bar_names: HashMap<u32, String> = HashMap::new();
     // The maps whose scripts turn each flag on.
     let mut set_in: HashMap<u32, HashSet<MapId>> = HashMap::new();
-    for &(map, script, common) in &scripts {
+    // The flags each run of an event turns on, and the bosses it marks
+    // defeated: by script, event and call.
+    type Run = (usize, i64, Option<Vec<u8>>);
+    let mut set_together: HashMap<Run, BTreeSet<u32>> = HashMap::new();
+    let mut defeated_in: HashMap<Run, BTreeSet<i32>> = HashMap::new();
+    for (index, &(map, script, common)) in scripts.iter().enumerate() {
         for (name, kind) in [
             ("award_item_lot", Kind::Event),
             ("award_item_lot_b", Kind::Event),
@@ -220,12 +229,25 @@ pub fn extract(s: &Sources) -> Result<Model> {
         }
         let set = catalogue::named("set_flag");
         for u in catalogue::uses(script, common, set.bank, set.id) {
-            if let (Some(m), Some(f), Some(1)) = (
-                map,
-                u.word(set.arg("flag").word),
-                u.word(set.arg("state").word),
-            ) {
+            let (Some(f), Some(1)) = (u.word(set.arg("flag").word), u.word(set.arg("state").word))
+            else {
+                continue;
+            };
+            if let Some(m) = map {
                 set_in.entry(f).or_default().insert(m);
+            }
+            set_together
+                .entry((index, u.event, u.call))
+                .or_default()
+                .insert(f);
+        }
+        let defeated = catalogue::named("boss_defeated");
+        for u in catalogue::uses(script, common, defeated.bank, defeated.id) {
+            if let Some(area) = u.word(defeated.arg("boss_area").word) {
+                defeated_in
+                    .entry((index, u.event, u.call))
+                    .or_default()
+                    .insert(area as i32);
             }
         }
         let bar = catalogue::named("boss_health_bar");
@@ -244,7 +266,14 @@ pub fn extract(s: &Sources) -> Result<Model> {
     // What the talk scripts give, and which shop rows they open.
     let mut gifts: Vec<(Option<MapId>, &str, i32)> = Vec::new();
     let mut sold_by: HashMap<i32, BTreeSet<(MapId, &str)>> = HashMap::new();
+    // The goods whose handing over turns each flag on.
+    let mut handed: HashMap<u32, BTreeSet<i32>> = HashMap::new();
     for (map, name, esd) in &s.talk {
+        for h in fs_esd::handover::handovers(esd) {
+            for f in h.flags {
+                handed.entry(f).or_default().insert(h.goods);
+            }
+        }
         for r in fs_esd::calls::resolve(esd) {
             let command = (r.bank, r.id);
             if let (AWARD_ITEM_LOT, [Some(lot), ..]) = (command, &r.args[..])
@@ -427,6 +456,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 .collect(),
             flag: lots.flag(table, id),
             also: Vec::new(),
+            terms: None,
             lot: Some(Lot {
                 table: table.into(),
                 ids,
@@ -560,6 +590,80 @@ pub fn extract(s: &Sources) -> Result<Model> {
         ));
     }
 
+    // Flags an event turns on as it marks one boss defeated: the one boss
+    // `boss_defeated` names, or else the one whose defeat flag it sets
+    // (Morgott's event also sets Margit's). On once that boss is beaten.
+    let defeats: HashMap<u32, i32> = model
+        .bosses
+        .iter()
+        .filter(|b| b.defeat_flag != 0)
+        .map(|b| (b.defeat_flag, b.area))
+        .collect();
+    let areas: HashSet<i32> = model.bosses.iter().map(|b| b.area).collect();
+    let mut after_boss: HashMap<u32, Option<i32>> =
+        defeats.iter().map(|(&f, &b)| (f, Some(b))).collect();
+    for (run, flags) in &set_together {
+        let named: BTreeSet<i32> = defeated_in
+            .get(run)
+            .into_iter()
+            .flatten()
+            .copied()
+            .filter(|a| areas.contains(a))
+            .collect();
+        let bosses = if named.is_empty() {
+            flags
+                .iter()
+                .filter_map(|f| defeats.get(f).copied())
+                .collect()
+        } else {
+            named
+        };
+        let [boss] = bosses.into_iter().collect::<Vec<_>>()[..] else {
+            continue;
+        };
+        for &f in flags.iter().filter(|f| !defeats.contains_key(f)) {
+            // A flag tied to two bosses is tied to neither.
+            let e = after_boss.entry(f).or_insert(Some(boss));
+            if *e != Some(boss) {
+                *e = None;
+            }
+        }
+    }
+
+    // What shop rows cost besides the price.
+    let mtrl = layout("EquipMtrlSetParam");
+    let materials: HashMap<i32, Vec<Item>> = s
+        .reg
+        .table("EquipMtrlSetParam")?
+        .rows
+        .iter()
+        .map(|r| {
+            let (id, count, category) = (
+                mtrl.field("item_id"),
+                mtrl.field("count"),
+                mtrl.field("category"),
+            );
+            let items = (0..id.count)
+                .filter_map(|i| {
+                    let item = id.get(&r.data, i) as i32;
+                    let kind = match category.get(&r.data, i) {
+                        1 => ItemKind::Protector,
+                        4 => ItemKind::Goods,
+                        _ => return None,
+                    };
+                    (item > 0).then(|| Item {
+                        kind,
+                        id: item,
+                        count: u32::try_from(count.get(&r.data, i)).unwrap_or(1),
+                        chance: 1000,
+                        name: names.of(kind, item),
+                    })
+                })
+                .collect();
+            (r.id, items)
+        })
+        .collect();
+
     // Shops.
     let shop = layout("ShopLineupParam");
     for r in &s.reg.table("ShopLineupParam")?.rows {
@@ -594,6 +698,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             let talk: Vec<&str> = o.iter().map(|o| o.1).collect();
             source += &format!(" (talk {})", talk.join(", "));
         }
+        let on_sale = Some(shop.field("on_sale_flag").get(&r.data, 0) as u32).filter(|&f| f != 0);
         let first = spots.first().copied();
         model.locations.push(Location {
             kind: Kind::Shop,
@@ -611,6 +716,28 @@ pub fn extract(s: &Sources) -> Result<Model> {
             }],
             flag: None,
             also: spots.into_iter().skip(1).collect(),
+            terms: Some(Terms {
+                price: shop.field("value").get(&r.data, 0) as i32,
+                currency: shop.field("currency").get(&r.data, 0) as u8,
+                cost: materials
+                    .get(&(shop.field("mtrl_set_id").get(&r.data, 0) as i32))
+                    .cloned()
+                    .unwrap_or_default(),
+                on_sale,
+                after_boss: on_sale.and_then(|f| after_boss.get(&f).copied().flatten()),
+                handed: on_sale
+                    .and_then(|f| handed.get(&f))
+                    .into_iter()
+                    .flatten()
+                    .map(|&id| Item {
+                        kind: ItemKind::Goods,
+                        id,
+                        count: 1,
+                        chance: 1000,
+                        name: names.of(ItemKind::Goods, id),
+                    })
+                    .collect(),
+            }),
         });
     }
 
@@ -656,6 +783,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             items,
             flag: None,
             also: Vec::new(),
+            terms: None,
         });
     }
 

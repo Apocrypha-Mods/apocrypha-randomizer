@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 
 ## Phase 0: setup
 
@@ -218,13 +218,14 @@ EMEVD, MSB or play), and the evidence either way.
 | Table | Confirmed | Probable | How they were settled |
 | --- | --- | --- | --- |
 | `ItemLotParam_map`, `_enemy` | 8 × item id, category, weight, count; get-item flag | — | Item ids fall in the table their category names (92–100% per category). Slots 1–7 are empty together in all but 2 of 75,089 slots. Weights sum to exactly 1000 in 97–98% of rows. |
-| `ShopLineupParam`, `_Recipe` | equip id, equip type, material set | price, two flags, stock | Equip ids fall in the table their type names, 97–100% for each type. Material sets resolve in 583 of 588 rows. |
+| `ShopLineupParam`, `_Recipe` | equip id, equip type, material set | price, on-sale flag, the other flag, stock, currency | Equip ids fall in the table their type names, 97–100% for each type. Material sets resolve in 583 of 588 rows. |
 | `NpcParam` | name, enemy item lot, map item lot | — | 213/223 names are NpcName ids; 98% and 100% of the lots are rows of those tables. |
 | `CharaInitParam` | 4 × weapon, 4 × armor, 4 × ammo, 4 × talisman, 7 × spell, 19 goods slots in three runs | 2 × extra weapon | Every slot of the ten class rows (3000–3009) resolves. Armor slot i holds ids with hundreds digit i in all but 11 of 11,880 values. |
 | `EquipParamGoods` | goods type | — | Read off the item names: 0 is other items, 1 crafting materials, 2 upgrade materials, 3 Great Runes, quest items and sorceries, 4 incantations, 6 letters and notes, 7 tutorials. |
 | `EquipParamWeapon` | reinforce type | — | 32 of 33 values are rows of ReinforceParamWeapon, the start of an upgrade path. A path ending at +10 is somber (Moonveil: 2200); one ending at +25 is regular. |
 | `GameAreaParam` | defeat flag | runes ×2, position | Round rune values on boss-like ids; the flags look like event flags; three floats. |
 | `BonfireWarpParam` | grace name, sub category, entity id | found flag, position | 419 of 422 names are PlaceName ids, and 419 entity ids are assets placed in the maps. The flags are unique per grace, in 71000–76960. |
+| `EquipMtrlSetParam` | 6 × item id, category | 6 × count | Category 4 ids are EquipParamGoods rows (93% in slot 0), category 1 ids EquipParamProtector rows (99%); filled in 831, 165, 97, 24, 34 and 1 rows. |
 | `AssetEnvironmentGeometryParam` | pick-up lot, its prompt | break lot | Rows are asset models (99683 is AEG099_683). The pick-up lot is set in exactly the rows where the prompt (an ActionButtonParam row) is; 99% are ItemLotParam_map rows. A second lot column holds 15 values. |
 
 Two developer commands support this:
@@ -509,7 +510,15 @@ they end up with.
 | --- | --- | --- |
 | 1[104] | `AWARD_ITEM_LOT` | argument 0 is an ItemLotParam_map row in 122 of 128 distinct values |
 | 1[22] | `OPEN_SHOP` | arguments 0 and 1 are the first and last ShopLineupParam rows of a range (100000–100024, …); 37 of 47 first rows are rows |
-| 1[52] | (not catalogued) | (3, a goods id, -1): takes an item from the player (Deathroot to Gurranq) |
+| 1[11] | `SET_EVENT_FLAG` | (flag, 1): Sellen's script sets 1044369244, the on-sale flag of Glintstone Cometshard |
+| 1[52] | `TAKE_ITEM` | (3, a goods id, -1): takes an item from the player (the Conspectus Scroll to Sellen) |
+
+**Handovers** (`handover.rs`). A state that takes one item, and the flags
+turned on in the states that lead into it or follow it with no choice
+between, pair the item with the flags. Sellen takes the scroll and then sets
+the flag; Corhyn sets the flag and then takes the prayerbook. Every scroll and
+prayerbook the two take pairs this way. Items and flags passed
+through a call are not followed, which leaves Miriel's out.
 
 `1[144]` and `1[146]` also take shop-row ranges; they are not catalogued yet.
 
@@ -627,10 +636,9 @@ The groups below are what was found as the gaps were worked through:
       item.
 - [ ] **The 99 maps and 45 scripts not found by name** (Phase 2) are not seen
       at all.
-- [ ] **Shops.** The `OPEN_SHOP` ranges cover 550 of 1,296 rows. Most
-      merchants are opened from several maps (the Twin Maiden Husks resell what
-      bell bearings unlock), so only 98 rows get a single map. Which of the two
-      shop flags records a purchase waits on play.
+- [x] **Shops.** Placed where their merchants stand (below). Of the two
+      flags, the second puts a row on sale (below); the first is probably
+      the item's own got flag, as the Husks' resale events test it.
 
 ### The area map
 
@@ -700,11 +708,54 @@ with the rest:
   at 600000, 900000, 1600100, 1600400, 9000000) are taken to be leftovers,
   marked for checking.
 
-`crates/logic/tests/real_graph.rs` holds three things:
+#### What buying asks
+
+Each shop row in the model carries its terms (`gamedata::model::Terms`), and
+the walk counts a row as got only once they are met:
+
+- **Currency.** ShopLineupParam byte 0x18 says what the price is paid in. The
+  area map names the item: 1 Dragon Heart (dragon communion), 2 Starlight
+  Shards (Seluvis's puppets), 4 Lost Ashes of War, 5 Heart of Bayle.
+- **Material cost.** The row's EquipMtrlSetParam set: a remembrance for its
+  trades (the Axe of Godrick costs the Remembrance of the Grafted).
+- **The on-sale flag** (ShopLineupParam +0x10), explained in one of three
+  ways, in order:
+  1. **A boss.** An event run that marks one boss defeated (`boss_defeated`
+     names it, or else it sets the boss's defeat flag) and turns the flag on.
+     121 rows: Enia's boss armour (Radahn's set on 9130, which Caelid's map
+     sets just after his defeat flag), the remembrance rebuys, and dragon
+     communion's dragon incantations.
+  2. **An item handed over in talk** (`fs_esd::handover`, above). 26 rows:
+     Sellen's and Corhyn's spells, Seluvis's puppets for his potion, Gowry's
+     Pest Threads for the Valkyrie's Prosthesis.
+  3. **An `on_sale` entry** in the area map. 27 bell bearings for the Twin
+     Maiden Husks' stock, written from the order of the bearings' goods ids,
+     which runs with the flags' (8951–8965 with 11109751–765), and each
+     bearing's name matching its stock. Also the Husks' resale of the
+     Crafting Kit and three other tools once held, and Miriel's eleven
+     books.
+- **Nothing explains it:** the row is never counted. On 2026-10-29 that is
+  58 rows behind 26 flags. `apoc-fs logic` lists them; among them are Patches'
+  stock, Thiollier's poisons, Seluvis's copies of the scroll spells, and the
+  Husks' Spirit Calling Bell.
+
+Counts are not modelled: holding one Dragon Heart opens every communion row.
+
+Adding the terms showed a fault in the walk: a location giving two items
+stopped at the first new one. Messmer's lot gives his Remembrance and then
+Messmer's Kindling, so with Enia's free Remembrance now waiting for Messmer,
+the Kindling was lost and Enir-Ilim never opened. The walk now takes every
+item.
+
+`crates/logic/tests/real_graph.rs` holds four things:
 
 - every shop row has an area or is ruled out;
 - the Crafting Kit is first placed where Kalé stands, in Limgrave;
-- a location offered in two places is got at either.
+- a location offered in two places is got at either;
+- rows wait for their terms: Radahn's armour for Radahn, the Axe of Godrick
+  for its remembrance, Dragonclaw for a Dragon Heart, Sellen's Cometshard for
+  the Conspectus Scroll, and the Husks' Smithing Stone [1] for its bell
+  bearing.
 
 After this, 560 locations are unused (559 shop rows and the Leyndell
 medallion half). Only 24 are left "anywhere": 10 classes, 5 script awards
@@ -763,9 +814,7 @@ expansion is drafted with less confidence than the base game.
 
 - [ ] **Review the area map** (the list above) and correct the data file.
 - [x] **Place the merchants** (above).
-- [ ] **Shop requirements.** Enia's stock needs the boss beaten or the
-      remembrance held, bell-bearing stock needs the bell bearing, and
-      Dragon Communion needs Dragon Hearts. None of these is modelled yet.
+- [x] **Shop requirements** (below).
 - [ ] **The play-through review** of the coverage report.
 - [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
       play, above). Naming the 99 maps would account for 20 of them.

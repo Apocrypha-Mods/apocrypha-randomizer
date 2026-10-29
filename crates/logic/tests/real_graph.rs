@@ -125,3 +125,56 @@ fn kale_sells_the_crafting_kit_in_limgrave() {
         "first place: where Kalé stands"
     );
 }
+
+/// The terms of the shop row selling `item`, read through the bound graph.
+fn terms_of<'a>(b: &'a Bound, item: &str, kind_row: impl Fn(i32) -> bool) -> &'a logic::Terms<'a> {
+    let (i, _) = b
+        .model
+        .locations
+        .iter()
+        .enumerate()
+        .find(|(_, l)| {
+            l.shop_row().is_some_and(&kind_row)
+                && l.items.iter().any(|it| it.name.as_deref() == Some(item))
+        })
+        .unwrap_or_else(|| panic!("no shop row sells {item}"));
+    &b.location_terms[i]
+}
+
+#[test]
+fn shop_rows_wait_for_what_puts_them_on_sale() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let any = |_| true;
+    // Enia's armour once its boss is beaten.
+    let radahn = logic::find_boss(m, "Starscourge Radahn").unwrap();
+    assert_eq!(
+        terms_of(&b, "Radahn's Redmane Helm", any).bosses,
+        vec![radahn]
+    );
+    // Remembrance trades spend the remembrance.
+    assert_eq!(
+        terms_of(&b, "Axe of Godrick", any).items,
+        vec!["Remembrance of the Grafted"]
+    );
+    // Dragon communion spends Dragon Hearts.
+    assert!(
+        terms_of(&b, "Dragonclaw", any)
+            .items
+            .contains(&"Dragon Heart")
+    );
+    // Sellen sells the Cometshard for the Conspectus Scroll (read from her
+    // script), the Husks the smithing stones for their bell bearing (written
+    // in the graph).
+    assert!(
+        terms_of(&b, "Glintstone Cometshard", |r| r == 100057)
+            .any_of
+            .contains(&"Conspectus Scroll")
+    );
+    let stones = terms_of(&b, "Smithing Stone [1]", |r| r == 101808);
+    assert_eq!(stones.needs.len(), 1);
+    assert_eq!(
+        stones.needs[0].items,
+        vec!["Smithing-Stone Miner's Bell Bearing [1]"]
+    );
+}

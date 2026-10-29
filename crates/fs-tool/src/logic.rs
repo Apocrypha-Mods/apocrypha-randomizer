@@ -29,6 +29,22 @@ pub fn run(game: PathBuf) -> Result<()> {
         "unused locations (never given in play): {}",
         b.location_unused.iter().filter(|u| **u).count()
     );
+    // Shop rows on sale behind a flag nothing explains, by flag.
+    let mut unexplained: BTreeMap<u32, Vec<&str>> = BTreeMap::new();
+    for (l, t) in model.locations.iter().zip(&b.location_terms) {
+        if let Some(f) = t.unexplained {
+            let name = l.items.first().and_then(|i| i.name.as_deref());
+            unexplained.entry(f).or_default().push(name.unwrap_or("?"));
+        }
+    }
+    println!(
+        "shop rows never counted, their on-sale flag unexplained: {} ({} flags)",
+        unexplained.values().map(Vec::len).sum::<usize>(),
+        unexplained.len()
+    );
+    for (f, names) in &unexplained {
+        println!("  {f}: {}", names.join(", "));
+    }
     println!("\nproblems: {}", b.problems.len());
     for p in &b.problems {
         println!("  {p}");

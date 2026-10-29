@@ -12,6 +12,12 @@
 //!
 //! Locations none of these reach are *anywhere*: taken as reachable from the
 //! start, and counted so the draft can be tightened.
+//!
+//! A shop row also asks what its [`gamedata::model::Terms`] say: the items
+//! its price and material set spend, and the flag that puts it on sale. That
+//! flag is explained by the model (a boss beaten, an item handed over) or by
+//! an `on_sale` entry here; a row whose flag nothing explains is never
+//! counted as got.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -128,6 +134,20 @@ pub struct ShopRows {
     pub note: String,
 }
 
+/// What turns on a flag that puts shop rows on sale, where the model does
+/// not tie it to a boss or a handover: the Twin Maiden Husks' stock, for one,
+/// goes on sale when its bell bearing is handed over.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OnSale {
+    pub flag: u32,
+    #[serde(flatten)]
+    pub need: Need,
+    #[serde(default = "yes")]
+    pub sure: bool,
+    pub note: String,
+}
+
 fn yes() -> bool {
     true
 }
@@ -147,11 +167,34 @@ pub struct Graph {
     pub unused: Vec<Unused>,
     #[serde(default)]
     pub shop_rows: Vec<ShopRows>,
+    /// The item a shop price is paid in, by ShopLineupParam `currency`
+    /// (`"1" = "Dragon Heart"`); runes need none.
+    #[serde(default)]
+    pub currency: BTreeMap<String, String>,
+    #[serde(default)]
+    pub on_sale: Vec<OnSale>,
 }
 
 /// Elden Ring's graph.
 pub fn elden_ring() -> Graph {
     toml::from_str(ELDEN_RING).expect("data/elden_ring.toml parses")
+}
+
+/// What getting a location asks besides reaching it: all of it.
+#[derive(Debug, Clone, Default)]
+pub struct Terms<'a> {
+    /// A `place` or `on_sale` entry's need.
+    pub needs: Vec<&'a Need>,
+    /// Items to hold: a shop's currency and its material cost. How many is
+    /// not counted.
+    pub items: Vec<&'a str>,
+    /// Items of which one is enough: the ones whose handing over puts a
+    /// shop row on sale.
+    pub any_of: Vec<&'a str>,
+    /// Bosses to have beaten, by index in the model.
+    pub bosses: Vec<usize>,
+    /// For a shop row whose on-sale flag nothing explains: never got.
+    pub unexplained: Option<u32>,
 }
 
 /// The graph bound to a model: every name resolved, every location in an
@@ -163,7 +206,8 @@ pub struct Bound<'a> {
     pub location_area: Vec<Option<usize>>,
     /// For each location, the areas of the other places it is offered.
     pub location_also: Vec<Vec<usize>>,
-    pub location_need: Vec<Option<&'a Need>>,
+    /// What getting each location asks besides reaching its area.
+    pub location_terms: Vec<Terms<'a>>,
     /// Locations an `unused` entry rules out.
     pub location_unused: Vec<bool>,
     /// For each boss, its area.
@@ -264,6 +308,7 @@ impl<'a> Bound<'a> {
         let mut needs: Vec<&Need> = graph.edges.iter().map(|e| &e.need).collect();
         needs.push(&graph.goal);
         needs.extend(graph.places.iter().map(|p| &p.need));
+        needs.extend(graph.on_sale.iter().map(|o| &o.need));
         for n in &needs {
             for item in n.items.iter().chain(n.any.iter().flat_map(|a| &a.items)) {
                 if !item_names.contains(item.as_str()) {
@@ -274,6 +319,29 @@ impl<'a> Bound<'a> {
                 if let Err(p) = find_boss(model, b) {
                     problems.push(p);
                 }
+            }
+        }
+        for (k, item) in &graph.currency {
+            if k.parse::<u8>().is_err() {
+                problems.push(format!("currency {k} is not a number"));
+            }
+            if !item_names.contains(item.as_str()) {
+                problems.push(format!(
+                    "currency {k}: no item {item} anywhere in the model"
+                ));
+            }
+        }
+        let flags_used: BTreeSet<u32> = model
+            .locations
+            .iter()
+            .filter_map(|l| l.terms.as_ref()?.on_sale)
+            .collect();
+        for o in &graph.on_sale {
+            if !flags_used.contains(&o.flag) {
+                problems.push(format!("on_sale {}: no shop row waits on it", o.flag));
+            }
+            if graph.on_sale.iter().filter(|p| p.flag == o.flag).count() > 1 {
+                problems.push(format!("on_sale {} is listed twice", o.flag));
             }
         }
 
@@ -368,7 +436,7 @@ impl<'a> Bound<'a> {
                 .iter()
                 .find(|r| (r.first..=r.last).contains(&row) && l.map.is_none())
         };
-        let location_unused = model
+        let location_unused: Vec<bool> = model
             .locations
             .iter()
             .map(|l| {
@@ -382,11 +450,22 @@ impl<'a> Bound<'a> {
             .collect();
         let mut location_area = Vec::with_capacity(model.locations.len());
         let mut location_also = Vec::with_capacity(model.locations.len());
-        let mut location_need = Vec::with_capacity(model.locations.len());
-        for l in &model.locations {
+        let mut location_terms = Vec::with_capacity(model.locations.len());
+        let boss_index: HashMap<i32, usize> = model
+            .bosses
+            .iter()
+            .enumerate()
+            .map(|(i, b)| (b.area, i))
+            .collect();
+        for (l, &unused) in model.locations.iter().zip(&location_unused) {
             let pos = l.position.or_else(|| enemy_at.get(&l.entity?).copied());
             let placed = place_of(l);
-            location_need.push(placed.map(|p| &p.need));
+            let mut terms = Terms::default();
+            terms.needs.extend(placed.map(|p| &p.need));
+            if let Some(t) = l.terms.as_ref().filter(|_| !unused) {
+                Self::shop_terms(graph, t, &boss_index, &mut terms, &mut problems);
+            }
+            location_terms.push(terms);
             location_area.push(
                 placed
                     .and_then(|p| area_index.get(p.area.as_str()).copied())
@@ -420,10 +499,48 @@ impl<'a> Bound<'a> {
             model,
             location_area,
             location_also,
-            location_need,
+            location_terms,
             location_unused,
             boss_area,
             problems,
+        }
+    }
+
+    /// What a shop row's terms ask, in the graph's words.
+    fn shop_terms(
+        graph: &'a Graph,
+        t: &'a gamedata::model::Terms,
+        boss_index: &HashMap<i32, usize>,
+        terms: &mut Terms<'a>,
+        problems: &mut Vec<String>,
+    ) {
+        if t.currency != 0 {
+            match graph.currency.get(&t.currency.to_string()) {
+                Some(item) => terms.items.push(item),
+                None => {
+                    let p = format!("no item named for shop currency {}", t.currency);
+                    if !problems.contains(&p) {
+                        problems.push(p);
+                    }
+                }
+            }
+        }
+        terms
+            .items
+            .extend(t.cost.iter().filter_map(|i| i.name.as_deref()));
+        let Some(flag) = t.on_sale else {
+            return;
+        };
+        if let Some(b) = t.after_boss.and_then(|a| boss_index.get(&a)) {
+            terms.bosses.push(*b);
+        } else if !t.handed.is_empty() {
+            terms
+                .any_of
+                .extend(t.handed.iter().filter_map(|i| i.name.as_deref()));
+        } else if let Some(o) = graph.on_sale.iter().find(|o| o.flag == flag) {
+            terms.needs.push(&o.need);
+        } else {
+            terms.unexplained = Some(flag);
         }
     }
 
@@ -455,10 +572,13 @@ impl<'a> Bound<'a> {
                 }
                 let here = self.location_area[i].is_none_or(|a| reached[a])
                     || self.location_also[i].iter().any(|&a| reached[a]);
-                let ok = self.location_need[i].is_none_or(|need| self.met(need, &items, &reached));
+                let ok = self.allows(&self.location_terms[i], &items, &reached);
                 if here && ok {
                     taken[i] = true;
-                    changed |= g.iter().any(|it| items.insert(it));
+                    // Every item, not just up to the first new one.
+                    for it in g {
+                        changed |= items.insert(it);
+                    }
                 }
             }
             for e in &self.graph.edges {
@@ -502,6 +622,16 @@ impl<'a> Bound<'a> {
                 l.items.iter().filter_map(|i| i.name.as_deref()).collect()
             })
             .collect()
+    }
+
+    fn allows(&self, t: &Terms, items: &BTreeSet<&str>, reached: &[bool]) -> bool {
+        t.unexplained.is_none()
+            && t.needs.iter().all(|n| self.met(n, items, reached))
+            && t.items.iter().all(|i| items.contains(i))
+            && (t.any_of.is_empty() || t.any_of.iter().any(|i| items.contains(i)))
+            && t.bosses
+                .iter()
+                .all(|&b| self.boss_area[b].is_some_and(|a| reached[a]))
     }
 
     fn met(&self, need: &Need, items: &BTreeSet<&str>, reached: &[bool]) -> bool {
@@ -575,6 +705,7 @@ mod tests {
             items: items.iter().map(|n| item(n)).collect(),
             flag: None,
             also: vec![],
+            terms: None,
         }
     }
 
@@ -699,6 +830,97 @@ mod tests {
         assert_eq!(b.location_area[0], Some(2));
         assert_eq!(b.location_also[0], vec![0]);
         assert!(b.walk(&b.vanilla()).goal);
+    }
+
+    #[test]
+    fn a_location_gives_every_item_even_when_the_first_is_held() {
+        let (g, mut m) = (graph(), model());
+        // The cave's key comes second, after an item already held.
+        m.locations[0].items.insert(0, item("Prize"));
+        m.locations
+            .push(at(MapId([60, 40, 37, 0]), [0.0; 3], &["Prize"]));
+        let b = Bound::new(&g, &m);
+        assert!(b.walk(&b.vanilla()).goal);
+    }
+
+    /// The key sold in the first area, on the terms given.
+    fn shop(terms: gamedata::model::Terms) -> (Graph, Model) {
+        let (mut g, mut m) = (graph(), model());
+        m.locations[0].kind = Kind::Shop;
+        m.locations[0].source = "ShopLineupParam 100000".into();
+        m.locations[0].terms = Some(terms);
+        // A boss of the first area, and a heart to pay with.
+        m.bosses.push(Boss {
+            area: 2,
+            map: Some(MapId([60, 40, 37, 0])),
+            entity: None,
+            name: Some("Warden".into()),
+            defeat_flag: 2,
+        });
+        m.locations
+            .push(at(MapId([60, 40, 37, 0]), [0.0; 3], &["Heart"]));
+        g.currency.insert("1".into(), "Heart".into());
+        (g, m)
+    }
+
+    fn opens_cave(g: &Graph, m: &Model, gives_heart: bool) -> bool {
+        let b = Bound::new(g, m);
+        assert!(b.problems.is_empty(), "{:?}", b.problems);
+        let mut gives = b.vanilla();
+        if !gives_heart {
+            gives[2].clear();
+        }
+        b.walk(&gives).goal
+    }
+
+    #[test]
+    fn a_shop_row_asks_for_its_currency_and_costs() {
+        let terms = gamedata::model::Terms {
+            currency: 1,
+            ..Default::default()
+        };
+        let (g, mut m) = shop(terms);
+        assert!(opens_cave(&g, &m, true));
+        assert!(!opens_cave(&g, &m, false), "bought with no heart");
+        m.locations[0].terms = Some(gamedata::model::Terms {
+            cost: vec![item("Heart")],
+            ..Default::default()
+        });
+        assert!(opens_cave(&g, &m, true));
+        assert!(!opens_cave(&g, &m, false), "traded with no heart");
+    }
+
+    #[test]
+    fn a_shop_row_waits_for_what_puts_it_on_sale() {
+        let on_sale = |after_boss, handed: &[&str]| gamedata::model::Terms {
+            on_sale: Some(7),
+            after_boss,
+            handed: handed.iter().map(|n| item(n)).collect(),
+            ..Default::default()
+        };
+        // After a boss of the area: on sale.
+        let (g, m) = shop(on_sale(Some(2), &[]));
+        assert!(opens_cave(&g, &m, false));
+        // After the cave's own boss: never, as the cave needs the key.
+        let (g, m) = shop(on_sale(Some(1), &[]));
+        assert!(!opens_cave(&g, &m, false));
+        // After handing over a heart.
+        let (g, m) = shop(on_sale(None, &["Heart"]));
+        assert!(opens_cave(&g, &m, true));
+        assert!(!opens_cave(&g, &m, false));
+        // A flag nothing explains: never; one the graph explains: as it says.
+        let (mut g, m) = shop(on_sale(None, &[]));
+        assert!(!opens_cave(&g, &m, false));
+        g.on_sale.push(OnSale {
+            flag: 7,
+            need: Need {
+                bosses: vec!["Warden".into()],
+                ..Default::default()
+            },
+            sure: true,
+            note: String::new(),
+        });
+        assert!(opens_cave(&g, &m, false));
     }
 
     #[test]

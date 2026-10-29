@@ -27,6 +27,7 @@
 pub mod calls;
 pub mod commands;
 pub mod expr;
+pub mod handover;
 
 use fs_bytes::{self as rd, Error, Result, format_err};
 
@@ -394,6 +395,17 @@ impl Esd {
     /// The states of a state machine.
     pub fn states_of(&self, g: &Group) -> &[State] {
         Self::records(&self.states, self.states_at(), STATE_LEN, g.states)
+    }
+
+    /// The state a condition moves to, by its offset, with its index.
+    pub fn state_at(&self, offset: i64) -> Option<(usize, &State)> {
+        let i = usize::try_from(offset)
+            .ok()?
+            .checked_sub(self.states_at())?;
+        if i % STATE_LEN != 0 {
+            return None;
+        }
+        self.states.get(i / STATE_LEN).map(|s| (i / STATE_LEN, s))
     }
 
     /// The commands a span names.

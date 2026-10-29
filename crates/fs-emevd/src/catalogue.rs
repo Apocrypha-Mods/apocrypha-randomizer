@@ -192,6 +192,9 @@ pub struct Use {
     pub event: i64,
     /// For an event started from the script, the event that started it.
     pub caller: Option<i64>,
+    /// For an event started from the script, the arguments it was started
+    /// with: uses with the same event and call ran together.
+    pub call: Option<Vec<u8>>,
     /// The arguments, with every placeholder filled in from the call.
     pub args: Vec<u8>,
 }
@@ -273,6 +276,7 @@ impl Walk<'_> {
                 out.push(Use {
                     event: ev.id,
                     caller: call.map(|c| c.1),
+                    call: call.map(|c| c.0.to_vec()),
                     args: args.clone(),
                 });
             }

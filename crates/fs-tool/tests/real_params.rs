@@ -221,6 +221,38 @@ fn shop_ids_belong_to_the_table_their_type_names() {
 }
 
 #[test]
+fn material_ids_belong_to_the_table_their_category_names() {
+    let reg = regulation_or_skip!();
+    let tables: HashMap<i64, HashSet<i64>> = [(1, "EquipParamProtector"), (4, "EquipParamGoods")]
+        .into_iter()
+        .map(|(c, t)| (c, ids(reg, t)))
+        .collect();
+    let l = layout::for_table("EquipMtrlSetParam").unwrap();
+    let (id, cat) = (l.field("item_id"), l.field("category"));
+    let mut seen: HashMap<i64, (usize, usize)> = HashMap::new();
+    for r in &reg.table("EquipMtrlSetParam").unwrap().rows {
+        for i in 0..id.count {
+            let v = id.get(&r.data, i);
+            if v == -1 {
+                continue;
+            }
+            let c = cat.get(&r.data, i);
+            let e = seen.entry(c).or_default();
+            e.1 += 1;
+            e.0 += usize::from(tables.get(&c).is_some_and(|s| s.contains(&v)));
+        }
+    }
+    eprintln!("{seen:?}");
+    assert_eq!(
+        seen.keys().copied().collect::<HashSet<_>>(),
+        HashSet::from([1, 4])
+    );
+    for (c, (hit, all)) in &seen {
+        assert!(pct(*hit, *all) >= 90.0, "category {c} matches {hit}/{all}");
+    }
+}
+
+#[test]
 fn npc_item_lots_point_at_item_lot_rows() {
     let reg = regulation_or_skip!();
     let l = layout::for_table("NpcParam").unwrap();

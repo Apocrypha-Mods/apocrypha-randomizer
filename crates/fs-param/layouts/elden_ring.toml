@@ -128,14 +128,18 @@ rows. 21 are tested or set directly by the event scripts, so these are event
 flags. Likely tracks how many were bought; to be confirmed in play."""
 
 [[layout.field]]
-name = "event_flag_b"
+name = "on_sale_flag"
 offset = 0x10
 kind = "u32"
 confidence = "probable"
 evidence = """
 237 distinct values in event-flag-like ranges, 0 in 816 rows. 61% occur in the
-event scripts, 48 tested or set directly, so these are event flags. Likely
-gates whether the item is on sale; to be confirmed in play."""
+event scripts, 48 tested or set directly, so these are event flags. The flag
+that puts the row on sale: Finger Reader Enia's boss armour carries the flag
+each boss's map script sets as the boss dies (Radahn's set, 101507–101510,
+carries 9130, which m60_52_38's script sets just after his defeat flag
+1252380800), and the Twin Maiden Husks' bell-bearing stock carries flags that
+common event 60701 sets in pairs. To be confirmed in play."""
 
 [[layout.field]]
 name = "sell_quantity"
@@ -153,6 +157,65 @@ kind = "u8"
 confidence = "confirmed"
 evidence = "Values 0..5; each picks the table equip_id refers to (see equip_id). 5 appears once."
 values = { "0" = "weapon", "1" = "protector", "2" = "accessory", "3" = "goods", "4" = "gem" }
+
+[[layout.field]]
+name = "currency"
+offset = 0x18
+kind = "u8"
+confidence = "probable"
+evidence = """
+What the price is paid in. 0 in 1,137 rows. 1 in 22: the rows the dragon
+communion altars open (Dragonfire 1, Agheel's Flame 2), so Dragon Hearts. 2 in
+9: Seluvis's puppets, priced 2 to 5, and four unused incantation lists. 3 in 5,
+all in unused lists. 4 in 121: Ash of War duplication (112000 on), priced 1. 5
+in 2: Bayle's Tyranny and Bayle's Flame Lightning, priced 1. Which item each
+value spends is set by the logic graph (crates/logic/data)."""
+values = { "0" = "runes", "1" = "dragon communion", "2" = "puppets", "4" = "ash of war duplication", "5" = "Bayle's incantations" }
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "EQUIP_MTRL_SET_PARAM_ST"
+row_size = 52
+tables = ["EquipMtrlSetParam"]
+
+[[layout.field]]
+name = "item_id"
+offset = 0x00
+kind = "i32"
+count = 6
+stride = 4
+confidence = "confirmed"
+evidence = """
+Six slots, ever sparser: filled in 831, 165, 97, 24, 34 and 1 rows, -1 when
+empty. Grouped by the matching category, the ids are rows of EquipParamGoods
+(category 4: 93% in slot 0, 92% in slot 1) or EquipParamProtector (category 1:
+99%), checked by the real-file test. The shop's remembrance trades cost their
+remembrance here: the Axe of Godrick (ShopLineupParam 101900) costs set
+900000, one Remembrance of the Grafted."""
+
+[[layout.field]]
+name = "count"
+offset = 0x20
+kind = "i8"
+count = 6
+stride = 1
+confidence = "probable"
+evidence = """
+-1 in the slots whose item_id is -1, but for 3 of 4,236; otherwise 1 to 10.
+How many of the item are spent. Every set a shop row uses asks for 1."""
+
+[[layout.field]]
+name = "category"
+offset = 0x28
+kind = "u8"
+count = 6
+stride = 1
+confidence = "confirmed"
+evidence = """
+In filled slots only 4 (976) or 1 (176); empty slots hold 4, 15 or 0. Each
+picks the table item_id refers to: 1 is the garment that altered garments are
+made from (Elden Lord Armor for Elden Lord Armor (Altered)), 4 is goods."""
+values = { "1" = "protector", "4" = "goods" }
 
 # ---------------------------------------------------------------------------
 # Only the fields settled so far. HP, runes and team are not: the obvious
