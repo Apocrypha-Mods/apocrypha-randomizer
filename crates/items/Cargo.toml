@@ -1,0 +1,19 @@
+[package]
+name = "items"
+description = "Item placement: key items where the logic can reach them, everything else shuffled, from a seed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+fs-bytes.workspace = true
+fs-param.workspace = true
+gamedata.workspace = true
+logic.workspace = true
+
+[dev-dependencies]
+fs-dcx = { workspace = true, features = ["kraken"] }
+toml.workspace = true

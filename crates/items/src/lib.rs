@@ -1,0 +1,556 @@
+//! Item placement (PLAN.md §5, Phase 4): every item the shuffled locations
+//! give is put somewhere else, with the key items (what any requirement of
+//! the area map asks for) only where the logic can reach them, so every seed
+//! can be finished.
+//!
+//! - **What moves.** The unit is one item slot of an item-lot row (an
+//!   [`Unit`]): the pick-up flag and the slot's chance stay where they are,
+//!   and only the item (its kind, id and count) moves. The locations shuffled
+//!   are treasure, one-time enemy drops, script awards, NPC gifts and boss
+//!   rewards ([`SHUFFLED`]). Shops, gathering, farmable drops and starting
+//!   equipment stay as they are.
+//! - **Key items** go first, by assumed fill: each is placed in a random
+//!   reachable slot of a walk that assumes every key item not yet placed is
+//!   already held. A key item only goes in a slot that always gives it
+//!   (chance 1000) at a location the area map puts in an area.
+//! - **Everything else** is shuffled into the slots left.
+//! - **The check.** The finished placement is walked from the start with
+//!   nothing assumed, and the goal must be reached.
+//!
+//! The same seed gives the same placement on every platform: the generator
+//! is our own ([`rng`]) and every collection is walked in a fixed order.
+
+use std::collections::{BTreeSet, HashMap};
+
+use fs_bytes::{Result, format_err};
+use fs_param::Regulation;
+use fs_param::layout::for_table;
+use gamedata::Model;
+use gamedata::model::{Item, ItemKind, Kind};
+use logic::Bound;
+
+pub mod rng;
+
+use rng::Rng;
+
+/// The kinds of location whose items are shuffled.
+pub const SHUFFLED: [Kind; 5] = [
+    Kind::Treasure,
+    Kind::EnemyDrop,
+    Kind::Event,
+    Kind::Gift,
+    Kind::BossReward,
+];
+
+/// How many times a seed is tried before it is given up on: assumed fill
+/// can corner itself, rarely, and a retry draws again from the same seed.
+const ATTEMPTS: usize = 20;
+
+/// One item slot of an item-lot row, at a location.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Unit {
+    /// Index into the model's locations.
+    pub location: usize,
+    pub table: String,
+    pub row: i32,
+    pub slot: usize,
+    /// The item the game puts here, with the slot's chance (out of 1000).
+    pub item: Item,
+}
+
+impl Unit {
+    /// Whether picking the location up always gives this slot's item.
+    pub fn sure(&self) -> bool {
+        self.item.chance == 1000
+    }
+}
+
+/// ItemLotParam's numbering of item kinds.
+fn lot_category(kind: ItemKind) -> i64 {
+    match kind {
+        ItemKind::Goods => 1,
+        ItemKind::Weapon => 2,
+        ItemKind::Protector => 3,
+        ItemKind::Accessory => 4,
+        ItemKind::Gem => 5,
+        ItemKind::CustomWeapon => 6,
+    }
+}
+
+fn kind_of(category: i64) -> Option<ItemKind> {
+    Some(match category {
+        1 => ItemKind::Goods,
+        2 => ItemKind::Weapon,
+        3 => ItemKind::Protector,
+        4 => ItemKind::Accessory,
+        5 => ItemKind::Gem,
+        6 => ItemKind::CustomWeapon,
+        _ => return None,
+    })
+}
+
+/// Every item slot of the shuffled locations, in the order of the model's
+/// locations, each slot once.
+pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>> {
+    let names: HashMap<(ItemKind, i32), &str> = model
+        .locations
+        .iter()
+        .flat_map(|l| &l.items)
+        .filter_map(|i| Some(((i.kind, i.id), i.name.as_deref()?)))
+        .collect();
+    let mut tables = HashMap::new();
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for (i, l) in model.locations.iter().enumerate() {
+        if !SHUFFLED.contains(&l.kind) || bound.location_unused[i] {
+            continue;
+        }
+        let Some(lot) = &l.lot else {
+            continue;
+        };
+        if !tables.contains_key(&lot.table) {
+            let rows: HashMap<i32, Vec<u8>> = reg
+                .table(&lot.table)?
+                .rows
+                .into_iter()
+                .map(|r| (r.id, r.data))
+                .collect();
+            tables.insert(lot.table.clone(), rows);
+        }
+        let layout = for_table(&lot.table)
+            .ok_or_else(|| format_err(format!("no layout for {}", lot.table)))?;
+        let (id, cat, weight, count) = (
+            layout.field("item_id"),
+            layout.field("item_category"),
+            layout.field("weight"),
+            layout.field("count"),
+        );
+        for &row in &lot.ids {
+            let Some(data) = tables[&lot.table].get(&row) else {
+                continue;
+            };
+            let total: i64 = (0..weight.count).map(|s| weight.get(data, s)).sum();
+            for slot in 0..id.count {
+                let item_id = id.get(data, slot) as i32;
+                let Some(kind) = kind_of(cat.get(data, slot)) else {
+                    continue;
+                };
+                if item_id <= 0 || !seen.insert((lot.table.clone(), row, slot)) {
+                    continue;
+                }
+                let chance = if total > 0 {
+                    weight.get(data, slot) * 1000 / total
+                } else {
+                    0
+                };
+                out.push(Unit {
+                    location: i,
+                    table: lot.table.clone(),
+                    row,
+                    slot,
+                    item: Item {
+                        kind,
+                        id: item_id,
+                        count: count.get(data, slot).max(1) as u32,
+                        chance: chance as u32,
+                        name: names.get(&(kind, item_id)).map(|n| n.to_string()),
+                    },
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Where each unit's item went: `placed[u]` is the index of the unit whose
+/// original item unit `u` now gives.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Plan {
+    pub seed: u64,
+    pub placed: Vec<usize>,
+}
+
+/// The item a unit gives under a plan, with the unit's own chance.
+pub fn item_at(units: &[Unit], plan: &Plan, u: usize) -> Item {
+    let mut item = units[plan.placed[u]].item.clone();
+    item.chance = units[u].item.chance;
+    item
+}
+
+/// What each location gives under a plan, as far as the logic needs it: the
+/// key items only. Locations that are not shuffled give what they always do.
+pub fn gives<'a>(
+    bound: &Bound<'a>,
+    units: &'a [Unit],
+    placed: &[Option<usize>],
+    keys: &BTreeSet<&str>,
+) -> Vec<Vec<&'a str>> {
+    let model = bound.model;
+    let mut out: Vec<Vec<&'a str>> = model
+        .locations
+        .iter()
+        .map(|l| {
+            if SHUFFLED.contains(&l.kind) || l.kind == Kind::Starting {
+                return Vec::new();
+            }
+            l.items
+                .iter()
+                .filter_map(|i| i.name.as_deref())
+                .filter(|n| keys.contains(n))
+                .collect()
+        })
+        .collect();
+    for (u, unit) in units.iter().enumerate() {
+        let Some(from) = placed[u] else {
+            continue;
+        };
+        // An item that may not drop opens nothing.
+        if !unit.sure() {
+            continue;
+        }
+        if let Some(name) = units[from]
+            .item
+            .name
+            .as_deref()
+            .filter(|n| keys.contains(n))
+        {
+            out[unit.location].push(name);
+        }
+    }
+    out
+}
+
+/// Place every unit's item from `seed`, or say why it could not be done.
+pub fn shuffle(bound: &Bound, units: &[Unit], seed: u64) -> std::result::Result<Plan, String> {
+    let keys = bound.key_items();
+    let mut rng = Rng::new(seed);
+    let mut last = String::new();
+    for _ in 0..ATTEMPTS {
+        match attempt(bound, units, &keys, &mut rng) {
+            Ok(placed) => {
+                let plan = Plan { seed, placed };
+                check(bound, units, &plan)?;
+                return Ok(plan);
+            }
+            Err(e) => last = e,
+        }
+    }
+    Err(format!(
+        "seed {seed}: no placement after {ATTEMPTS} tries: {last}"
+    ))
+}
+
+fn attempt(
+    bound: &Bound,
+    units: &[Unit],
+    keys: &BTreeSet<&str>,
+    rng: &mut Rng,
+) -> std::result::Result<Vec<usize>, String> {
+    let is_key = |u: usize| {
+        units[u]
+            .item
+            .name
+            .as_deref()
+            .is_some_and(|n| keys.contains(n))
+    };
+    let mut key_units: Vec<usize> = (0..units.len()).filter(|&u| is_key(u)).collect();
+    let mut rest: Vec<usize> = (0..units.len()).filter(|&u| !is_key(u)).collect();
+    rng.shuffle(&mut key_units);
+    rng.shuffle(&mut rest);
+
+    let mut placed: Vec<Option<usize>> = vec![None; units.len()];
+    // Slots a key item may go in.
+    let open_for_key =
+        |u: usize| units[u].sure() && bound.location_area[units[u].location].is_some();
+    for n in 0..key_units.len() {
+        let k = key_units[n];
+        let held: Vec<&str> = key_units[n + 1..]
+            .iter()
+            .filter_map(|&u| units[u].item.name.as_deref())
+            .collect();
+        let walk = bound.walk_holding(&gives(bound, units, &placed, keys), &held);
+        let free: Vec<usize> = (0..units.len())
+            .filter(|&u| placed[u].is_none() && open_for_key(u) && walk.taken[units[u].location])
+            .collect();
+        if free.is_empty() {
+            return Err(format!(
+                "nowhere reachable for {}",
+                units[k].item.name.as_deref().unwrap_or("?")
+            ));
+        }
+        placed[free[rng.below(free.len())]] = Some(k);
+    }
+    let mut empty: Vec<usize> = (0..units.len()).filter(|&u| placed[u].is_none()).collect();
+    rng.shuffle(&mut empty);
+    for (u, from) in empty.into_iter().zip(rest) {
+        placed[u] = Some(from);
+    }
+    Ok(placed
+        .into_iter()
+        .map(|p| p.expect("every slot filled"))
+        .collect())
+}
+
+/// The plan's proof: walked from the start with nothing assumed, the goal
+/// is reached.
+pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<(), String> {
+    let keys = bound.key_items();
+    let placed: Vec<Option<usize>> = plan.placed.iter().map(|&p| Some(p)).collect();
+    let walk = bound.walk(&gives(bound, units, &placed, &keys));
+    if walk.goal {
+        Ok(())
+    } else {
+        Err(format!("seed {}: the goal cannot be reached", plan.seed))
+    }
+}
+
+/// Write a plan into the item-lot tables.
+pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
+    let tables: BTreeSet<&str> = units.iter().map(|u| u.table.as_str()).collect();
+    for table in tables {
+        let layout =
+            for_table(table).ok_or_else(|| format_err(format!("no layout for {table}")))?;
+        let (id, cat, count) = (
+            layout.field("item_id"),
+            layout.field("item_category"),
+            layout.field("count"),
+        );
+        let mut param = reg.table(table)?;
+        let rows: HashMap<i32, usize> = param
+            .rows
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (r.id, i))
+            .collect();
+        for (u, unit) in units.iter().enumerate().filter(|(_, u)| u.table == table) {
+            let item = item_at(units, plan, u);
+            let data = &mut param.rows[rows[&unit.row]].data;
+            id.set(data, unit.slot, i64::from(item.id))?;
+            cat.set(data, unit.slot, lot_category(item.kind))?;
+            count.set(data, unit.slot, i64::from(item.count.clamp(1, 255)))?;
+        }
+        reg.set_table(table, &param)?;
+    }
+    Ok(())
+}
+
+/// The spoiler log: where every key item went, then every shuffled slot by
+/// area.
+pub fn spoiler(bound: &Bound, units: &[Unit], plan: &Plan) -> String {
+    let model = bound.model;
+    let keys = bound.key_items();
+    let area = |l: usize| {
+        bound.location_area[l].map_or("(anywhere)", |a| bound.graph.areas[a].name.as_str())
+    };
+    let name = |i: &Item| {
+        i.name
+            .clone()
+            .unwrap_or_else(|| format!("{:?} {}", i.kind, i.id))
+    };
+    let line = |u: usize| {
+        let unit = &units[u];
+        let l = &model.locations[unit.location];
+        let now = item_at(units, plan, u);
+        let chance = if unit.sure() {
+            String::new()
+        } else {
+            format!(" ({:.1}%)", f64::from(unit.item.chance) / 10.0)
+        };
+        format!(
+            "{} {}{}: {}{} (was {})",
+            l.kind.label(),
+            l.source,
+            l.map.map(|m| format!(" [{m}]")).unwrap_or_default(),
+            name(&now),
+            if now.count > 1 {
+                format!(" x{}", now.count)
+            } else {
+                String::new()
+            },
+            name(&unit.item),
+        ) + &chance
+    };
+    let mut out = format!("Apocrypha randomizer spoiler log\nseed {}\n\n", plan.seed);
+    out += "Key items\n";
+    let mut key_lines: Vec<(String, String)> = (0..units.len())
+        .filter_map(|u| {
+            let now = item_at(units, plan, u);
+            let n = now.name.as_deref()?;
+            keys.contains(n).then(|| {
+                (
+                    n.to_string(),
+                    format!("  {n}: {}, {}", area(units[u].location), line(u)),
+                )
+            })
+        })
+        .collect();
+    key_lines.sort();
+    for (_, l) in key_lines {
+        out += &l;
+        out += "\n";
+    }
+    out += "\nEvery slot, by area\n";
+    let mut by_area: Vec<(&str, usize)> = (0..units.len())
+        .map(|u| (area(units[u].location), u))
+        .collect();
+    by_area.sort_by_key(|&(a, u)| (a, units[u].location, u));
+    let mut last = "";
+    for (a, u) in by_area {
+        if a != last {
+            out += &format!("\n{a}\n");
+            last = a;
+        }
+        out += &format!("  {}\n", line(u));
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gamedata::MapId;
+    use gamedata::model::{Boss, Grace, Location};
+
+    const WEST: MapId = MapId([60, 40, 37, 0]);
+    const CAVE: MapId = MapId([31, 0, 0, 0]);
+
+    fn item(name: &str, chance: u32) -> Item {
+        Item {
+            kind: ItemKind::Goods,
+            id: 1,
+            count: 1,
+            chance,
+            name: Some(name.into()),
+        }
+    }
+
+    fn at(map: MapId, name: &str) -> Location {
+        Location {
+            kind: Kind::Treasure,
+            map: Some(map),
+            source: name.into(),
+            entity: None,
+            position: Some([0.0; 3]),
+            lot: None,
+            items: vec![item(name, 1000)],
+            flag: None,
+            also: vec![],
+            terms: None,
+            given_if: None,
+        }
+    }
+
+    /// A field with a grace, a cave behind a key with the goal's boss, and
+    /// five treasures on each side.
+    fn model() -> Model {
+        let mut locations = vec![at(WEST, "Key")];
+        for i in 0..5 {
+            locations.push(at(WEST, &format!("West {i}")));
+            locations.push(at(CAVE, &format!("Cave {i}")));
+        }
+        Model {
+            graces: vec![Grace {
+                id: 1,
+                name: Some("West".into()),
+                map: Some(MapId([60, 10, 9, 2])),
+                entity: 0,
+                flag: 0,
+                position: Some([0.0; 3]),
+            }],
+            locations,
+            bosses: vec![Boss {
+                area: 1,
+                map: Some(CAVE),
+                entity: None,
+                name: Some("Guardian".into()),
+                defeat_flag: 1,
+            }],
+            ..Default::default()
+        }
+    }
+
+    fn graph() -> logic::Graph {
+        toml::from_str(
+            r#"
+            start = "west"
+            goal = { bosses = ["Guardian"] }
+            [[area]]
+            id = "west"
+            name = "West"
+            graces = ["West"]
+            [[area]]
+            id = "cave"
+            name = "Cave"
+            maps = ["m31_00"]
+            [[edge]]
+            from = "west"
+            to = "cave"
+            items = ["Key"]
+            "#,
+        )
+        .unwrap()
+    }
+
+    fn units(m: &Model) -> Vec<Unit> {
+        m.locations
+            .iter()
+            .enumerate()
+            .map(|(i, l)| Unit {
+                location: i,
+                table: "ItemLotParam_map".into(),
+                row: i as i32,
+                slot: 0,
+                item: l.items[0].clone(),
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_key_never_lands_behind_its_own_door() {
+        let (g, m) = (graph(), model());
+        let b = Bound::new(&g, &m);
+        assert!(b.problems.is_empty(), "{:?}", b.problems);
+        let us = units(&m);
+        let mut west_slots = BTreeSet::new();
+        for seed in 0..200 {
+            let plan = shuffle(&b, &us, seed).unwrap();
+            let at = (0..us.len())
+                .find(|&u| item_at(&us, &plan, u).name.as_deref() == Some("Key"))
+                .unwrap();
+            assert_eq!(us[at].item.chance, 1000);
+            assert_ne!(b.location_area[us[at].location], Some(1), "seed {seed}");
+            west_slots.insert(at);
+        }
+        // It moves around the field, not just to one slot.
+        assert!(west_slots.len() > 3, "{west_slots:?}");
+    }
+
+    #[test]
+    fn a_seed_gives_the_same_plan_and_every_item_once() {
+        let (g, m) = (graph(), model());
+        let b = Bound::new(&g, &m);
+        let us = units(&m);
+        let a = shuffle(&b, &us, 7).unwrap();
+        assert_eq!(a, shuffle(&b, &us, 7).unwrap());
+        assert_ne!(a.placed, shuffle(&b, &us, 8).unwrap().placed);
+        let mut sorted = a.placed.clone();
+        sorted.sort();
+        assert_eq!(sorted, (0..us.len()).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_key_with_nowhere_to_go_fails_the_seed() {
+        let (g, mut m) = (graph(), model());
+        // Every slot outside the cave may not drop: the key has no home.
+        let mut us = units(&m);
+        for u in us
+            .iter_mut()
+            .filter(|u| m.locations[u.location].map == Some(WEST))
+        {
+            u.item.chance = 500;
+        }
+        m.locations[0].items[0].chance = 500;
+        let b = Bound::new(&g, &m);
+        assert!(shuffle(&b, &us, 1).is_err());
+    }
+}

@@ -232,6 +232,8 @@ pub struct Bound<'a> {
     pub location_terms: Vec<Terms<'a>>,
     /// Locations an `unused` entry rules out.
     pub location_unused: Vec<bool>,
+    /// Locations another location's way waits on being got.
+    pub waited_on: Vec<bool>,
     /// For each boss, its area.
     pub boss_area: Vec<Option<usize>>,
     /// What the draft names that the model does not have, and other faults.
@@ -533,9 +535,20 @@ impl<'a> Bound<'a> {
                 by_map(b.map).or_else(|| by_grace(b.map, pos))
             })
             .collect();
+        let mut waited_on = vec![false; model.locations.len()];
+        for t in &location_terms {
+            for r in t.ways.iter().flatten().flatten() {
+                if let Req::Got(ls) = r {
+                    for &l in ls {
+                        waited_on[l] = true;
+                    }
+                }
+            }
+        }
         Bound {
             graph,
             model,
+            waited_on,
             location_area,
             location_also,
             location_terms,
@@ -600,6 +613,16 @@ impl<'a> Bound<'a> {
     /// Walk the graph with the items where `gives` says they are (the vanilla
     /// game: [`Bound::vanilla`]), from the start, until nothing new opens.
     pub fn walk(&self, gives: &[Vec<&str>]) -> Walk {
+        self.walk_holding(gives, &[])
+    }
+
+    /// The same walk, starting with `held` already in hand: the randomizer
+    /// assumes the key items it has yet to place.
+    ///
+    /// Each round visits only the locations that give something or that
+    /// another location waits on; the rest are taken in one pass at the end,
+    /// as taking them can open nothing.
+    pub fn walk_holding<'s>(&self, gives: &[Vec<&'s str>], held: &[&'s str]) -> Walk {
         let n = self.graph.areas.len();
         let index: HashMap<&str, usize> = self
             .graph
@@ -614,25 +637,37 @@ impl<'a> Bound<'a> {
             reached[s] = true;
             order.push(s);
         }
-        let mut items: BTreeSet<&str> = BTreeSet::new();
+        let mut items: BTreeSet<&str> = held.iter().copied().collect();
         let mut taken = vec![false; gives.len()];
+        let relevant: Vec<usize> = (0..gives.len())
+            .filter(|&i| !gives[i].is_empty() || self.waited_on[i])
+            .collect();
+        let take = |i: usize,
+                    items: &mut BTreeSet<&'s str>,
+                    reached: &[bool],
+                    taken: &mut Vec<bool>|
+         -> bool {
+            if taken[i] || self.location_unused[i] {
+                return false;
+            }
+            let here = self.location_area[i].is_none_or(|a| reached[a])
+                || self.location_also[i].iter().any(|&a| reached[a]);
+            if !here || !self.allows(&self.location_terms[i], items, reached, taken) {
+                return false;
+            }
+            taken[i] = true;
+            // Every item, not just up to the first new one.
+            for it in &gives[i] {
+                items.insert(it);
+            }
+            true
+        };
         loop {
+            // Collect what the reached areas give, and anywhere's. Taking a
+            // location is a change: another may wait on its being got.
             let mut changed = false;
-            // Collect what the reached areas give, and anywhere's.
-            for (i, g) in gives.iter().enumerate() {
-                if taken[i] || self.location_unused[i] {
-                    continue;
-                }
-                let here = self.location_area[i].is_none_or(|a| reached[a])
-                    || self.location_also[i].iter().any(|&a| reached[a]);
-                let ok = self.allows(&self.location_terms[i], &items, &reached, &taken);
-                if here && ok {
-                    taken[i] = true;
-                    // Every item, not just up to the first new one.
-                    for it in g {
-                        changed |= items.insert(it);
-                    }
-                }
+            for &i in &relevant {
+                changed |= take(i, &mut items, &reached, &mut taken);
             }
             for e in &self.graph.edges {
                 let (Some(&f), Some(&t)) = (index.get(e.from.as_str()), index.get(e.to.as_str()))
@@ -654,12 +689,43 @@ impl<'a> Bound<'a> {
                 break;
             }
         }
+        for i in 0..gives.len() {
+            take(i, &mut items, &reached, &mut taken);
+        }
         Walk {
             goal: self.met(&self.graph.goal, &items, &reached),
             order,
             reached,
+            taken,
             items: items.into_iter().map(String::from).collect(),
         }
+    }
+
+    /// Every item some requirement asks for: the key items, which the
+    /// randomizer places with care.
+    pub fn key_items(&self) -> BTreeSet<&'a str> {
+        let g = self.graph;
+        let needs = g
+            .edges
+            .iter()
+            .map(|e| &e.need)
+            .chain([&g.goal])
+            .chain(g.places.iter().map(|p| &p.need))
+            .chain(g.on_sale.iter().map(|o| &o.need));
+        let mut keys: BTreeSet<&str> = needs
+            .flat_map(|n| n.items.iter().chain(n.any.iter().flat_map(|a| &a.items)))
+            .map(String::as_str)
+            .collect();
+        keys.extend(g.currency.values().map(String::as_str));
+        for t in &self.location_terms {
+            keys.extend(t.items.iter().chain(&t.any_of).copied());
+            for r in t.ways.iter().flatten().flatten() {
+                if let Req::Holds(i) = r {
+                    keys.insert(i);
+                }
+            }
+        }
+        keys
     }
 
     /// What each location gives in the game as it is.
@@ -734,6 +800,8 @@ pub fn find_boss(model: &Model, spec: &str) -> Result<usize, String> {
 /// What a walk reached.
 pub struct Walk {
     pub reached: Vec<bool>,
+    /// For each location, whether the walk got it.
+    pub taken: Vec<bool>,
     /// Areas in the order they opened.
     pub order: Vec<usize>,
     pub items: Vec<String>,

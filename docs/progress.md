@@ -8,6 +8,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks; 86 wait on NPC quest phases not yet read and are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
+| 4. Item randomizer | seeds proven; boot check waiting | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. `apoc-rando gen` writes regulation.bin and a spoiler log. Open: one seed booted in the lab, and the options the spec will define. |
 
 ## Phase 0: setup
 
@@ -590,6 +591,51 @@ of calls, so every command it reports comes with what holds where it runs.
 - [x] **Conditions' evaluators** for flags and items held (above).
 - [ ] **Register 8** (0xAE), in two conditions.
 - [ ] **Following items through calls** in handovers (Miriel).
+
+## Phase 4: item randomizer
+
+`crates/items` places items and `crates/rando` is the command line,
+`apoc-rando`. No behaviour spec has arrived yet (`docs/spec/` holds only its
+README), so this is the core PLAN.md's gate asks for, with no options beyond
+the seed.
+
+- **What moves.** The unit is one item slot of an item-lot row: 4,722 slots
+  of treasure, one-time enemy drops, script awards, NPC gifts and boss
+  rewards. The pick-up flag and the slot's chance stay; only the item, its
+  kind and its count move. Shops, gathering, farmable drops and starting
+  gear stay as they are.
+- **Key items** are every item a requirement names: the area map's edges,
+  places, goal and `on_sale` entries, shop costs and currencies, and what
+  gifts ask to be held. 165 slots hold one. They are placed first, by
+  assumed fill: each goes in a random slot that a walk reaches while
+  assuming every key item not yet placed is held. A slot may take a key item
+  only if it always gives its item and its location is in an area.
+- **Everything else** is shuffled into the slots left.
+- **The proof.** The finished placement is walked with nothing assumed, and
+  the Elden Beast must be reached. A seed that corners itself is retried, up
+  to 20 times, from the same generator.
+- **Seeds.** xoshiro256** seeded through SplitMix64, written here from the
+  published algorithms and pinned by a test against values computed
+  separately; every collection is walked in a fixed order.
+- **Output.** `apoc-rando gen <game> --seed N --out DIR` writes `regulation.bin`
+  into a me3 mod folder and the spoiler log beside it: where each key item
+  went, then every slot by area, with what it held before.
+
+Making the walk fast enough mattered: rounds now visit only the locations
+that give something or that another waits on, and the rest are taken in one
+pass at the end. Taking a location now also counts as a change, since a gift
+may wait on another location being got.
+
+Two things to know when reading a spoiler log:
+- Some key items exist twice in the game's lots, such as Godrick's Great
+  Rune and the Academy Glintstone Key, and both copies are placed.
+- Dragon Hearts count as key items, as Dragon Communion is paid in them.
+
+`crates/items/tests/real_items.rs` places 20 seeds on the real game and checks
+that a plan is written into ItemLotParam_map slot by slot; the unit tests
+check, on a small made-up map, that the key never lands behind its own door,
+that a seed always gives the same plan with every item placed once, and that
+a key with nowhere to go fails the seed.
 
 ## Phase 3: game model
 

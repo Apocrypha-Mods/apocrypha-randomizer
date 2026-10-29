@@ -1,0 +1,25 @@
+[package]
+name = "rando"
+description = "apoc-rando: the randomizer's command line"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "apoc-rando"
+path = "src/main.rs"
+
+[dependencies]
+fs-bytes.workspace = true
+# The game's files are Kraken-compressed. Behind a feature until the legal
+# opinion on oozextract (PLAN.md §6).
+fs-dcx = { workspace = true, features = ["kraken"] }
+fs-param.workspace = true
+gamedata.workspace = true
+logic.workspace = true
+items.workspace = true
+clap.workspace = true
+rayon.workspace = true
