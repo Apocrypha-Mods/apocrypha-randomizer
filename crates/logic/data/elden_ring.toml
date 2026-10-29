@@ -11,6 +11,8 @@
 #   `items` are held, its `bosses` beaten, and `n` of its `any.items` held.
 # - A `place` puts a location with no map (the grace menu's gifts, NPCs of
 #   the open world) in an area, optionally behind its own need.
+# - An `unused` entry rules out a location the game has but never gives in
+#   play, so the randomizer neither counts on it nor puts anything there.
 #
 # `apoc-fs logic <game>` checks every name against the game and walks the
 # vanilla game from the start.
@@ -809,11 +811,18 @@ note = "Ranni, for the Fingerslayer Blade."
 item = "Pureblood Knight's Medal"
 kind = "gift"
 area = "liurnia"
-sure = false
-note = "Varré, at the end of his quest at the Rose Church."
+note = "Varré, at the end of his quest at the Rose Church (checked in play, 2026-10-29). A key item like any other: the randomizer may put it anywhere."
 
 [[place]]
 item = "Haligtree Secret Medallion (Right)"
 kind = "gift"
 area = "liurnia"
 note = "Albus, in the Village of the Albinaurics (checked in play, 2026-10-29); the model has it on an open-world talk script."
+
+# --- Locations the game never gives -------------------------------------------------
+
+[[unused]]
+item = "Haligtree Secret Medallion (Left)"
+kind = "gift"
+source = "talk t324001100"
+note = "A Leyndell talk script can award it (lot 102800), but nobody in Leyndell gives it: the left half is only in Castle Sol (checked in play, 2026-10-29)."

@@ -25,6 +25,10 @@ pub fn run(game: PathBuf) -> Result<()> {
         graph.places.len()
     );
 
+    println!(
+        "unused locations (never given in play): {}",
+        b.location_unused.iter().filter(|u| **u).count()
+    );
     println!("\nproblems: {}", b.problems.len());
     for p in &b.problems {
         println!("  {p}");
@@ -88,8 +92,11 @@ pub fn run(game: PathBuf) -> Result<()> {
             .locations
             .iter()
             .zip(&b.location_area)
-            .filter(|(l, _)| l.items.iter().any(|i| i.name.as_deref() == Some(k)))
-            .map(|(l, a)| {
+            .zip(&b.location_unused)
+            .filter(|((l, _), unused)| {
+                !**unused && l.items.iter().any(|i| i.name.as_deref() == Some(k))
+            })
+            .map(|((l, a), _)| {
                 format!(
                     "{} {}",
                     a.map_or("(anywhere)", |i| graph.areas[i].id.as_str()),

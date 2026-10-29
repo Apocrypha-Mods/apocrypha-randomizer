@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Open: the review of the 32 claims still marked, and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 
 ## Phase 0: setup
 
@@ -697,6 +697,12 @@ expansion is drafted with less confidence than the base game.
   Albinaurics.
 - The Gravesite Plain to Scadu Altus is open along the Ellac River, without
   Castle Ensis.
+- The Pureblood Knight's Medal is from Varré's quest (Rose Church). It stays
+  a key item the randomizer may put anywhere.
+- Nobody in Leyndell gives Haligtree Secret Medallion (Left); it is only in
+  Castle Sol. The Leyndell talk script's award (lot 102800) is marked
+  `unused`. That is a new kind of entry: a location the game has but never
+  gives in play, which the walk skips and the randomizer must not use.
 
 **What a way needs:**
 
@@ -712,13 +718,6 @@ expansion is drafted with less confidence than the base game.
   - Leyndell → Divine Tower of West Altus;
   - Forbidden Lands → Divine Tower of East Altus → Isolated Divine Tower;
   - each of the expansion's edges.
-
-**Where a gift is given:**
-
-- The Pureblood Knight's Medal: from Varré at the Rose Church?
-- The model also has Haligtree Secret Medallion (Left) as a gift on a
-  Leyndell talk script, as well as the treasure in Castle Sol; that needs
-  explaining.
 
 ### Still to do for the gate
 

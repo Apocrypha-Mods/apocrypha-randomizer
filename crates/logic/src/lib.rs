@@ -90,6 +90,28 @@ pub struct Place {
     pub note: String,
 }
 
+/// A location the game has but never gives in play: the randomizer neither
+/// counts on it nor puts anything there.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Unused {
+    pub item: String,
+    pub kind: Kind,
+    /// The location's source, as the model gives it (`talk t324001100`).
+    pub source: String,
+    pub note: String,
+}
+
+impl Unused {
+    fn matches(&self, l: &Location) -> bool {
+        l.kind == self.kind
+            && l.source == self.source
+            && l.items
+                .iter()
+                .any(|i| i.name.as_deref() == Some(&self.item))
+    }
+}
+
 fn yes() -> bool {
     true
 }
@@ -105,6 +127,8 @@ pub struct Graph {
     pub edges: Vec<Edge>,
     #[serde(default, rename = "place")]
     pub places: Vec<Place>,
+    #[serde(default)]
+    pub unused: Vec<Unused>,
 }
 
 /// Elden Ring's graph.
@@ -120,6 +144,8 @@ pub struct Bound<'a> {
     /// For each location, its area's index, and the `place` it came from.
     pub location_area: Vec<Option<usize>>,
     pub location_need: Vec<Option<&'a Need>>,
+    /// Locations an `unused` entry rules out.
+    pub location_unused: Vec<bool>,
     /// For each boss, its area.
     pub boss_area: Vec<Option<usize>>,
     /// What the draft names that the model does not have, and other faults.
@@ -294,6 +320,21 @@ impl<'a> Bound<'a> {
                 problems.push(format!("place: no {} giving {}", p.kind.label(), p.item));
             }
         }
+        for u in &graph.unused {
+            if !model.locations.iter().any(|l| u.matches(l)) {
+                problems.push(format!(
+                    "unused: no {} from {} giving {}",
+                    u.kind.label(),
+                    u.source,
+                    u.item
+                ));
+            }
+        }
+        let location_unused = model
+            .locations
+            .iter()
+            .map(|l| graph.unused.iter().any(|u| u.matches(l)))
+            .collect();
         let enemy_at: HashMap<u32, [f32; 3]> = model
             .enemies
             .iter()
@@ -325,6 +366,7 @@ impl<'a> Bound<'a> {
             model,
             location_area,
             location_need,
+            location_unused,
             boss_area,
             problems,
         }
@@ -353,7 +395,7 @@ impl<'a> Bound<'a> {
             let mut changed = false;
             // Collect what the reached areas give, and anywhere's.
             for (i, g) in gives.iter().enumerate() {
-                if taken[i] {
+                if taken[i] || self.location_unused[i] {
                     continue;
                 }
                 let here = self.location_area[i].is_none_or(|a| reached[a]);
@@ -561,6 +603,30 @@ mod tests {
         let w = b.walk(&[vec![], vec!["Key"]]);
         assert!(!w.goal);
         assert!(!w.reached[2]);
+    }
+
+    #[test]
+    fn an_unused_location_gives_nothing() {
+        let mut g = graph();
+        let mut m = model();
+        // A second key, from a script that never runs, in the first area.
+        let mut extra = at(MapId([60, 40, 37, 0]), [0.0; 3], &["Key"]);
+        extra.kind = Kind::Gift;
+        extra.source = "talk t1".into();
+        m.locations[0].items.clear();
+        m.locations.push(extra);
+        g.unused.push(Unused {
+            item: "Key".into(),
+            kind: Kind::Gift,
+            source: "talk t1".into(),
+            note: String::new(),
+        });
+        let b = Bound::new(&g, &m);
+        assert!(b.problems.is_empty(), "{:?}", b.problems);
+        assert!(
+            !b.walk(&b.vanilla()).reached[2],
+            "the cave opens on an unused key"
+        );
     }
 
     #[test]
