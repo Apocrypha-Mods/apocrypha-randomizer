@@ -18,6 +18,8 @@
 //! fields are read from the blobs at offsets worked out from the data.
 //! `apoc-fs check` holds every MSB in the game to coming back byte for byte.
 
+pub mod layout;
+
 use fs_bytes::{self as rd, Error, Result, align_up, format_err};
 
 const HEADER: &[u8; 0x10] = b"MSB \x01\0\0\0\x10\0\0\0\0\0\x01\xff";

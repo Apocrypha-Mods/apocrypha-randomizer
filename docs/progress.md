@@ -5,7 +5,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | Phase | State | Evidence |
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
-| 2. Formats | in progress | PARAM: all 194 tables round-trip, field layouts for 9 table types. FMG: all 3,968 round-trip. EMEVD: all 589 round-trip. MSB not started. |
+| 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589) and MSB (1,347) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
 
 ## Phase 0: setup
@@ -216,7 +216,7 @@ EMEVD, MSB or play), and the evidence either way.
 
 | Table | Confirmed | Probable | How they were settled |
 | --- | --- | --- | --- |
-| `ItemLotParam_map`, `_enemy` | 8 × item id, category, weight, count | get-item flag | Item ids fall in the table their category names (92–100% per category). Slots 1–7 are empty together in all but 2 of 75,089 slots. Weights sum to exactly 1000 in 97–98% of rows. |
+| `ItemLotParam_map`, `_enemy` | 8 × item id, category, weight, count; get-item flag | — | Item ids fall in the table their category names (92–100% per category). Slots 1–7 are empty together in all but 2 of 75,089 slots. Weights sum to exactly 1000 in 97–98% of rows. |
 | `ShopLineupParam`, `_Recipe` | equip id, equip type, material set | price, two flags, stock | Equip ids fall in the table their type names, 97–100% for each type. Material sets resolve in 583 of 588 rows. |
 | `NpcParam` | name, enemy item lot, map item lot | — | 213/223 names are NpcName ids; 98% and 100% of the lots are rows of those tables. |
 | `CharaInitParam` | 4 × weapon, 4 × armor, 4 × ammo, 4 × talisman, 7 × spell, 19 goods slots in three runs | 2 × extra weapon | Every slot of the ten class rows (3000–3009) resolves. Armor slot i holds ids with hundreds digit i in all but 11 of 11,880 values. |
@@ -261,10 +261,10 @@ reports App Ver. 1.17.2.
       read them by. About a dozen `NpcParam` columns and five `EquipParamWeapon`
       columns point at it, and what each one means needs the enemy work, so it
       waits until then.
-- [ ] **Promoting the probable fields to confirmed.** EMEVD showed that the
-      item-lot, shop and grace flags are event flags, but not what each one
-      records. Item-lot flags wait on MSB; shop and grace flags, prices, stock
-      and rune rewards wait on play.
+- [ ] **Promoting the probable fields to confirmed.** The item-lot flag is
+      now confirmed, through MSB (below). Shop and grace flags are event flags,
+      but what each records, along with prices, stock and rune rewards, waits
+      on play.
 - [ ] **No field is needed from `EquipParamProtector` or `EquipParamAccessory`
       yet.** An armor piece's slot is the hundreds digit of its id.
 
@@ -395,9 +395,65 @@ scripts:
 
 ### Still to do in EMEVD
 
-- [ ] **Entity arguments** (boss ids and spEffect targets) wait on MSB, which
-      holds the entities.
+- [ ] **Entity arguments:** boss ids are now checked against MSB (244 of the
+      254 `boss_health_bar` bosses are enemy entity ids). spEffect targets are
+      not checked yet.
 - [ ] **The other 300 or so instructions** are uncatalogued. The ones Phase 5
       needs (enabling and disabling characters, warps, cutscenes) take
       entity ids, so they also come after MSB.
 - [ ] **Names for the other 45 scripts.**
+
+### MSB
+
+`fs-msb` reads and writes the map files. All 1,347 MSBs in the archives
+round-trip byte for byte, and `apoc-fs check` covers them.
+
+**The container.** Six tables, always in this order: models, events, points,
+routes, layers, parts. Each table has a version (74), an offset count that
+includes a final next-table offset, its name (UTF-16, padded to 8), and its
+entries.
+
+**Entries are self-contained.** Every offset inside an entry is relative to
+the entry's own start. So entries are kept as blobs, each running to where the
+next one starts with its padding included, and only the tables are rebuilt.
+Fields are edited in place inside the blobs. Adding or resizing entries (which
+the enemy randomizer may need) will need the type-specific layouts first.
+
+**Names.** 1,248 of the 1,347 maps match `/map/mapstudio/mAA_BB_CC_DD.msb.dcx`.
+The other 99 are named some other way.
+
+#### Field layout
+
+Found with `apoc-fs msb-columns <game> <table> [--type OFF=V] [--base OFF]`.
+`--base` measures from a section whose offset the entry stores. The results
+are in `crates/fs-msb/layouts/elden_ring.toml`, and
+`crates/fs-tool/tests/real_maps.rs` checks every claim against the other
+formats:
+
+| Field | Where | Checked by |
+| --- | --- | --- |
+| event / part type | +0x0C | Each type has its own data. Event type 4 is treasure. Part types 2 and 10 are enemies; 13 is assets (573,966 of them). |
+| part model | +0x14 | The model's name is part of the part's name in 621,518 of 621,538 parts. |
+| part position, rotation | +0x20, +0x2C | Float shape only (probable). |
+| part entity id | section +0x60, +0x00 | 244 of the 254 boss ids the scripts give `boss_health_bar` are enemy entity ids. |
+| enemy NpcParam, AI, CharaInit | section +0x68, +0x0C / +0x08 / +0x18 | 3,311/3,313, 1,350/1,352 and 183/183 distinct values are rows. |
+| treasure part, item lot | section +0x20, +0x08 / +0x10 | 3,579 of 3,639 treasures point at a part (assets mostly); item lots are ItemLotParam_map rows (96%). |
+
+#### What MSB settles
+
+**The item-lot get flag is now confirmed** as the flag that records a treasure
+as picked up:
+
+- of the 3,558 lots the maps place as treasure, 3,425 carry a flag;
+- only two of those flags are shared;
+- only 12% of all get flags occur in any script.
+
+So picking up the treasure sets the flag, not a script.
+
+### Still to do in MSB
+
+- [ ] **Points (regions) and routes** have no fields yet. The enemy
+      randomizer's arena handling will want regions.
+- [ ] **Entity group ids** (the words after the entity id).
+- [ ] **Type-specific layouts** for when entries must be added or resized.
+- [ ] **Names for the other 99 maps.**

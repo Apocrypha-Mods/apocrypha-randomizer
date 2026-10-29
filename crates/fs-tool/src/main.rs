@@ -17,6 +17,7 @@ mod columns;
 mod flags;
 mod instructions;
 mod labels;
+mod msb_columns;
 mod names;
 mod scripts;
 
@@ -69,9 +70,9 @@ enum Command {
         /// Which widths to show: any of 4, 2 and 1 (bytes).
         #[arg(long, default_value = "4")]
         widths: String,
-        #[arg(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0, value_parser = number)]
         from: usize,
-        #[arg(long)]
+        #[arg(long, value_parser = number)]
         to: Option<usize>,
         /// Keep only rows whose i32 at a hex offset has a value, e.g.
         /// `--where 20=1`. Repeatable.
@@ -85,9 +86,9 @@ enum Command {
         table: String,
         /// The name table rows are named from, e.g. `GoodsName`.
         names: String,
-        #[arg(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0, value_parser = number)]
         from: usize,
-        #[arg(long)]
+        #[arg(long, value_parser = number)]
         to: Option<usize>,
         /// Skip columns with more distinct values than this.
         #[arg(long, default_value_t = 12)]
@@ -108,6 +109,24 @@ enum Command {
         #[arg(long)]
         only: Option<String>,
     },
+    /// Column statistics for one MSB table across every map.
+    MsbColumns {
+        game: PathBuf,
+        /// e.g. `PARTS_PARAM_ST`.
+        table: String,
+        /// Keep only entries whose i32 at a hex offset has a value, e.g. `c=2`.
+        #[arg(long = "type")]
+        type_at: Option<columns::Filter>,
+        #[arg(long, default_value_t = 0, value_parser = number)]
+        from: usize,
+        #[arg(long, value_parser = number)]
+        to: Option<usize>,
+        /// Measure from the section whose offset the entry holds here.
+        #[arg(long, value_parser = number)]
+        base: Option<usize>,
+        #[arg(long, default_value = "scratch/emevd-cache")]
+        cache: PathBuf,
+    },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -124,6 +143,15 @@ enum Command {
     },
 }
 
+/// A number in decimal or, with `0x`, hexadecimal.
+fn number(s: &str) -> Result<usize, String> {
+    match s.strip_prefix("0x") {
+        Some(h) => usize::from_str_radix(h, 16),
+        None => s.parse(),
+    }
+    .map_err(|e| e.to_string())
+}
+
 fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
@@ -136,6 +164,25 @@ fn main() {
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
         Command::Flags { game } => flags::run(game),
+        Command::MsbColumns {
+            game,
+            table,
+            type_at,
+            from,
+            to,
+            base,
+            cache,
+        } => msb_columns::run(
+            game,
+            cache,
+            msb_columns::Query {
+                table,
+                type_at: type_at.map(|f| (f.off, f.value)),
+                from,
+                to,
+                base,
+            },
+        ),
         Command::Instructions { game, cache, only } => instructions::run(game, cache, only),
         Command::Labels {
             game,

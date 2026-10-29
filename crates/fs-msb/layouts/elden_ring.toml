@@ -1,0 +1,136 @@
+# Fields of Elden Ring's MSB entries, worked out from the game's own maps
+# (build 25080141, 1,248 maps found by name) with `apoc-fs msb-columns`.
+# See crates/fs-msb/src/layout.rs; fs-tool/tests/real_maps.rs re-checks every
+# confirmed claim. Offsets are bytes; `section` names where the entry holds the
+# offset of the section a field sits in.
+
+# --- Every entry --------------------------------------------------------------
+
+[[field]]
+table = "EVENT_PARAM_ST"
+name = "type"
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+12 values over 9,543 events; each type has its own data (type 4 holds an item
+lot, 7 an ObjActParam row, 23 a SignPuddleParam row)."""
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "type"
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+Each type has its own data: type 2 (23,203 parts) and 10 (8,766) carry an
+NpcParam row; type 13 (573,966) is the commonest."""
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "model"
+offset = 0x14
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+An index into the map's MODEL_PARAM_ST: the model's name is part of the name
+of the part that uses it (part c4720_9000, model c4720) in 621,518 of 621,538
+parts, checked by the real-file test. The 20 others are 16 assets named
+AEG099_720_… on model AEG099_710 and four player starts with no model."""
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "position"
+offset = 0x20
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = "Three floats, 20,000+ distinct each over enemies, within map-sized ranges: where the part stands."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "rotation"
+offset = 0x2C
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = "Three floats, the middle one varied (20,122 distinct) and the others mostly 0: a turn about the vertical."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "entity_id"
+section = 0x60
+offset = 0x00
+kind = "u32"
+confidence = "confirmed"
+evidence = """
+0 for parts no script names; otherwise ids shaped like 10000800. 244 of the
+254 boss ids the event scripts give boss_health_bar are entity ids of enemy
+parts, checked by the real-file test."""
+
+# --- Enemies (types 2 and 10) -------------------------------------------------
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [2, 10]
+name = "think"
+section = 0x68
+offset = 0x08
+kind = "i32"
+confidence = "confirmed"
+evidence = "A row of NpcThinkParam in 99% of 1,353 distinct values (type 2): the enemy's AI."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [2, 10]
+name = "npc_param"
+section = 0x68
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = "A row of NpcParam in 99% of 3,314 distinct values (type 2): which enemy stands here."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [2, 10]
+name = "chara_init"
+section = 0x68
+offset = 0x18
+kind = "i32"
+confidence = "confirmed"
+evidence = "-1 in 22,846 of 23,203 enemies; every other value is a row of CharaInitParam: a human enemy's equipment."
+
+# --- Treasure (event type 4) ----------------------------------------------------
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [4]
+name = "treasure_part"
+section = 0x20
+offset = 0x08
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+An index into the map's PARTS_PARAM_ST: 3,579 of 3,639 treasures point at a
+part (asset type 13 for 3,253, type 9 for 315), the rest are -1. Checked by
+the real-file test: the part the treasure sits on."""
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [4]
+name = "item_lot"
+section = 0x20
+offset = 0x10
+kind = "i32"
+confidence = "confirmed"
+evidence = "A row of ItemLotParam_map in 96% of 3,558 distinct values: what the treasure gives."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [4]
+name = "action_button"
+section = 0x20
+offset = 0x38
+kind = "i32"
+confidence = "probable"
+evidence = "-1 in 3,442 of 3,639; the rest rows of ActionButtonParam (4280, 4201, …): the prompt to pick it up, when it is not the default."

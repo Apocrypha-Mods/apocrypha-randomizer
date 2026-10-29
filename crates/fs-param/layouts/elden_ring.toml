@@ -61,14 +61,14 @@ test): a chance per slot in tenths of a percent."""
 name = "get_item_flag"
 offset = 0x80
 kind = "u32"
-confidence = "probable"
+confidence = "confirmed"
 evidence = """
-4,546 distinct values over 5,592 map lots, clustered like event flag ranges
-(e.g. 400348). Mostly zero for enemy lots (4,891 of 5,135), as repeatable drops
-would be. An event flag: 190 of its values are tested or set directly by the
-event scripts. Only 12% occur in the scripts at all, as expected if picking an
-item up sets it without a script; that it is set on pick-up is to be confirmed
-against the MSB treasure records."""
+The flag that records a treasure as picked up. Of the 3,558 lots the maps place
+as treasure (MSB event type 4), 3,425 carry a flag and only two flags are
+shared, so each treasure has its own. Only 12% of all these flags occur in the
+event scripts, so picking the treasure up sets it, not a script. Mostly zero for enemy lots
+(4,891 of 5,135), as repeatable drops would be. Checked by fs-tool's
+real_maps.rs."""
 
 [[layout.field]]
 name = "count"
