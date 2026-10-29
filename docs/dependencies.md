@@ -14,7 +14,7 @@ Every dependency, its licence and why it is here.
 | thiserror 2 | MIT OR Apache-2.0 | fs-bytes | the shared error type |
 | zstd 0.13 (zstd: BSD-3-Clause) | MIT; BSD-3-Clause | fs-dcx | zstd read and write |
 | flate2 1 (miniz_oxide) | MIT OR Apache-2.0 | fs-dcx | deflate read and write |
-| serde 1, toml 1 | MIT OR Apache-2.0 | fs-param | reading our own field layouts (`layouts/elden_ring.toml`) |
+| serde 1, toml 1 | MIT OR Apache-2.0 | fs-param, fs-emevd | reading our own param layouts and instruction catalogue |
 | clap 4 | MIT OR Apache-2.0 | fs-tool | the `apoc-fs` command line |
 | tempfile 3 (dev only) | MIT OR Apache-2.0 | fs-dvdbnd tests | synthetic archives on disk |
 | oozextract 0.5.7 | MIT label, **disputed** (port of GPL ooz) | fs-kraken only | Kraken decode. Reached only through `fs-dcx`'s `kraken` feature, which is off by default; `fs-tool` (a developer tool, never shipped) turns it on. Legal check before anything that ships enables it. |
@@ -41,6 +41,10 @@ alone or in combination. Nothing is GPL, LGPL or MPL.
   bytes in `eldenring.exe`. `fs-param` finds it by trying each 4-byte-aligned
   window until one decrypts the file's first block to a DCX header, which takes
   about 0.2 s. No key is stored in this repository.
+- **The instruction catalogue.** Worked out from the game's own event scripts
+  with `apoc-fs instructions`, never from DarkScript3's EMEDF or any other
+  definitions, and stored with the evidence for each entry in
+  `crates/fs-emevd/catalogue/elden_ring.toml`.
 - **Param field layouts.** Worked out from the game's own tables with
   `apoc-fs columns`, never from Paramdex, and stored with the evidence for
   each field in `crates/fs-param/layouts/elden_ring.toml`.

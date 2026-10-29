@@ -343,6 +343,8 @@ name = "fs-emevd"
 version = "0.1.0"
 dependencies = [
  "fs-bytes",
+ "serde",
+ "toml",
 ]
 
 [[package]]

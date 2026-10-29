@@ -18,20 +18,18 @@ use rayon::prelude::*;
 /// Where a word sits: instruction bank, id, and word index in the arguments.
 type Place = (u32, u32, usize);
 
-/// The argument words that hold a flag id, as the scripts' own shapes show:
-/// 2003[66] (12 bytes: a small value, the flag, 0 or 1, the shape of setting a
-/// flag off or on), 3[0] (packed condition bytes, then the flag) and 1003[1],
-/// 1003[2] and 1003[101] (likewise, then the flag). Found by where the boss
-/// defeat flags fall, then checked by argument shape. 4[0] is not one: its
-/// word 1 holds character ids (10000 is the player), which boss area ids
-/// share.
-pub const FLAG_WORDS: [Place; 5] = [
-    (2003, 66, 1),
-    (3, 0, 1),
-    (1003, 1, 1),
-    (1003, 2, 1),
-    (1003, 101, 1),
-];
+/// The argument words that hold a flag, from the instruction catalogue.
+fn flag_words() -> Vec<Place> {
+    fs_emevd::catalogue::elden_ring()
+        .iter()
+        .flat_map(|e| {
+            e.args
+                .iter()
+                .filter(|a| a.kind == fs_emevd::catalogue::ArgKind::Flag)
+                .map(move |a| (e.bank, e.id, a.word))
+        })
+        .collect()
+}
 
 pub fn run(game: PathBuf) -> Result<()> {
     let reg = Regulation::open(&game)?;
@@ -86,6 +84,7 @@ pub fn run(game: PathBuf) -> Result<()> {
         }
     }
 
+    let flag_words = flag_words();
     for (name, vals) in &fields {
         let found = vals.iter().filter(|v| places.contains_key(v)).count();
         let as_flag = vals
@@ -93,7 +92,7 @@ pub fn run(game: PathBuf) -> Result<()> {
             .filter(|v| {
                 places
                     .get(v)
-                    .is_some_and(|p| p.iter().any(|p| FLAG_WORDS.contains(p)))
+                    .is_some_and(|p| p.iter().any(|p| flag_words.contains(p)))
             })
             .count();
         let mut by_place: BTreeMap<Place, usize> = BTreeMap::new();

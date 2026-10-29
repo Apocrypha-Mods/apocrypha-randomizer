@@ -1,0 +1,315 @@
+# What Elden Ring's event instructions do, as far as the game's own scripts
+# show it. Worked out with `apoc-fs instructions` over all 589 scripts, with
+# placeholders filled in from the calls that start each event; never from
+# third-party definitions (DarkScript3's EMEDF is not used). See
+# crates/fs-emevd/src/catalogue.rs.
+#
+# Shares below are of distinct non-zero values, as of build 25080141. Names say
+# only what the evidence shows; a probable entry's name is the best reading of
+# its shape, to be settled in play or against MSB.
+
+# --- Starting events --------------------------------------------------------
+
+[[instruction]]
+bank = 2000
+id = 0
+name = "start_event"
+confidence = "confirmed"
+evidence = """
+6,126 uses, 12 to 300 bytes. Word 1 is an event id in 99% of uses (3,299
+distinct). Filling the started event's parameters from the words after it
+makes the item-lot word of award_item_lot_b go from 45 to 620 distinct values
+and still match ItemLotParam_map 95%: the reading of parameters is right."""
+[[instruction.arg]]
+word = 0
+name = "slot"
+kind = "number"
+[[instruction.arg]]
+word = 1
+name = "event"
+kind = "event_id"
+[[instruction.arg]]
+word = 2
+name = "args"
+kind = "rest"
+
+[[instruction]]
+bank = 2000
+id = 6
+name = "start_common_event"
+confidence = "confirmed"
+evidence = """
+10,480 uses, same shape as start_event. Word 1 is an event id in 99% of uses,
+almost all of them the shared events of common_func (90005xxx)."""
+[[instruction.arg]]
+word = 0
+name = "slot"
+kind = "number"
+[[instruction.arg]]
+word = 1
+name = "event"
+kind = "event_id"
+[[instruction.arg]]
+word = 2
+name = "args"
+kind = "rest"
+
+# --- Flags ------------------------------------------------------------------
+
+[[instruction]]
+bank = 2003
+id = 66
+name = "set_flag"
+length = 12
+confidence = "confirmed"
+evidence = """
+4,601 uses, always 12 bytes. Word 1 takes 4,768 distinct values including
+boss defeat flags (GameAreaParam) and the flags of every flag field in the
+param layouts; word 2 is only ever 0 or 1. The shape of setting a flag off or
+on."""
+[[instruction.arg]]
+word = 0
+name = "kind"
+kind = "number"
+[[instruction.arg]]
+word = 1
+name = "flag"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 3
+id = 0
+name = "if_flag"
+length = 8
+confidence = "confirmed"
+evidence = """
+6,834 uses, always 8 bytes: packed condition bytes (257, 511, …), then a flag
+(4,831 distinct values, boss defeat flags among them)."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+[[instruction.arg]]
+word = 1
+name = "flag"
+kind = "flag"
+
+[[instruction]]
+bank = 1003
+id = 2
+name = "branch_on_flag"
+length = 8
+confidence = "probable"
+evidence = """
+2,313 uses, always 8 bytes: packed bytes (256, 131328, …), then 1,701
+distinct values among them boss defeat flags. A control-flow instruction
+(bank 1003) that tests a flag; what it branches to is not settled."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+[[instruction.arg]]
+word = 1
+name = "flag"
+kind = "flag"
+
+[[instruction]]
+bank = 1003
+id = 101
+name = "branch_on_flag_b"
+length = 8
+confidence = "probable"
+evidence = """
+2,235 uses, always 8 bytes: packed bytes (257, 256, 258, …), then 2,752
+distinct values among them boss defeat flags. Like branch_on_flag; how the two
+differ is not settled."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+[[instruction.arg]]
+word = 1
+name = "flag"
+kind = "flag"
+
+# --- Items ------------------------------------------------------------------
+
+[[instruction]]
+bank = 2003
+id = 4
+name = "award_item_lot"
+length = 4
+confidence = "confirmed"
+evidence = "26 uses, always 4 bytes; every value (21 distinct) is a row of ItemLotParam_map."
+[[instruction.arg]]
+word = 0
+name = "item_lot"
+kind = { param = "ItemLotParam_map" }
+
+[[instruction]]
+bank = 2003
+id = 36
+name = "award_item_lot_b"
+length = 4
+confidence = "confirmed"
+evidence = """
+205 uses, always 4 bytes; 95% of its 620 distinct values (with placeholders
+filled in) are rows of ItemLotParam_map. How it differs from award_item_lot is
+not settled."""
+[[instruction.arg]]
+word = 0
+name = "item_lot"
+kind = { param = "ItemLotParam_map" }
+
+[[instruction]]
+bank = 1000
+id = 6
+name = "uses_item_lot"
+length = 12
+confidence = "probable"
+evidence = """
+29 uses, always 12 bytes, nearly all filled in by calls: word 1 is a row of
+ItemLotParam_map in 95% of 273 distinct values. A control-flow instruction
+(bank 1000) that tests something about an item lot."""
+[[instruction.arg]]
+word = 1
+name = "item_lot"
+kind = { param = "ItemLotParam_map" }
+
+[[instruction]]
+bank = 2004
+id = 76
+name = "boss_item_lot"
+length = 8
+confidence = "probable"
+evidence = """
+13 uses, filled in by calls 215 times: word 0 takes boss area ids (the values
+of GameAreaParam rows) and word 1 a row of ItemLotParam_map (93%). Pairs a
+boss with an item lot, likely its reward."""
+[[instruction.arg]]
+word = 0
+name = "boss"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "item_lot"
+kind = { param = "ItemLotParam_map" }
+
+[[instruction]]
+bank = 3
+id = 34
+name = "if_armor"
+length = 12
+confidence = "probable"
+evidence = """
+86 uses, always 12 bytes; word 1 is always a row of EquipParamProtector (64
+distinct), word 2 always -1. A condition (bank 3) on an armor piece."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+[[instruction.arg]]
+word = 1
+name = "armor"
+kind = { param = "EquipParamProtector" }
+
+# --- Bosses -----------------------------------------------------------------
+
+[[instruction]]
+bank = 2003
+id = 11
+name = "boss_health_bar"
+length = 16
+confidence = "probable"
+evidence = """
+228 uses, always 16 bytes: 0 or 1; a boss's character id (the same values as
+GameAreaParam rows, 82%); 0, 1 or 2; and an id in NpcName in 99% of 244
+distinct values (the boss's name). The shape of showing or hiding a named
+health bar in one of three places."""
+[[instruction.arg]]
+word = 0
+name = "state"
+kind = "state"
+[[instruction.arg]]
+word = 1
+name = "boss"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "bar"
+kind = "number"
+[[instruction.arg]]
+word = 3
+name = "name"
+kind = { text = "NpcName" }
+
+[[instruction]]
+bank = 2003
+id = 12
+name = "boss_defeated"
+length = 8
+confidence = "probable"
+evidence = """
+167 uses, always 8 bytes: word 0 is a GameAreaParam row in 95% of 219 distinct
+values, word 1 a small number (15..27). Acts on a boss area; likely what marks
+its defeat (banner, reward)."""
+[[instruction.arg]]
+word = 0
+name = "boss_area"
+kind = { param = "GameAreaParam" }
+[[instruction.arg]]
+word = 1
+name = "kind"
+kind = "number"
+
+# --- Effects and text ---------------------------------------------------------
+
+[[instruction]]
+bank = 2004
+id = 8
+name = "sp_effect"
+length = 8
+confidence = "probable"
+evidence = """
+1,411 uses, always 8 bytes; word 1 is a SpEffectParam row in 99% of 472
+distinct values, word 0 a target. Applies (or tests) an effect on someone."""
+[[instruction.arg]]
+word = 0
+name = "target"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "sp_effect"
+kind = { param = "SpEffectParam" }
+
+[[instruction]]
+bank = 2007
+id = 14
+name = "show_place_name"
+length = 4
+confidence = "probable"
+evidence = "6 uses, always 4 bytes; every value is an id in PlaceName."
+[[instruction.arg]]
+word = 0
+name = "place"
+kind = { text = "PlaceName" }
+
+[[instruction]]
+bank = 2007
+id = 15
+name = "show_tutorial"
+length = 8
+confidence = "probable"
+evidence = "103 uses, always 8 bytes; word 0 is a TutorialParam row in every use (60 distinct)."
+[[instruction.arg]]
+word = 0
+name = "tutorial"
+kind = { param = "TutorialParam" }
+[[instruction.arg]]
+word = 1
+name = "flags"
+kind = "packed"

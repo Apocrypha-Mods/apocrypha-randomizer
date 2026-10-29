@@ -15,8 +15,10 @@ use rayon::prelude::*;
 mod check;
 mod columns;
 mod flags;
+mod instructions;
 mod labels;
 mod names;
+mod scripts;
 
 #[derive(Parser)]
 #[command(
@@ -96,6 +98,16 @@ enum Command {
     },
     /// How the param fields named as flags show up in the event scripts.
     Flags { game: PathBuf },
+    /// Statistics for every instruction in the event scripts.
+    Instructions {
+        game: PathBuf,
+        /// Where the decompressed scripts are cached between runs.
+        #[arg(long, default_value = "scratch/emevd-cache")]
+        cache: PathBuf,
+        /// Only these instructions, as `bank:id,bank:id`.
+        #[arg(long)]
+        only: Option<String>,
+    },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -124,6 +136,7 @@ fn main() {
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
         Command::Flags { game } => flags::run(game),
+        Command::Instructions { game, cache, only } => instructions::run(game, cache, only),
         Command::Labels {
             game,
             table,

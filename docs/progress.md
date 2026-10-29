@@ -334,24 +334,70 @@ every argument word of every script:
 | `ShopLineupParam.event_flag_a` | 64/784 | 21 | Event flags; what each records waits on play. |
 
 Where the boss-defeat flags fall points to the instructions that take a flag.
-Their argument shapes across all 589 scripts back this up:
+The instruction catalogue (below) records them. 4[0] isn't a flag instruction,
+even though defeat flags show up in it: its word 1 holds character ids (10000
+is the player), and boss area ids equal those character ids. 1003[1] was
+first counted as one and then dropped, because its word 1 is mostly small
+numbers (51–56).
 
-- **2003[66]** always takes 12 bytes: a small value (0 or 2), the flag, then 0
-  or 1. That's the shape of setting a flag off or on.
-- **3[0]** takes 8 bytes: packed condition bytes, then the flag.
-- **1003[1], 1003[2] and 1003[101]** take 8 bytes: likewise, then the flag.
-- **4[0] isn't a flag instruction**, even though defeat flags show up in it.
-  Its word 1 holds character ids (10000 is the player), and boss area ids
-  equal those character ids.
+#### Instruction catalogue
 
-These readings come from the data alone. They are recorded as observed shapes,
-not as decoded instruction meanings.
+`crates/fs-emevd/catalogue/elden_ring.toml` records what instructions do, as
+far as the game's scripts show it. Each entry has a plain name, a confidence
+(confirmed or probable), evidence, and a kind for each argument word. No
+third-party definitions are used.
+
+How the evidence was gathered:
+
+- **`apoc-fs instructions <game> [--only bank:id,…]`** reports every
+  instruction's use count and argument lengths. For each argument word it
+  shows the spread of values and which known sets they fall in: event ids,
+  param flags, every text table, and every param table's row ids. It caches
+  the 589 decompressed scripts in `scratch/emevd-cache` (not committed).
+- **Placeholders are filled in first.** Many argument words are placeholders
+  that parameters fill when the event starts.
+  `fs_emevd::catalogue::resolve_calls` takes each `start_event` call (word 0 a
+  slot, word 1 the event id, then the event's arguments) and copies each
+  parameter's bytes from the call into the started event's instruction. That
+  is 447,489 filled-in words. The reading is checked by the data:
+  `award_item_lot_b`'s item-lot word goes from 45 to 620 distinct values and
+  still matches ItemLotParam_map 95%, which a wrong reading would not do.
+
+| Instruction | Name | Confidence | Evidence (shares of distinct values) |
+| --- | --- | --- | --- |
+| 2000[0] | `start_event` | confirmed | word 1 is an event id, 99% |
+| 2000[6] | `start_common_event` | confirmed | word 1 is an event id, 99%, mostly common_func's |
+| 2003[66] | `set_flag` | confirmed | 12 bytes: kind, flag, 0 or 1 |
+| 3[0] | `if_flag` | confirmed | 8 bytes: packed condition, flag |
+| 1003[2], 1003[101] | `branch_on_flag`, `_b` | probable | 8 bytes: packed bytes, flag; what they branch to is open |
+| 2003[4] | `award_item_lot` | confirmed | ItemLotParam_map 100% |
+| 2003[36] | `award_item_lot_b` | confirmed | ItemLotParam_map 95% of 619; how it differs is open |
+| 1000[6] | `uses_item_lot` | probable | ItemLotParam_map 96% |
+| 2004[76] | `boss_item_lot` | probable | a boss id, then ItemLotParam_map 94% |
+| 3[34] | `if_armor` | probable | EquipParamProtector 100% |
+| 2003[11] | `boss_health_bar` | probable | on/off, boss id, bar 0–2, NpcName 100% |
+| 2003[12] | `boss_defeated` | probable | GameAreaParam 95%, then a small number |
+| 2004[8] | `sp_effect` | probable | a target, then SpEffectParam 99% |
+| 2007[14] | `show_place_name` | probable | PlaceName 100% |
+| 2007[15] | `show_tutorial` | probable | TutorialParam 100% |
+
+`crates/fs-tool/tests/real_events.rs` re-checks every claim on the real
+scripts:
+
+- **Fixed lengths:** every use of an instruction has the length its entry
+  states.
+- **References:** at least 90% of a param argument's values, and 95% of a
+  text argument's, are in their table.
+- **Event ids:** at least 95% are ids of events in the scripts.
+- **States:** a state word is only ever 0 or 1.
+
+`apoc-fs flags` now takes its flag words from the catalogue.
 
 ### Still to do in EMEVD
 
-- [ ] **An instruction catalogue** (what each bank and id does, and its
-      argument types), worked out the same way: from argument shapes and from
-      values we already know, such as flags, entity ids and item ids. No
-      third-party definitions (DarkScript3's are not usable). Phase 3 needs it
-      for item awards; Phase 5 needs it for boss and enemy events.
+- [ ] **Entity arguments** (boss ids and spEffect targets) wait on MSB, which
+      holds the entities.
+- [ ] **The other 300 or so instructions** are uncatalogued. The ones Phase 5
+      needs (enabling and disabling characters, warps, cutscenes) take
+      entity ids, so they also come after MSB.
 - [ ] **Names for the other 45 scripts.**

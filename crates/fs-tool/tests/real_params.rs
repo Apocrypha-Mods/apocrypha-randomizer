@@ -479,8 +479,16 @@ fn boss_defeat_flags_are_used_by_the_event_scripts() {
         .map(|r| f.get(&r.data, 0) as u32)
         .filter(|&v| v != 0)
         .collect();
-    // The flag words: 2003[66], 3[0], 1003[1], 1003[2] and 1003[101], word 1.
-    let flag_words = [(2003, 66), (3, 0), (1003, 1), (1003, 2), (1003, 101)];
+    // The flag words, from the instruction catalogue (all of them word 1).
+    let flag_words: Vec<(u32, u32)> = fs_emevd::catalogue::elden_ring()
+        .iter()
+        .filter(|e| {
+            e.args
+                .iter()
+                .any(|a| a.kind == fs_emevd::catalogue::ArgKind::Flag && a.word == 1)
+        })
+        .map(|e| (e.bank, e.id))
+        .collect();
     let (mut anywhere, mut as_flag) = (HashSet::new(), HashSet::new());
     let mut names = vec![
         "/event/common.emevd.dcx".to_string(),

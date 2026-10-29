@@ -28,6 +28,8 @@
 //! The writer lays everything out again from the events, and `apoc-fs check`
 //! holds every EMEVD in the game to coming back byte for byte.
 
+pub mod catalogue;
+
 use fs_bytes::{self as rd, Error, Result, format_err};
 
 const HEADER_LEN: usize = 0x90;
