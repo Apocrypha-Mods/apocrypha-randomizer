@@ -1,0 +1,826 @@
+# Elden Ring's areas, how they connect, and what it takes to get through.
+#
+# Authored here from general knowledge of the game (PLAN.md §1, rule 4), not
+# taken from another randomizer. First draft, 2026-10-29, for review in play:
+# every claim marked `sure = false` is one to check, and its note says what.
+#
+# - An area is a set of graces (by their in-game names, `name@mAA_BB` where a
+#   name is shared) and of maps (by prefix). Item locations go to the area of
+#   their map, else to the nearest grace's (crates/logic/src/lib.rs).
+# - An edge opens `to` from `from` (and back, unless `oneway`) once its
+#   `items` are held, its `bosses` beaten, and `n` of its `any.items` held.
+# - A `place` puts a location with no map (the grace menu's gifts, NPCs of
+#   the open world) in an area, optionally behind its own need.
+#
+# `apoc-fs logic <game>` checks every name against the game and walks the
+# vanilla game from the start.
+
+start = "stranded_graveyard"
+goal = { bosses = ["Elden Beast"] }
+
+# --- The base game: the start -------------------------------------------------
+
+[[area]]
+id = "stranded_graveyard"
+name = "Stranded Graveyard"
+maps = ["m18_00"]
+note = "Where the game starts after the Chapel of Anticipation; the Cave of Knowledge tutorial is in the same map."
+
+[[area]]
+id = "chapel_of_anticipation"
+name = "Chapel of Anticipation"
+maps = ["m10_01"]
+note = "The opening; returned to later through the Four Belfries."
+
+# --- Limgrave and the Weeping Peninsula ----------------------------------------
+
+[[area]]
+id = "limgrave"
+name = "Limgrave"
+graces = [
+    "The First Step", "Church of Elleh", "Gatefront", "Stormhill Shack",
+    "Warmaster's Shack", "Agheel Lake North", "Agheel Lake South",
+    "Murkwater Coast", "Saintsbridge", "Waypoint Ruins Cellar",
+    "Mistwood Outskirts", "Artist's Shack@m60_11_09",
+    "Summonwater Village Outskirts", "Beside the Crater-Pocked Glade",
+    "Fort Haight West", "Third Church of Marika",
+    "Isolated Merchant's Shack@m60_10_08", "Church of Dragon Communion",
+    "Seaside Ruins",
+]
+maps = [
+    "m30_02", # Stormfoot Catacombs
+    "m30_04", # Murkwater Catacombs
+    "m30_11", # Deathtouched Catacombs
+    "m31_00", # Murkwater Cave
+    "m31_03", # Groveside Cave
+    "m31_15", # Coastal Cave
+    "m31_17", # Highroad Cave
+    "m32_01", # Limgrave Tunnels
+]
+note = "Stormhill is folded in: nothing gates it. Seaside Ruins and Church of Dragon Communion are on Limgrave's coast."
+
+[[area]]
+id = "weeping_peninsula"
+name = "Weeping Peninsula"
+graces = [
+    "Bridge of Sacrifice", "Castle Morne Rampart", "South of the Lookout Tower",
+    "Ailing Village Outskirts", "Fourth Church of Marika", "Tombsward",
+    "Church of Pilgrimage", "Morne Moangrave", "Castle Morne Lift",
+    "Behind the Castle", "Beside the Rampart Gaol",
+]
+maps = [
+    "m30_00", # Tombsward Catacombs
+    "m30_01", # Impaler's Catacombs
+    "m31_01", # Earthbore Cave
+    "m31_02", # Tombsward Cave
+    "m32_00", # Morne Tunnel
+]
+
+[[area]]
+id = "roundtable_hold"
+name = "Roundtable Hold"
+maps = ["m11_10"]
+
+# --- Stormveil Castle ---------------------------------------------------------
+
+[[area]]
+id = "stormveil_approach"
+name = "Stormveil: Margit's bridge"
+graces = ["Margit, the Fell Omen"]
+note = "Margit's arena, before the castle proper."
+
+[[area]]
+id = "stormveil"
+name = "Stormveil Castle"
+graces = [
+    "Castleward Tunnel", "Stormveil Main Gate", "Gateside Chamber",
+    "Stormveil Cliffside", "Rampart Tower", "Liftside Chamber", "Secluded Cell",
+    "Godrick the Grafted",
+]
+
+[[area]]
+id = "divine_tower_limgrave"
+name = "Divine Tower of Limgrave"
+maps = ["m34_10"]
+
+# --- Liurnia --------------------------------------------------------------------
+
+[[area]]
+id = "liurnia"
+name = "Liurnia of the Lakes"
+graces = [
+    "Lake-Facing Cliffs", "Liurnia Lake Shore", "Laskyar Ruins",
+    "Scenic Isle", "Slumbering Wolf's Shack", "Boilprawn Shack",
+    "Fallen Ruins of the Lake", "Liurnia Highway South",
+    "Liurnia Highway North", "Gate Town Bridge", "Gate Town North",
+    "Academy Gate Town", "Church of Vows", "Artist's Shack@m60_09_11",
+    "Eastern Liurnia Lake Shore", "Eastern Tableland", "Ruined Labyrinth",
+    "Jarburg", "East Raya Lucaria Gate", "Bellum Church", "The Ravine",
+    "Mausoleum Compound", "Church of Inhibition",
+    "Frenzied Flame Village Outskirts", "Grand Lift of Dectus",
+    "Ravine-Veiled Village", "Revenger's Shack", "Foot of the Four Belfries",
+    "The Four Belfries", "Village of the Albinaurics", "Converted Tower",
+    "Temple Quarter", "Crystalline Woods", "Sorcerer's Isle",
+    "Northern Liurnia Lake Shore", "Road to the Manor", "Folly on the Lake",
+    "South Raya Lucaria Gate", "Main Academy Gate", "East Gate Bridge Trestle",
+    "Main Caria Manor Gate",
+]
+maps = [
+    "m30_03", # Road's End Catacombs
+    "m30_05", # Black Knife Catacombs
+    "m30_06", # Cliffbottom Catacombs
+    "m31_04", # Stillwater Cave
+    "m31_05", # Lakeside Crystal Cave
+    "m31_06", # Academy Crystal Cave
+    "m32_02", # Raya Lucaria Crystal Tunnel
+]
+
+[[area]]
+id = "raya_lucaria"
+name = "Academy of Raya Lucaria"
+maps = ["m14_00"]
+
+[[area]]
+id = "caria_manor"
+name = "Caria Manor"
+graces = ["Manor Upper Level", "Manor Lower Level", "Royal Moongazing Grounds"]
+note = "Royal Moongazing Grounds is Loretta's arena, so it is on this side of her."
+
+[[area]]
+id = "three_sisters"
+name = "Three Sisters"
+graces = ["Behind Caria Manor", "Ranni's Rise", "Ranni's Chamber"]
+sure = false
+note = "Behind Caria Manor is taken to be past Loretta, with the Three Sisters; check."
+
+[[area]]
+id = "moonlight_altar"
+name = "Moonlight Altar"
+graces = ["Cathedral of Manus Celes", "Altar South", "Moonlight Altar"]
+
+[[area]]
+id = "divine_tower_liurnia"
+name = "Divine Tower of Liurnia"
+maps = ["m34_11"]
+
+[[area]]
+id = "ruin_strewn_precipice"
+name = "Ruin-Strewn Precipice"
+maps = ["m39_20"]
+
+# --- Underground ------------------------------------------------------------------
+
+[[area]]
+id = "siofra"
+name = "Siofra River"
+graces = ["Siofra River Well Depths", "Siofra River Bank", "Worshippers' Woods", "Below the Well"]
+
+[[area]]
+id = "nokron"
+name = "Nokron, Eternal City"
+graces = [
+    "Nokron, Eternal City", "Great Waterfall Basin", "Mimic Tear",
+    "Ancestral Woods", "Aqueduct-Facing Cliffs", "Night's Sacred Ground",
+]
+sure = false
+note = "Great Waterfall Basin is taken to be in Nokron rather than open Siofra; check."
+
+[[area]]
+id = "deeproot_depths"
+name = "Deeproot Depths"
+maps = ["m12_03"]
+
+[[area]]
+id = "ainsel_river"
+name = "Ainsel River and Nokstella"
+graces = [
+    "Ainsel River Well Depths", "Ainsel River Sluice Gate",
+    "Ainsel River Downstream", "Ainsel River Main", "Nokstella, Eternal City",
+    "Nokstella Waterfall Basin", "Dragonkin Soldier of Nokstella",
+]
+
+[[area]]
+id = "lake_of_rot"
+name = "Lake of Rot"
+graces = ["Lake of Rot Shoreside", "Grand Cloister"]
+maps = ["m12_04"] # Astel's arena
+
+[[area]]
+id = "mohgwyn_palace"
+name = "Mohgwyn Palace"
+maps = ["m12_05"]
+
+# --- Caelid ---------------------------------------------------------------------
+
+[[area]]
+id = "caelid"
+name = "Caelid"
+graces = [
+    "Smoldering Church", "Rotview Balcony", "Fort Gael North", "Caelem Ruins",
+    "Cathedral of Dragon Communion", "Caelid Highway South",
+    "Aeonia Swamp Shore", "Astray from Caelid Highway North", "Smoldering Wall",
+    "Southern Aeonia Swamp Bank", "Heart of Aeonia", "Inner Aeonia",
+    "Sellia Backstreets", "Chair-Crypt of Sellia", "Sellia Under-Stair",
+    "Impassable Greatbridge", "Church of the Plague", "Redmane Castle Plaza",
+    "Chamber Outside the Plaza", "Starscourge Radahn", "Deep Siofra Well",
+]
+maps = [
+    "m30_14", # Minor Erdtree Catacombs
+    "m30_15", # Caelid Catacombs
+    "m30_16", # War-Dead Catacombs
+    "m31_11", # Sellia Hideaway
+    "m31_20", # Abandoned Cave
+    "m31_21", # Gaol Cave
+    "m32_07", # Gael Tunnel
+    "m32_08", # Sellia Crystal Tunnel
+]
+sure = false
+note = "Deep Siofra Well is taken to be in Caelid, not Dragonbarrow; check."
+
+[[area]]
+id = "dragonbarrow"
+name = "Dragonbarrow"
+graces = [
+    "Dragonbarrow West", "Isolated Merchant's Shack@m60_12_10",
+    "Dragonbarrow Fork", "Fort Faroth", "Bestial Sanctum", "Lenne's Rise",
+    "Farum Greatbridge",
+]
+maps = [
+    "m31_10", # Dragonbarrow Cave
+]
+
+[[area]]
+id = "divine_tower_caelid"
+name = "Divine Tower of Caelid"
+maps = ["m34_13"]
+
+# --- Altus Plateau and Mt. Gelmir -------------------------------------------------
+
+[[area]]
+id = "altus"
+name = "Altus Plateau"
+graces = [
+    "Abandoned Coffin", "Altus Plateau", "Erdtree-Gazing Hill",
+    "Altus Highway Junction", "Forest-Spanning Greatbridge", "Bower of Bounty",
+    "Road of Iniquity Side Path", "Rampartside Path", "Windmill Village",
+    "Windmill Heights", "Outer Wall Phantom Tree", "Minor Erdtree Church",
+    "Hermit Merchant's Shack", "Outer Wall Battleground", "Capital Rampart",
+    "Shaded Castle Ramparts", "Shaded Castle Inner Gate", "Castellan's Hall",
+]
+maps = [
+    "m30_08", # Sainted Hero's Grave
+    "m30_10", # Auriza Hero's Grave
+    "m30_12", # Unsightly Catacombs
+    "m30_13", # Auriza Side Tomb
+    "m31_18", # Perfumer's Grotto
+    "m31_19", # Sage's Cave
+    "m32_04", # Old Altus Tunnel
+    "m32_05", # Altus Tunnel
+]
+sure = false
+note = "Capital Rampart is taken to be outside Leyndell's walls; check."
+
+[[area]]
+id = "mt_gelmir"
+name = "Mt. Gelmir"
+graces = [
+    "Seethewater Terminus", "Craftsman's Shack", "Ninth Mt. Gelmir Campsite",
+    "Road of Iniquity", "Seethewater River", "Primeval Sorcerer Azur",
+    "First Mt. Gelmir Campsite", "Bridge of Iniquity",
+]
+maps = [
+    "m30_07", # Wyndham Catacombs
+    "m30_09", # Gelmir Hero's Grave
+    "m31_07", # Seethewater Cave
+    "m31_09", # Volcano Cave
+]
+sure = false
+note = "Wyndham Catacombs and Craftsman's Shack are taken to be on Mt. Gelmir, not the plateau; check."
+
+[[area]]
+id = "volcano_manor"
+name = "Volcano Manor"
+maps = ["m16_00"]
+
+[[area]]
+id = "divine_tower_west_altus"
+name = "Divine Tower of West Altus"
+maps = ["m34_12"]
+
+# --- Leyndell and beyond --------------------------------------------------------
+
+[[area]]
+id = "leyndell"
+name = "Leyndell, Royal Capital"
+maps = ["m11_00"]
+
+[[area]]
+id = "subterranean_shunning_grounds"
+name = "Subterranean Shunning-Grounds"
+maps = ["m35_00"]
+
+[[area]]
+id = "forbidden_lands"
+name = "Forbidden Lands"
+graces = ["Forbidden Lands", "Grand Lift of Rold"]
+
+[[area]]
+id = "divine_tower_east_altus"
+name = "Divine Tower of East Altus"
+maps = ["m34_14"]
+
+[[area]]
+id = "isolated_divine_tower"
+name = "Isolated Divine Tower"
+maps = ["m34_15"]
+
+[[area]]
+id = "mountaintops"
+name = "Mountaintops of the Giants"
+graces = [
+    "Zamor Ruins", "Whiteridge Road", "Freezing Lake", "Ancient Snow Valley Ruins",
+    "Snow Valley Ruins Overlook", "Castle Sol Main Gate", "Church of the Eclipse",
+    "Castle Sol Rooftop", "Foot of the Forge", "Giants' Gravepost", "Fire Giant",
+    "Forge of the Giants", "First Church of Marika", "Church of Repose",
+]
+maps = [
+    "m30_17", # Giant-Conquering Hero's Grave
+    "m30_18", # Giants' Mountaintop Catacombs
+    "m31_22", # Spiritcaller Cave
+]
+sure = false
+note = "Church of Repose is taken to be in the Mountaintops; check."
+
+[[area]]
+id = "consecrated_snowfield"
+name = "Consecrated Snowfield"
+graces = ["Consecrated Snowfield", "Inner Consecrated Snowfield", "Ordina, Liturgical Town", "Apostate Derelict"]
+maps = [
+    "m30_19", # Consecrated Snowfield Catacombs
+    "m30_20", # Hidden Path to the Haligtree
+    "m31_12", # Cave of the Forlorn
+    "m32_11", # Yelough Anix Tunnel
+]
+
+[[area]]
+id = "haligtree"
+name = "Miquella's Haligtree and Elphael"
+maps = ["m15_00"]
+
+[[area]]
+id = "farum_azula"
+name = "Crumbling Farum Azula"
+maps = ["m13_00"]
+
+[[area]]
+id = "ashen_capital"
+name = "Leyndell, Ashen Capital"
+maps = ["m11_05"]
+
+[[area]]
+id = "elden_throne"
+name = "Elden Throne (the Erdtree's stone platform)"
+maps = ["m19_00"]
+
+# --- Shadow of the Erdtree ------------------------------------------------------
+# Drafted from general knowledge of the expansion, less sure than the base
+# game: most of it is marked for checking.
+
+[[area]]
+id = "gravesite_plain"
+name = "Gravesite Plain"
+graces = [
+    "Gravesite Plain", "Cliffroad Terminus", "Main Gate Cross",
+    "Three-Path Cross", "Scorched Ruins", "Ellac River Cave",
+    "Ellac River Downstream", "Greatbridge, North", "Castle Front",
+    "Pillar Path Waypoint", "Pillar Path Cross",
+]
+maps = [
+    "m40_00", # Fog Rift Catacombs
+    "m40_02", # Darklight Catacombs
+    "m41_00", # Belurat Gaol
+    "m41_02", # Lamenter's Gaol
+    "m42_00", # Ruined Forge Lava Intake
+    "m43_00", # Rivermouth Cave
+]
+sure = false
+note = "Which of the expansion's dungeons open off the Gravesite Plain is a draft; check each."
+
+[[area]]
+id = "belurat"
+name = "Belurat, Tower Settlement"
+maps = ["m20_00"]
+
+[[area]]
+id = "enir_ilim"
+name = "Enir-Ilim"
+maps = ["m20_01"]
+
+[[area]]
+id = "castle_ensis"
+name = "Castle Ensis"
+graces = ["Castle Ensis Checkpoint", "Ensis Moongazing Grounds", "Castle-Lord's Chamber"]
+
+[[area]]
+id = "scadu_altus"
+name = "Scadu Altus"
+graces = [
+    "Scadu Altus, West", "Highroad Cross", "Moorth Ruins", "Moorth Highway, South",
+    "Bonny Village", "Bridge Leading to the Village", "Recluses' River Upstream",
+    "Recluses' River Downstream", "Cathedral of Manus Metyr",
+    "Church District Highroad", "Castle Watering Hole", "Fort of Reprimand",
+    "Behind the Fort of Reprimand", "Scaduview Cross", "Ravine North",
+    "Viaduct Minor Tower",
+]
+maps = [
+    "m25_00", # Finger Birthing Grounds
+    "m40_01", # Scorpion River Catacombs
+    "m41_01", # Bonny Gaol
+    "m42_01", # (no grace)
+    "m42_02", # Ruined Forge of Starfall Past
+]
+sure = false
+
+[[area]]
+id = "rauh"
+name = "Ancient Ruins of Rauh"
+graces = [
+    "Ancient Ruins, Grand Stairway", "Church of the Bud",
+    "Church of the Bud, Main Entrance", "Rauh Ancient Ruins, West",
+    "Rauh Ancient Ruins, East", "Temple Town Ruins", "Ancient Ruins Base",
+]
+maps = ["m42_03"] # Taylew's Ruined Forge
+sure = false
+
+[[area]]
+id = "shadow_keep"
+name = "Shadow Keep"
+maps = ["m21_00", "m21_01", "m21_02"]
+
+[[area]]
+id = "hinterland"
+name = "Hinterland and the Scadutree"
+graces = ["Scaduview", "Shadow Keep, Back Gate", "Hinterland", "Hinterland Bridge", "Fingerstone Hill", "Scadutree Base"]
+sure = false
+
+[[area]]
+id = "cerulean_coast"
+name = "Cerulean Coast"
+graces = ["Cerulean Coast West", "Cerulean Coast Cross", "Cerulean Coast", "Charo's Hidden Grave", "The Fissure", "Finger Ruins of Rhia"]
+maps = ["m22_00"] # Stone Coffin Fissure
+sure = false
+
+[[area]]
+id = "jagged_peak"
+name = "Jagged Peak"
+graces = [
+    "Foot of the Jagged Peak", "Forsaken Graveyard", "Church Ruins",
+    "Jagged Peak Mountainside", "Jagged Peak Summit", "Rest of the Dread Dragon",
+    "Grand Altar of Dragon Communion",
+]
+maps = ["m43_01"] # Dragon's Pit
+sure = false
+
+[[area]]
+id = "abyssal_woods"
+name = "Abyssal Woods"
+graces = ["Abyssal Woods", "Divided Falls", "Woodland Trail"]
+maps = ["m28_00"] # Midra's Manse
+sure = false
+
+# --- Edges: the base game -------------------------------------------------------
+
+[[edge]]
+from = "stranded_graveyard"
+to = "limgrave"
+oneway = true
+
+[[edge]]
+from = "limgrave"
+to = "weeping_peninsula"
+
+[[edge]]
+from = "limgrave"
+to = "roundtable_hold"
+sure = false
+note = "Melina brings you once you have rested at enough graces or reached Stormveil's gate; nothing to hold."
+
+[[edge]]
+from = "limgrave"
+to = "stormveil_approach"
+
+[[edge]]
+from = "stormveil_approach"
+to = "stormveil"
+bosses = ["Margit, the Fell Omen"]
+
+[[edge]]
+from = "stormveil"
+to = "liurnia"
+bosses = ["Godrick the Grafted"]
+sure = false
+note = "The castle's way out to Liurnia is past Godrick. A route along the cliffs may skip him; check."
+
+[[edge]]
+from = "stormveil"
+to = "divine_tower_limgrave"
+bosses = ["Godrick the Grafted"]
+sure = false
+note = "The tower bridge leaves from the castle's ramparts after Godrick."
+
+[[edge]]
+from = "limgrave"
+to = "caelid"
+
+[[edge]]
+from = "caelid"
+to = "dragonbarrow"
+
+[[edge]]
+from = "dragonbarrow"
+to = "divine_tower_caelid"
+sure = false
+
+[[edge]]
+from = "limgrave"
+to = "siofra"
+note = "Siofra River Well, in Mistwood."
+
+[[edge]]
+from = "limgrave"
+to = "nokron"
+bosses = ["Starscourge Radahn"]
+note = "The star that falls when Radahn dies opens the way to Nokron."
+
+[[edge]]
+from = "nokron"
+to = "deeproot_depths"
+sure = false
+note = "Through Night's Sacred Ground and the aqueduct."
+
+[[edge]]
+from = "liurnia"
+to = "raya_lucaria"
+items = ["Academy Glintstone Key"]
+
+[[edge]]
+from = "raya_lucaria"
+to = "volcano_manor"
+oneway = true
+sure = false
+note = "An Abductor Virgin in the academy carries you to Volcano Manor's dungeon."
+
+[[edge]]
+from = "liurnia"
+to = "caria_manor"
+
+[[edge]]
+from = "caria_manor"
+to = "three_sisters"
+bosses = ["Royal Knight Loretta"]
+
+[[edge]]
+from = "liurnia"
+to = "divine_tower_liurnia"
+items = ["Carian Inverted Statue"]
+sure = false
+note = "The statue turns the Carian Study Hall upside down, which leads to the tower."
+
+[[edge]]
+from = "liurnia"
+to = "chapel_of_anticipation"
+items = ["Imbued Sword Key"]
+oneway = true
+note = "The Four Belfries' waygate."
+
+[[edge]]
+from = "liurnia"
+to = "ainsel_river"
+note = "Ainsel River Well."
+
+[[edge]]
+from = "ainsel_river"
+to = "lake_of_rot"
+sure = false
+note = "Ranni's quest may be what opens the Lake of Rot; nothing is required here yet. Check."
+
+[[edge]]
+from = "lake_of_rot"
+to = "moonlight_altar"
+oneway = true
+sure = false
+note = "The coffin at the Grand Cloister."
+
+[[edge]]
+from = "liurnia"
+to = "ruin_strewn_precipice"
+
+[[edge]]
+from = "ruin_strewn_precipice"
+to = "altus"
+bosses = ["Magma Wyrm Makar"]
+
+[[edge]]
+from = "liurnia"
+to = "altus"
+items = ["Dectus Medallion (Left)", "Dectus Medallion (Right)"]
+note = "The Grand Lift of Dectus."
+
+[[edge]]
+from = "altus"
+to = "mt_gelmir"
+
+[[edge]]
+from = "mt_gelmir"
+to = "volcano_manor"
+
+[[edge]]
+from = "altus"
+to = "leyndell"
+any = { n = 2, items = [
+    "Godrick's Great Rune", "Great Rune of the Unborn", "Radahn's Great Rune",
+    "Rykard's Great Rune", "Mohg's Great Rune", "Malenia's Great Rune",
+] }
+note = "The capital's gate wants two Great Runes held."
+
+[[edge]]
+from = "leyndell"
+to = "subterranean_shunning_grounds"
+
+[[edge]]
+from = "leyndell"
+to = "divine_tower_west_altus"
+sure = false
+note = "Through the Sealed Tunnel under the Fortified Manor."
+
+[[edge]]
+from = "leyndell"
+to = "forbidden_lands"
+bosses = ["Morgott, the Omen King"]
+sure = false
+note = "The way out to the Forbidden Lands is taken to need Morgott; check."
+
+[[edge]]
+from = "forbidden_lands"
+to = "divine_tower_east_altus"
+sure = false
+
+[[edge]]
+from = "divine_tower_east_altus"
+to = "isolated_divine_tower"
+oneway = true
+sure = false
+
+[[edge]]
+from = "forbidden_lands"
+to = "mountaintops"
+items = ["Rold Medallion"]
+note = "The Grand Lift of Rold."
+
+[[edge]]
+from = "forbidden_lands"
+to = "consecrated_snowfield"
+items = ["Haligtree Secret Medallion (Left)", "Haligtree Secret Medallion (Right)"]
+note = "The Grand Lift of Rold, with the joined medallion."
+
+[[edge]]
+from = "consecrated_snowfield"
+to = "haligtree"
+note = "Ordina's evergaol puzzle; nothing to hold."
+
+[[edge]]
+from = "consecrated_snowfield"
+to = "mohgwyn_palace"
+oneway = true
+note = "The waygate in the Snowfield."
+
+[[edge]]
+from = "stranded_graveyard"
+to = "mohgwyn_palace"
+items = ["Pureblood Knight's Medal"]
+oneway = true
+note = "The medal takes you there from anywhere."
+
+[[edge]]
+from = "mountaintops"
+to = "farum_azula"
+bosses = ["Fire Giant"]
+oneway = true
+note = "Melina at the Forge of the Giants, after the Fire Giant."
+
+[[edge]]
+from = "farum_azula"
+to = "ashen_capital"
+bosses = ["Maliketh, the Black Blade"]
+oneway = true
+
+[[edge]]
+from = "ashen_capital"
+to = "elden_throne"
+bosses = ["Godfrey, First Elden Lord@m11_05"]
+oneway = true
+
+# --- Edges: Shadow of the Erdtree -------------------------------------------------
+
+[[edge]]
+from = "mohgwyn_palace"
+to = "gravesite_plain"
+bosses = ["Mohg, Lord of Blood", "Starscourge Radahn"]
+oneway = true
+note = "Miquella's arm in Mohg's arena."
+
+[[edge]]
+from = "gravesite_plain"
+to = "belurat"
+sure = false
+
+[[edge]]
+from = "belurat"
+to = "enir_ilim"
+items = ["Messmer's Kindling"]
+sure = false
+note = "Messmer's fire burns the thorns at the Divine Gate."
+
+[[edge]]
+from = "gravesite_plain"
+to = "castle_ensis"
+
+[[edge]]
+from = "castle_ensis"
+to = "scadu_altus"
+bosses = ["Rellana, Twin Moon Knight"]
+
+[[edge]]
+from = "gravesite_plain"
+to = "scadu_altus"
+sure = false
+note = "A route along the Ellac River is taken to skip Castle Ensis; check."
+
+[[edge]]
+from = "scadu_altus"
+to = "rauh"
+sure = false
+
+[[edge]]
+from = "scadu_altus"
+to = "shadow_keep"
+sure = false
+
+[[edge]]
+from = "shadow_keep"
+to = "hinterland"
+sure = false
+
+[[edge]]
+from = "gravesite_plain"
+to = "cerulean_coast"
+sure = false
+
+[[edge]]
+from = "gravesite_plain"
+to = "jagged_peak"
+sure = false
+note = "Through the Dragon's Pit."
+
+[[edge]]
+from = "gravesite_plain"
+to = "abyssal_woods"
+sure = false
+note = "Through the Darklight Catacombs."
+
+# --- Locations with no map ----------------------------------------------------------
+
+[[place]]
+item = "Spectral Steed Whistle"
+kind = "gift"
+area = "limgrave"
+note = "Melina, at a grace in Limgrave."
+
+[[place]]
+item = "Rold Medallion"
+kind = "gift"
+area = "leyndell"
+need = { bosses = ["Morgott, the Omen King"] }
+sure = false
+note = "Melina gives it after Morgott; check where."
+
+[[place]]
+item = "Carian Inverted Statue"
+kind = "gift"
+area = "three_sisters"
+need = { items = ["Fingerslayer Blade"] }
+note = "Ranni, for the Fingerslayer Blade."
+
+[[place]]
+item = "Pureblood Knight's Medal"
+kind = "gift"
+area = "liurnia"
+sure = false
+note = "Varré, at the end of his quest at the Rose Church."
+
+[[place]]
+item = "Haligtree Secret Medallion (Right)"
+kind = "gift"
+area = "liurnia"
+sure = false
+note = "Albus, in the Village of the Albinaurics; the model has it on an open-world talk script."

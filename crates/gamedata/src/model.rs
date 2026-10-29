@@ -8,7 +8,9 @@ use serde::Serialize;
 use crate::MapId;
 
 /// Where an item can be got.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum Kind {
     /// Lying in a map, picked up once.
@@ -151,6 +153,9 @@ pub struct Grace {
     pub map: Option<MapId>,
     pub entity: u32,
     pub flag: u32,
+    /// Where the grace's asset stands in its map.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<[f32; 3]>,
 }
 
 /// Lots that hold items but that nothing in the model gives: what the

@@ -124,6 +124,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             map: placed.get(&entity).map(|p| p.map),
             entity,
             flag: warp.field("event_flag").get(&r.data, 0) as u32,
+            position: placed.get(&entity).map(|p| position(p.entry)),
         };
         if let (Some(m), Some(n)) = (grace.map, &grace.name) {
             model.maps.entry(m).or_default().push(n.clone());

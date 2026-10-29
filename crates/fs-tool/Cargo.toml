@@ -23,6 +23,7 @@ fs-emevd.workspace = true
 fs-msb.workspace = true
 fs-esd.workspace = true
 gamedata.workspace = true
+logic.workspace = true
 toml.workspace = true
 clap.workspace = true
 rayon.workspace = true

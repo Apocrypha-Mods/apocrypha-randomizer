@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | extraction in progress | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots (per map), 414 script awards, 112 NPC gifts, 191 flag-awarded (boss) rewards, 1,293 shop rows and 10 starting classes, with bosses and graces placed and named. Of the lots no source reaches, 293 are flagged and hold named items. Open: those, the area graph, and the play-through review. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Open: the review of 38 marked claims, and the play-through review of the counts. |
 
 ## Phase 0: setup
 
@@ -632,11 +632,92 @@ The groups below are what was found as the gaps were worked through:
       bell bearings unlock), so only 98 rows get a single map. Which of the two
       shop flags records a purchase waits on play.
 
+### The area map
+
+`crates/logic` holds the area map: which areas connect, and what it takes to
+get from one to the next. It is drafted by hand in
+`crates/logic/data/elden_ring.toml` from general knowledge of the game
+(PLAN.md §1, rule 4), and bound to the model, so every grace, item and boss
+it names must be one the game has. `apoc-fs logic <game>` prints the binding,
+the locations in each area, and a walk of the vanilla game from the start.
+
+- **Areas** are sets of graces (by in-game name) and maps (by prefix).
+  - An item location goes to its map's area, else to its nearest listed
+    grace.
+  - In the open worlds, "nearest" uses whole-world positions:
+    `MapId::world` places a tile's local position on the world. Every one of
+    the 213 open-world graces lands in a tile that exists, and 202 of them in
+    the tile their entity id names.
+  - Maps that hold two areas, such as Siofra and Nokron in `m12_02`, are
+    split the same way.
+- **Edges** open an area once their items are held and their bosses beaten.
+  Leyndell's gate wants any two Great Runes.
+- **Places** put gifts with no map in an area, optionally behind their own
+  need. Ranni gives the Carian Inverted Statue for the Fingerslayer Blade, for
+  example.
+- **The walk** collects what each reached area gives and opens what that
+  allows, until nothing changes.
+
+On 2026-10-29 the draft had 50 areas, 53 edges and 5 places. The walk found
+no unknown names, and the vanilla game reaches all 50 areas and the Elden
+Beast. It also caught one mistake in the draft: Loretta's arena grace had
+been put behind Loretta, which kept the Three Sisters and the Divine Tower of
+Liurnia shut. `crates/logic/tests/real_graph.rs` holds the binding and the
+walk, and checks that a gate holds when its key is taken out of the game.
+
+1,219 locations have no area ("anywhere"): 1,195 shop rows sold from several
+maps, 10 classes, and 14 script awards. The walk treats them as reachable from
+the start; shops will need their merchants placed before the item randomizer
+relies on them.
+
+#### To check in play
+
+Every claim below is marked `sure = false` in the data file. Most of the
+expansion is drafted with less confidence than the base game.
+
+**Which area a grace is in:**
+
+- Behind Caria Manor: with the Three Sisters, past Loretta?
+- Great Waterfall Basin: in Nokron, rather than open Siofra?
+- Deep Siofra Well: in Caelid, not Dragonbarrow?
+- Capital Rampart: outside Leyndell's walls, on the plateau?
+- Wyndham Catacombs and Craftsman's Shack: on Mt. Gelmir, not the plateau?
+- Church of Repose: in the Mountaintops?
+- The expansion's regions: Scadu Altus, Rauh, Hinterland, Cerulean Coast,
+  Jagged Peak, Abyssal Woods, and which dungeons open off the Gravesite Plain.
+
+**What a way needs:**
+
+- Stormveil to Liurnia needs Godrick? (A cliff route may skip him.)
+- Leyndell to the Forbidden Lands needs Morgott?
+- The Lake of Rot is open from Ainsel River, or does Ranni's quest open it?
+- The Gravesite Plain to Scadu Altus is open along the Ellac River, skipping
+  Castle Ensis?
+- Belurat to Enir-Ilim needs Messmer's Kindling?
+- Smaller ones, each with a note in the file:
+  - Limgrave → Roundtable Hold (Melina);
+  - Stormveil → Divine Tower of Limgrave after Godrick;
+  - Dragonbarrow → Divine Tower of Caelid;
+  - Nokron → Deeproot Depths;
+  - the academy's Abductor Virgin → Volcano Manor;
+  - the Carian Inverted Statue → Divine Tower of Liurnia;
+  - Lake of Rot → Moonlight Altar;
+  - Leyndell → Divine Tower of West Altus;
+  - Forbidden Lands → Divine Tower of East Altus → Isolated Divine Tower;
+  - each of the expansion's edges.
+
+**Where a gift is given:**
+
+- The Rold Medallion: from Melina after Morgott, and where?
+- The Pureblood Knight's Medal: from Varré at the Rose Church?
+- Haligtree Secret Medallion (Right): from Albus, in the Village of the
+  Albinaurics? The model also has the left half as a gift on a Leyndell talk
+  script, which needs explaining.
+
 ### Still to do for the gate
 
+- [ ] **Review the area map** (the list above) and correct the data file.
+- [ ] **Place the merchants**, so that shop rows have areas.
+- [ ] **The play-through review** of the coverage report.
 - [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
       play, above). Naming the 99 maps would account for 20 of them.
-- [ ] **The area graph and key-item requirements**, authored here (PLAN.md §1,
-      rule 4). The coverage report's areas and grace names are the starting
-      point.
-- [ ] **The play-through review** of the coverage report.

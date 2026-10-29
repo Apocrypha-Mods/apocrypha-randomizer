@@ -33,6 +33,29 @@ impl MapId {
         self.0[0]
     }
 
+    /// Whether the map is a tile of one of the two open worlds.
+    pub fn is_open_world(self) -> bool {
+        matches!(self.area(), 60 | 61)
+    }
+
+    /// A position in an open-world tile as a point on the whole world's
+    /// ground (x, z), or `None` for any other map.
+    ///
+    /// A tile `m60_XX_YY_L` is 256 units wide at level 0, 512 at 1 and 1,024
+    /// at 2, and positions in it are measured from its centre (the middle
+    /// 98% of parts lie within ±128, ±256 and ±512). Checked on the graces:
+    /// the world position of every one of the 213 open-world graces lands in
+    /// a level-0 tile that exists, and for 202 of them that is the tile its
+    /// entity id names (1033401950 is in m60_33_40).
+    pub fn world(self, local: [f32; 3]) -> Option<[f32; 2]> {
+        if !self.is_open_world() {
+            return None;
+        }
+        let size = 256.0 * f32::from(1u8 << self.0[3].min(7));
+        let at = |i: u8, v: f32| f32::from(i) * size + size / 2.0 + v;
+        Some([at(self.0[1], local[0]), at(self.0[2], local[2])])
+    }
+
     /// From a name containing `mAA_BB_CC_DD`, such as an archive path.
     pub fn find_in(s: &str) -> Option<Self> {
         let b = s.as_bytes();
@@ -206,5 +229,19 @@ mod tests {
         assert_eq!(m.to_string(), "m60_42_36_00");
         assert_eq!(MapId::find_in("/event/common_func.emevd.dcx"), None);
         assert_eq!(MapId::find_in("m1_00_00_00"), None);
+    }
+
+    #[test]
+    fn open_world_positions_are_placed_on_the_whole_world() {
+        // The centre of small tile 42_36 and of the large tile holding it.
+        assert_eq!(
+            MapId([60, 42, 36, 0]).world([0.0, 5.0, 0.0]),
+            Some([10_880.0, 9_344.0])
+        );
+        assert_eq!(
+            MapId([60, 10, 9, 2]).world([-512.0, 0.0, -512.0]),
+            Some([10_240.0, 9_216.0])
+        );
+        assert_eq!(MapId([10, 0, 0, 0]).world([0.0; 3]), None);
     }
 }

@@ -23,6 +23,7 @@ fs-emevd = { path = "crates/fs-emevd" }
 fs-msb = { path = "crates/fs-msb" }
 fs-esd = { path = "crates/fs-esd" }
 gamedata = { path = "crates/gamedata" }
+logic = { path = "crates/logic" }
 
 aes = "0.8"
 base64 = "0.22"

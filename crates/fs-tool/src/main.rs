@@ -17,6 +17,7 @@ mod columns;
 mod flags;
 mod instructions;
 mod labels;
+mod logic;
 mod model;
 mod msb_columns;
 mod scripts;
@@ -135,6 +136,9 @@ enum Command {
         #[arg(long)]
         dump: Option<PathBuf>,
     },
+    /// The area graph checked against the game, and the vanilla game walked
+    /// from the start.
+    Logic { game: PathBuf },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -172,6 +176,7 @@ fn main() {
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
         Command::Model { game, dump } => model::run(game, dump),
+        Command::Logic { game } => logic::run(game),
         Command::Flags { game } => flags::run(game),
         Command::MsbColumns {
             game,
