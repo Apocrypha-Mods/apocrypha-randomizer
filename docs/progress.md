@@ -756,19 +756,39 @@ native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
   the mod folder. It takes the DLL from beside the program, or from
   `--native <dll>`. It also writes a me3 profile `<out>.me3` beside the
   folder that loads both, and records the option in the spoiler log.
-  - The profile's format (`profileVersion = "v1"`, `[[packages]]`,
-    `[[natives]]`) is not yet tested by a launch; the lab uses its own attach
-    config.
+  - The profile was checked against me3 0.13.0's own source (2026-10-30),
+    not by a launch:
+    - `packages` and `natives` are the field names (`package` and `native`
+      are aliases), and `path` is all either needs;
+    - a package without an `id` is named after its path;
+    - relative paths are joined to the folder the `.me3` file is in, which
+      is the mod folder's parent.
+    The CLI turns a profile into the attach config the lab writes by hand,
+    and that config loads both in the lab. The release's runtime is
+    byte-identical to the one the lab uses.
 - **Known limits:**
   - The levels come from what the player holds now. Selling or dropping
     every raised weapon lowers them again; nothing is kept between sessions
     other than the inventory itself.
   - Offline only one inventory is filled. In co-op, another player's
     inventory may be read too (not tested).
-  - The lab could not press the pick-up prompt on the chapel's body. Awards
-    from an event script take the same table path, and those were tested.
+  - A pick-up from the ground is still untested. Awards from an event script
+    read the same rows, and those were tested.
+    - On 2026-10-30 a second try held Rogier's Rapier +8 (raised to +8, as
+      before) on a fresh save whose chapel body gives seed 22's Twinblade.
+      The lab could not get the pick-up prompt to show.
+    - The body lies on a raised step behind a chair and a table, east of the
+      start, on the right of the aisle. Walking along the floor below it
+      never brings up the prompt.
 - **Lab tools:** `keys.sh` holds a key with `KEY:N` (seconds). `run.sh`
   passes `ER_LEVELS=regular,somber`, a floor for testing.
+  - `look.sh DX` turns the camera by moving the mouse DX pixels on the
+    game's display (about 45° per 400). The I/J/K/L camera keys do nothing
+    there.
+  - `e` is the action key; it also closes item dialogs, where Return does
+    not.
+  - If a run is stopped by hand, `systemctl --user reset-failed
+    apoc-er-lab.scope` clears the unit before the next run.
 
 ## Phase 3: game model
 
