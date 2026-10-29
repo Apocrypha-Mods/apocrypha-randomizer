@@ -1,0 +1,25 @@
+[package]
+name = "gamedata"
+description = "The game model: every item location, enemy, boss and grace, extracted from the game's own files"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+fs-bytes.workspace = true
+fs-dvdbnd.workspace = true
+fs-dcx.workspace = true
+fs-bnd4.workspace = true
+fs-param.workspace = true
+fs-fmg.workspace = true
+fs-emevd.workspace = true
+fs-msb.workspace = true
+rayon.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+# The real files are Kraken-compressed; only tests and tools decode them.
+fs-dcx = { workspace = true, features = ["kraken"] }

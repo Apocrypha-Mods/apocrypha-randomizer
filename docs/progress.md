@@ -7,6 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589) and MSB (1,347) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
+| 3. Game model | extraction started | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 414 script awards, 191 flag-awarded (boss) rewards, 1,293 shop rows and 10 starting classes, with bosses and graces placed and named. Open: NPC dialogue gifts, gathering nodes, the area graph, and the play-through review. |
 
 ## Phase 0: setup
 
@@ -373,7 +374,7 @@ How the evidence was gathered:
 | 2003[4] | `award_item_lot` | confirmed | ItemLotParam_map 100% |
 | 2003[36] | `award_item_lot_b` | confirmed | ItemLotParam_map 95% of 619; how it differs is open |
 | 1000[6] | `uses_item_lot` | probable | ItemLotParam_map 96% |
-| 2004[76] | `boss_item_lot` | probable | a boss id, then ItemLotParam_map 94% |
+| 2004[76] | `item_lot_for_flag` | probable | a flag (207/207 used as one elsewhere; mostly boss defeat flags), then ItemLotParam_map 94% |
 | 3[34] | `if_armor` | probable | EquipParamProtector 100% |
 | 2003[11] | `boss_health_bar` | probable | on/off, boss id, bar 0–2, NpcName 100% |
 | 2003[12] | `boss_defeated` | probable | GameAreaParam 95%, then a small number |
@@ -457,3 +458,84 @@ So picking up the treasure sets the flag, not a script.
 - [ ] **Entity group ids** (the words after the entity id).
 - [ ] **Type-specific layouts** for when entries must be added or resized.
 - [ ] **Names for the other 99 maps.**
+
+## Phase 3: game model
+
+`crates/gamedata` extracts the model from the player's own files, and
+`apoc-fs model <game> [--dump model.toml]` prints the coverage report the gate
+asks for: locations by kind and by area, each area labelled with its graces'
+names from the game's own text. The whole model (every location with its
+items, every enemy, boss and grace) can be dumped as TOML for reading
+through. `crates/gamedata/tests/real_model.rs` holds the counts and spot checks
+below.
+
+- **Model types** (`model.rs`) say nothing about Elden Ring.
+- **The extraction** is in `elden_ring.rs`.
+- **The sources** (`sources.rs`) are `regulation.bin`, every map and script
+  found by name, and the English item text.
+- **Time:** everything is read and the model built in about 2.5 s.
+
+### Where each kind comes from
+
+| Kind | Source | Count | Flag |
+| --- | --- | --- | --- |
+| treasure | MSB treasure events: the part they sit on, the ItemLotParam_map row they give | 3,506 | 3,505 |
+| enemy drop | a placed enemy's NpcParam lot (`_enemy` or `_map`) that carries a flag: drops once | 133 | all |
+| repeat drop | the same with no flag: drops on every roll; counted once per map | 4,488 | none |
+| event | lots the scripts award (`award_item_lot`, `_b`) | 414 | 413 |
+| boss reward | lots awarded on a flag (`item_lot_for_flag`) | 191 | all |
+| shop | ShopLineupParam rows | 1,293 | not read yet |
+| starting | the ten classes, CharaInitParam 3000–3009 | 10 | — |
+
+There are 31,969 enemies in the maps. There are 216 bosses (GameAreaParam
+rows); 211 of them are placed, as the enemy whose entity id is the row id, and
+212 are named from their health bars. There are 422 graces; 419 are placed, as
+the asset whose entity id the grace row names, and they name the maps.
+
+### What the extraction settled
+
+- **Script arguments.** `fs_emevd::catalogue::uses` gives every use of an
+  instruction with all its argument words, filled in from the call that
+  starts the event, so pairs like a flag and a lot stay together.
+- **2004[76] takes a flag, not a boss entity**, and is renamed
+  `item_lot_for_flag`. Its word 0 is used as a flag elsewhere in all 207 uses.
+  In the map scripts it is the boss's defeat flag (the same number as the
+  boss's entity id, which is why it was first read as an entity). The shared
+  script `common` awards the remembrances and Great Runes on flags 9100–9270.
+  Each of these is placed in the one map whose script sets the flag, which puts
+  Godrick's Great Rune in Stormveil and Morgott's in Leyndell.
+- **Lots run on into the next rows.** A lot is taken to include the rows that
+  follow it directly, up to a row that something references itself.
+  Godrick's lot (10010) gives his Great Rune, and the next row (10011) his
+  Remembrance. Of the 63 treasure lots followed by such a row, 50 share its
+  flag. This is probable and waits on play: 66 treasures and most repeat drops
+  are chained this way.
+
+### Gaps: what the extraction does not reach yet
+
+There are 902 ItemLotParam_map lots and 985 ItemLotParam_enemy lots that hold
+items but that nothing in the model gives. Grouped by id, they are:
+
+- [ ] **NPC dialogue gifts.** These are mostly the 100000s, 164 of 189 of them
+      flagged: the Spectral Steed Whistle, the Rold Medallion and other gifts
+      handed over in conversation. The talk scripts (ESD) are a format we don't
+      read yet, and the key items among these matter most for the logic.
+- [ ] **Gathering nodes and other asset pick-ups.** Rada Fruit, mushrooms,
+      Glass Shards and Poisonbloom; unflagged ones in the 990000s and
+      4,636,000s, flagged ones in `m12` and `m21`.
+- [ ] **Tutorials** (the 50000s: "About Sites of Grace").
+- [ ] **Unflagged enemy lots on NpcParam rows that no map places.**
+- [ ] **133 treasures whose lot is not a row**, and 54 whose lot holds no
+      item.
+- [ ] **The 99 maps and 45 scripts not found by name** (Phase 2) are not seen
+      at all.
+- [ ] **Shops have no merchant or map yet**, and which of the two shop flags
+      records a purchase waits on play.
+
+### Still to do for the gate
+
+- [ ] Close the gaps above, NPC gifts first.
+- [ ] **The area graph and key-item requirements**, authored here (PLAN.md §1,
+      rule 4). The coverage report's areas and grace names are the starting
+      point.
+- [ ] **The play-through review** of the coverage report.

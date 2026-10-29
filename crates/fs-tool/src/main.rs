@@ -17,8 +17,8 @@ mod columns;
 mod flags;
 mod instructions;
 mod labels;
+mod model;
 mod msb_columns;
-mod names;
 mod scripts;
 
 #[derive(Parser)]
@@ -127,6 +127,14 @@ enum Command {
         #[arg(long, default_value = "scratch/emevd-cache")]
         cache: PathBuf,
     },
+    /// The game model: every item location, enemy, boss and grace, with a
+    /// coverage report by area and kind.
+    Model {
+        game: PathBuf,
+        /// Write the whole model here as TOML, for reading through.
+        #[arg(long)]
+        dump: Option<PathBuf>,
+    },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -163,6 +171,7 @@ fn main() {
             jobs,
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
+        Command::Model { game, dump } => model::run(game, dump),
         Command::Flags { game } => flags::run(game),
         Command::MsbColumns {
             game,

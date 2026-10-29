@@ -17,7 +17,7 @@ use std::sync::OnceLock;
 
 use serde::Deserialize;
 
-use crate::{Emevd, Event, Instruction};
+use crate::{Emevd, Event, Instruction, Parameter};
 
 const ELDEN_RING: &str = include_str!("../catalogue/elden_ring.toml");
 
@@ -185,6 +185,80 @@ pub fn resolve_calls<'a>(
     out
 }
 
+/// One use of an instruction, with the arguments it runs with.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Use {
+    /// The event the instruction is in.
+    pub event: i64,
+    /// For an event started from the script, the event that started it.
+    pub caller: Option<i64>,
+    /// The arguments, with every placeholder filled in from the call.
+    pub args: Vec<u8>,
+}
+
+impl Use {
+    pub fn word(&self, word: usize) -> Option<u32> {
+        self.args
+            .get(word * 4..word * 4 + 4)
+            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+    }
+}
+
+/// Every use of instruction `bank[id]` that `script` runs: the uses written
+/// in it with no placeholders, and one use per call that starts an event
+/// holding the instruction (from `script` itself, or from `common`), with
+/// the call's arguments copied in.
+pub fn uses(script: &Emevd, common: Option<&Emevd>, bank: u32, id: u32) -> Vec<Use> {
+    let is = |ins: &Instruction| (ins.bank, ins.id) == (bank, id);
+    let local: HashMap<u32, &Event> = script.events.iter().map(|e| (e.id as u32, e)).collect();
+    let shared: HashMap<u32, &Event> = common
+        .map(|c| c.events.iter().map(|e| (e.id as u32, e)).collect())
+        .unwrap_or_default();
+    let mut out = Vec::new();
+    for ev in &script.events {
+        for (i, ins) in ev.instructions.iter().enumerate() {
+            if is(ins) && !ev.parameters.iter().any(|p| p.instruction == i as i64) {
+                out.push(Use {
+                    event: ev.id,
+                    caller: None,
+                    args: ins.args.clone(),
+                });
+            }
+            if !EVENT_STARTS.contains(&(ins.bank, ins.id)) || ins.args.len() < 8 {
+                continue;
+            }
+            let target = u32::from_le_bytes(ins.args[4..8].try_into().unwrap());
+            let Some(called) = local.get(&target).or_else(|| shared.get(&target)) else {
+                continue;
+            };
+            let call = &ins.args[8..];
+            for (j, dest) in called.instructions.iter().enumerate() {
+                let params: Vec<&Parameter> = called
+                    .parameters
+                    .iter()
+                    .filter(|p| p.instruction == j as i64)
+                    .collect();
+                if !is(dest) || params.is_empty() {
+                    continue;
+                }
+                let mut args = dest.args.clone();
+                for p in params {
+                    let (src, dst, n) = (p.source as usize, p.target as usize, p.size as usize);
+                    if let (Some(from), true) = (call.get(src..src + n), dst + n <= args.len()) {
+                        args[dst..dst + n].copy_from_slice(from);
+                    }
+                }
+                out.push(Use {
+                    event: called.id,
+                    caller: Some(ev.id),
+                    args,
+                });
+            }
+        }
+    }
+    out
+}
+
 /// Every value an instruction's word takes: written directly, or filled in at
 /// a call. Placeholders themselves are left out.
 pub fn values(
@@ -224,7 +298,6 @@ pub fn values(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Parameter;
 
     #[test]
     fn the_catalogue_is_well_formed() {
@@ -311,5 +384,45 @@ mod tests {
             vec![4242],
             "the placeholder 0 itself is left out"
         );
+    }
+
+    #[test]
+    fn a_use_carries_every_word_with_the_call_filled_in() {
+        let ins = |bank, id, words: &[u32]| Instruction {
+            bank,
+            id,
+            args: words.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            layer: None,
+        };
+        // Event 7 awards a lot for a boss; the call fills in only the lot.
+        let called = Event {
+            id: 7,
+            rest: 0,
+            instructions: vec![ins(2004, 76, &[1234, 0])],
+            parameters: vec![Parameter {
+                instruction: 0,
+                target: 4,
+                source: 0,
+                size: 4,
+                unk: 0,
+            }],
+        };
+        let caller = Event {
+            id: 0,
+            rest: 0,
+            instructions: vec![ins(2000, 0, &[0, 7, 555]), ins(2004, 76, &[9, 10])],
+            parameters: vec![],
+        };
+        let script = Emevd {
+            events: vec![caller, called],
+            ..Default::default()
+        };
+        let mut got = uses(&script, None, 2004, 76);
+        got.sort_by_key(|u| u.event);
+        assert_eq!(got.len(), 2, "one written directly, one through the call");
+        assert_eq!((got[0].event, got[0].caller), (0, None));
+        assert_eq!((got[0].word(0), got[0].word(1)), (Some(9), Some(10)));
+        assert_eq!((got[1].event, got[1].caller), (7, Some(0)));
+        assert_eq!((got[1].word(0), got[1].word(1)), (Some(1234), Some(555)));
     }
 }

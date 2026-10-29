@@ -77,7 +77,7 @@ pub fn run(game: PathBuf, cache: PathBuf, only: Option<String>) -> Result<()> {
     let reg = Regulation::open(&game)?;
     let scripts = crate::scripts::load(&game, &cache)?;
     let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game)?;
-    let text = crate::names::load(&dvd)?;
+    let text = gamedata::sources::text(&dvd)?;
     let sets = known_sets(&reg, &scripts, &text)?;
 
     let mut stats: BTreeMap<(u32, u32), Stats> = BTreeMap::new();

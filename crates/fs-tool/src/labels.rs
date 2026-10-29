@@ -21,7 +21,7 @@ pub fn run(
 ) -> Result<()> {
     let reg = Regulation::open(&game)?;
     let dvd = Dvd::open_elden_ring(&game)?;
-    let all = crate::names::load(&dvd)?;
+    let all = gamedata::sources::text(&dvd)?;
     let names = all
         .get(names)
         .ok_or_else(|| format_err(format!("no name table {names}")))?;

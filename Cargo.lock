@@ -397,7 +397,9 @@ dependencies = [
  "fs-fmg",
  "fs-msb",
  "fs-param",
+ "gamedata",
  "rayon",
+ "toml",
 ]
 
 [[package]]
@@ -486,6 +488,22 @@ dependencies = [
  "memchr",
  "pin-project-lite",
  "slab",
+]
+
+[[package]]
+name = "gamedata"
+version = "0.1.0"
+dependencies = [
+ "fs-bnd4",
+ "fs-bytes",
+ "fs-dcx",
+ "fs-dvdbnd",
+ "fs-emevd",
+ "fs-fmg",
+ "fs-msb",
+ "fs-param",
+ "rayon",
+ "serde",
 ]
 
 [[package]]

@@ -1,0 +1,241 @@
+//! The game model's types. They say nothing about how a particular game
+//! stores them; `elden_ring` fills them in from Elden Ring's files.
+
+use std::collections::BTreeMap;
+
+use serde::Serialize;
+
+use crate::MapId;
+
+/// Where an item can be got.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Kind {
+    /// Lying in a map, picked up once.
+    Treasure,
+    /// Dropped by an enemy, once (the lot carries a flag).
+    EnemyDrop,
+    /// Dropped by an enemy every time it rolls (no flag): farmable.
+    RepeatDrop,
+    /// Given by an event script: a boss reward, an NPC's gift, a chest.
+    Event,
+    /// Given by a script for a particular boss.
+    BossReward,
+    /// Sold by a merchant.
+    Shop,
+    /// In a class's starting equipment.
+    Starting,
+}
+
+impl Kind {
+    pub const ALL: [Kind; 7] = [
+        Kind::Treasure,
+        Kind::EnemyDrop,
+        Kind::RepeatDrop,
+        Kind::Event,
+        Kind::BossReward,
+        Kind::Shop,
+        Kind::Starting,
+    ];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Kind::Treasure => "treasure",
+            Kind::EnemyDrop => "enemy drop",
+            Kind::RepeatDrop => "repeat drop",
+            Kind::Event => "event",
+            Kind::BossReward => "boss reward",
+            Kind::Shop => "shop",
+            Kind::Starting => "starting",
+        }
+    }
+}
+
+/// What kind of thing an item is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemKind {
+    Goods,
+    Weapon,
+    Protector,
+    Accessory,
+    Gem,
+    /// A weapon with a preset affinity and level, by its own table's row.
+    CustomWeapon,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Item {
+    pub kind: ItemKind,
+    pub id: i32,
+    pub count: u32,
+    /// Chance out of 1000; 1000 for a sure thing.
+    pub chance: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// The item-lot rows a location gives, in the table named.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Lot {
+    pub table: String,
+    pub ids: Vec<i32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Location {
+    pub kind: Kind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map: Option<MapId>,
+    /// What gives it, in words: a part's name, an enemy, a shop row, an event.
+    pub source: String,
+    /// The map entity it is tied to, when it has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<[f32; 3]>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lot: Option<Lot>,
+    pub items: Vec<Item>,
+    /// The event flag that records it as got, when there is one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub flag: Option<u32>,
+}
+
+/// One enemy placed in a map.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Enemy {
+    pub map: MapId,
+    /// The part's name in the map.
+    pub part: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity: Option<u32>,
+    pub npc_param: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub think: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chara_init: Option<i32>,
+    pub position: [f32; 3],
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Boss {
+    /// Its row in the game's boss table.
+    pub area: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map: Option<MapId>,
+    /// The enemy entity the boss is; the same number as `area`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    pub defeat_flag: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Grace {
+    pub id: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map: Option<MapId>,
+    pub entity: u32,
+    pub flag: u32,
+}
+
+/// Lots that hold items but that nothing in the model gives: what the
+/// extraction does not reach yet.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct Gaps {
+    /// Per lot table, ids of rows with items that nothing references.
+    pub unreached_lots: BTreeMap<String, Vec<i32>>,
+    /// Treasures whose lot is not a row.
+    pub treasure_without_lot: usize,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct Model {
+    /// A name for each map, from the graces in it.
+    pub maps: BTreeMap<MapId, Vec<String>>,
+    pub locations: Vec<Location>,
+    pub enemies: Vec<Enemy>,
+    pub bosses: Vec<Boss>,
+    pub graces: Vec<Grace>,
+    pub gaps: Gaps,
+}
+
+/// An area for counting: `AA_BB` for legacy dungeons and small places, `AA`
+/// alone for the two open worlds, whose maps are a grid of tiles.
+pub fn area_of(m: MapId) -> String {
+    match m.area() {
+        60 | 61 => format!("m{:02}", m.area()),
+        a => format!("m{a:02}_{:02}", m.0[1]),
+    }
+}
+
+impl Model {
+    /// Locations counted by area and kind. Locations with no map count under
+    /// "-".
+    pub fn coverage(&self) -> BTreeMap<String, BTreeMap<Kind, usize>> {
+        let mut out: BTreeMap<String, BTreeMap<Kind, usize>> = BTreeMap::new();
+        for l in &self.locations {
+            let area = l.map.map(area_of).unwrap_or_else(|| "-".into());
+            *out.entry(area).or_default().entry(l.kind).or_default() += 1;
+        }
+        out
+    }
+
+    /// The grace names of an area's maps, for labelling it.
+    pub fn area_names(&self, area: &str) -> Vec<&str> {
+        self.maps
+            .iter()
+            .filter(|(m, _)| area_of(**m) == area)
+            .flat_map(|(_, names)| names.iter().map(String::as_str))
+            .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(map: Option<MapId>, kind: Kind) -> Location {
+        Location {
+            kind,
+            map,
+            source: String::new(),
+            entity: None,
+            position: None,
+            lot: None,
+            items: vec![],
+            flag: None,
+        }
+    }
+
+    #[test]
+    fn coverage_counts_each_area_and_kind() {
+        let castle = MapId([10, 0, 0, 0]);
+        let tile = MapId([60, 42, 36, 0]);
+        let other_tile = MapId([60, 43, 36, 0]);
+        let model = Model {
+            locations: vec![
+                at(Some(castle), Kind::Treasure),
+                at(Some(castle), Kind::Treasure),
+                at(Some(tile), Kind::EnemyDrop),
+                at(Some(other_tile), Kind::Treasure),
+                at(None, Kind::Shop),
+            ],
+            ..Default::default()
+        };
+        let c = model.coverage();
+        assert_eq!(c["m10_00"][&Kind::Treasure], 2);
+        assert_eq!(
+            c["m60"][&Kind::Treasure],
+            1,
+            "open-world tiles count as one area"
+        );
+        assert_eq!(c["m60"][&Kind::EnemyDrop], 1);
+        assert_eq!(c["-"][&Kind::Shop], 1);
+    }
+}

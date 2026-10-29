@@ -21,5 +21,7 @@ fs-param.workspace = true
 fs-fmg.workspace = true
 fs-emevd.workspace = true
 fs-msb.workspace = true
+gamedata.workspace = true
+toml.workspace = true
 clap.workspace = true
 rayon.workspace = true

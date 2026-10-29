@@ -54,7 +54,7 @@ pub fn run(game: PathBuf, cache: PathBuf, q: Query) -> Result<()> {
     let dvd = Dvd::open_elden_ring(&game)?;
     let maps = load_maps(&dvd);
     let scripts = crate::scripts::load(&game, &cache)?;
-    let text = crate::names::load(&dvd)?;
+    let text = gamedata::sources::text(&dvd)?;
     let mut sets = known_sets(&reg, &scripts, &text)?;
     // Entity ids the instruction catalogue's entity arguments take.
     let refs: Vec<&fs_emevd::Emevd> = scripts.iter().map(|(_, e)| e).collect();

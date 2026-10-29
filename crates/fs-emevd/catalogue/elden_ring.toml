@@ -183,17 +183,22 @@ kind = { param = "ItemLotParam_map" }
 [[instruction]]
 bank = 2004
 id = 76
-name = "boss_item_lot"
+name = "item_lot_for_flag"
 length = 8
 confidence = "probable"
 evidence = """
-13 uses, filled in by calls 215 times: word 0 takes boss area ids (the values
-of GameAreaParam rows) and word 1 a row of ItemLotParam_map (93%). Pairs a
-boss with an item lot, likely its reward."""
+13 uses, filled in by calls 215 times: word 0 a flag and word 1 a row of
+ItemLotParam_map (93%). Word 0 is a flag that if_flag, set_flag or a branch
+uses in all 207 uses with a map script or common behind them; in 69 of the 76
+that the model places, it is a boss's defeat flag (GameAreaParam.defeat_flag,
+the same number as the boss's entity id, which is how it was first taken for
+an entity). The lots are boss rewards (Godrick's Great Rune and Remembrance
+of the Grafted on flag 9101). What the instruction does with the pair is
+open: probably awards the lot once the flag is set."""
 [[instruction.arg]]
 word = 0
-name = "boss"
-kind = "entity"
+name = "flag"
+kind = "flag"
 [[instruction.arg]]
 word = 1
 name = "item_lot"
