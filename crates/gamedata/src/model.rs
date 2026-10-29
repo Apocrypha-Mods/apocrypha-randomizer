@@ -118,6 +118,27 @@ pub struct Location {
     /// For a shop row, what buying it asks.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terms: Option<Terms>,
+    /// For a gift, the ways its talk scripts give it, any one of which is
+    /// enough; `None` when nothing is asked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub given_if: Option<Vec<Way>>,
+}
+
+/// One way something is given: all of it must hold.
+pub type Way = Vec<Cond>;
+
+/// One thing a way asks for.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Cond {
+    /// A boss beaten, by its GameAreaParam row.
+    Boss(i32),
+    /// An item held.
+    Holds(Item),
+    /// Another location got: the flag that picking it up sets.
+    Got(u32),
+    /// An event flag on, which nothing in the model explains.
+    Flag(u32),
 }
 
 /// What a shop row asks besides reaching its merchant.
@@ -281,6 +302,7 @@ mod tests {
             flag: None,
             also: vec![],
             terms: None,
+            given_if: None,
         }
     }
 

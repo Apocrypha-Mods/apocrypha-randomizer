@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks; 86 wait on NPC quest phases not yet read and are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 
 ## Phase 0: setup
 
@@ -520,13 +520,34 @@ the flag; Corhyn sets the flag and then takes the prayerbook. Every scroll and
 prayerbook the two take pairs this way. Items and flags passed
 through a call are not followed, which leaves Miriel's out.
 
+**Conditions** (`cond.rs`). An expression parses as a stack program:
+- calls (0x84–0x8A, the function's number first);
+- arithmetic, comparisons, and/or;
+- register stores (0xA6–0xAD) and loads (0xAF–0xB6);
+- the machine's own values (0xB9, 0xBA);
+- floats and doubles.
+
+116,769 of the 116,771 conditions in the game parse to one value; the two
+left use 0xAE. Two functions matter:
+- **Function 15** is the event-flag test.
+- **Function 47** compares how many of an item the player holds: (type, id,
+  comparison, count, …), where `(3, id, 4, 1, 0)` means "holds at least one".
+
+What a condition asks for is read from the parts joined by "and" (6,491
+conditions ask for a flag or an item).
+
+**Reach** (`reach.rs`). Within a machine, what holds on every way from its
+first state to each state. `calls::resolve` now carries this down each chain
+of calls, so every command it reports comes with what holds where it runs.
+
 `1[144]` and `1[146]` also take shop-row ranges; they are not catalogued yet.
 
 ### Still to do in ESD
 
 - [ ] **The other commands**, as later phases need them.
-- [ ] **Conditions' evaluators** (which flags gate a gift) are not read yet.
-      The logic will want them for quest gifts.
+- [x] **Conditions' evaluators** for flags and items held (above).
+- [ ] **Register 8** (0xAE), in two conditions.
+- [ ] **Following items through calls** in handovers (Miriel).
 
 ## Phase 3: game model
 
@@ -747,7 +768,34 @@ Messmer's Kindling, so with Enia's free Remembrance now waiting for Messmer,
 the Kindling was lost and Enir-Ilim never opened. The walk now takes every
 item.
 
-`crates/logic/tests/real_graph.rs` holds four things:
+#### What a gift asks
+
+Each gift now carries its ways (`Location::given_if`), read from what holds
+on the way to the award in its talk scripts. Any one way is enough, and each
+asks for everything it lists:
+- **A boss beaten.** Melina gives the Rold Medallion once Morgott is beaten.
+- **An item held.** Rya gives the Volcano Manor Invitation for her necklace.
+- **Another location got**, by the flag picking it up sets.
+- **A talk flag.** A flag set in talk takes on what that talk asks in turn.
+
+Flags that must be off are taken to be off. A way that waits on a flag nothing
+explains is never open. A `place` entry in the area map speaks for its gift
+instead.
+
+On 2026-10-29, 86 gifts have conditions, and every way of every one of them
+waits on an NPC's quest phase. Those are flags such as Varré's 3185–3199,
+which shared events move between (common event 3199 for Varré) with
+instructions not yet catalogued:
+- `1003[01]` skips N lines unless a flag is on;
+- `2003[69]` sets a flag (it also sets Godrick's defeat flag);
+- `2003[63]` clears a range.
+
+So those 86 gifts are not counted as got. The randomizer will not put key
+items there, and the vanilla walk still reaches every area, as the key-item
+gifts it relies on have `place` entries. Reading the quest-phase events
+would open them; `apoc-fs logic` lists each blocking flag.
+
+`crates/logic/tests/real_graph.rs` holds five things:
 
 - every shop row has an area or is ruled out;
 - the Crafting Kit is first placed where Kalé stands, in Limgrave;
@@ -755,7 +803,9 @@ item.
 - rows wait for their terms: Radahn's armour for Radahn, the Axe of Godrick
   for its remembrance, Dragonclaw for a Dragon Heart, Sellen's Cometshard for
   the Conspectus Scroll, and the Husks' Smithing Stone [1] for its bell
-  bearing.
+  bearing;
+- gifts wait for their ways: the Rold Medallion for Morgott, the Volcano
+  Manor Invitation for Rya's Necklace.
 
 After this, 560 locations are unused (559 shop rows and the Leyndell
 medallion half). Only 24 are left "anywhere": 10 classes, 5 script awards
@@ -815,6 +865,7 @@ expansion is drafted with less confidence than the base game.
 - [ ] **Review the area map** (the list above) and correct the data file.
 - [x] **Place the merchants** (above).
 - [x] **Shop requirements** (below).
+- [x] **Gift conditions** read from talk (below); NPC quest phases are open.
 - [ ] **The play-through review** of the coverage report.
 - [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
       play, above). Naming the 99 maps would account for 20 of them.

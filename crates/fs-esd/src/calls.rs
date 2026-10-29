@@ -8,9 +8,10 @@
 //! nothing calls, carrying plain numbers down, and reports each of the game's
 //! own commands (every other bank) with the numbers it ends up with.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
-use crate::{Condition, Esd, Group, expr};
+use crate::cond::Atom;
+use crate::{Esd, Group, expr, reach};
 
 /// The bank whose commands start another state machine of the script.
 pub const CALL_BANK: i32 = 6;
@@ -29,10 +30,13 @@ pub struct Resolved {
     /// Each argument's value when it is a plain number, written in the
     /// command or passed down by the calls that lead to it.
     pub args: Vec<Option<i32>>,
+    /// What holds on every way to the command along this chain of calls
+    /// ([`reach`]): the conditions passed in each machine on the way.
+    pub needs: BTreeSet<Atom>,
 }
 
 /// Every one of the game's commands each root machine reaches, once for each
-/// set of arguments it is reached with.
+/// set of arguments it is reached with and what holds there.
 pub fn resolve(esd: &Esd) -> Vec<Resolved> {
     let groups: HashMap<i64, &Group> = esd.groups.iter().map(|g| (g.id, g)).collect();
     let called: HashSet<i64> = esd
@@ -41,72 +45,90 @@ pub fn resolve(esd: &Esd) -> Vec<Resolved> {
         .filter(|c| c.bank == CALL_BANK)
         .map(|c| i64::from(c.id))
         .collect();
-    let mut out = Vec::new();
+    let mut walk = Walk {
+        esd,
+        groups,
+        must: HashMap::new(),
+        seen: HashSet::new(),
+        out: Vec::new(),
+    };
     for g in esd.groups.iter().filter(|g| !called.contains(&g.id)) {
-        let mut seen = HashSet::new();
-        visit(esd, &groups, g, &[], g.id, 0, &mut seen, &mut out);
+        walk.seen.clear();
+        walk.visit(g, &[], &BTreeSet::new(), g.id, 0);
     }
-    out
+    walk.out
 }
 
-#[allow(clippy::too_many_arguments)]
-fn visit(
-    esd: &Esd,
-    groups: &HashMap<i64, &Group>,
-    g: &Group,
-    passed: &[Option<i32>],
-    root: i64,
-    depth: usize,
-    seen: &mut HashSet<(i64, Vec<Option<i32>>)>,
-    out: &mut Vec<Resolved>,
-) {
-    let mut commands = Vec::new();
-    for s in esd.states_of(g) {
-        for span in [s.on_enter, s.on_exit, s.on_update] {
-            commands.extend(esd.commands_in(span));
-        }
-        let mut conds: Vec<&Condition> = esd.conditions_in(s.conditions);
-        let mut visited = HashSet::new();
-        while let Some(c) = conds.pop() {
-            if !visited.insert(c as *const Condition) {
-                continue;
+/// What one machine's call is: the machine, the numbers it is passed, and
+/// what holds where it is called.
+type Call = (i64, Vec<Option<i32>>, BTreeSet<Atom>);
+
+struct Walk<'a> {
+    esd: &'a Esd,
+    groups: HashMap<i64, &'a Group>,
+    /// Each machine's [`reach::must`], worked out once.
+    must: HashMap<i64, Vec<Option<BTreeSet<Atom>>>>,
+    seen: HashSet<Call>,
+    out: Vec<Resolved>,
+}
+
+impl<'a> Walk<'a> {
+    fn visit(
+        &mut self,
+        g: &'a Group,
+        passed: &[Option<i32>],
+        held: &BTreeSet<Atom>,
+        root: i64,
+        depth: usize,
+    ) {
+        let esd = self.esd;
+        let must = self
+            .must
+            .entry(g.id)
+            .or_insert_with(|| reach::must(esd, g))
+            .clone();
+        for (s, here) in esd.states_of(g).iter().zip(must) {
+            // A state no way reaches still runs, as far as is known: from
+            // somewhere the trace does not follow.
+            let here = here.unwrap_or_default();
+            for (c, more) in reach::commands(esd, s) {
+                let needs: BTreeSet<Atom> =
+                    held.iter().chain(&here).chain(&more).copied().collect();
+                let args: Vec<Option<i32>> = esd
+                    .command_args(c)
+                    .into_iter()
+                    .map(|e| {
+                        let e = e?;
+                        expr::constant(e)
+                            .or_else(|| passed.get(expr::argument(e)?).copied().flatten())
+                    })
+                    .collect();
+                if c.bank == CALL_BANK {
+                    if let Some(&target) = self.groups.get(&i64::from(c.id))
+                        && depth < MAX_DEPTH
+                        && self.seen.insert((target.id, args.clone(), needs.clone()))
+                    {
+                        self.visit(target, &args, &needs, root, depth + 1);
+                    }
+                    continue;
+                }
+                self.out.push(Resolved {
+                    root,
+                    group: g.id,
+                    bank: c.bank,
+                    id: c.id,
+                    args,
+                    needs,
+                });
             }
-            commands.extend(esd.commands_in(c.on_pass));
-            conds.extend(esd.conditions_in(c.subconditions));
         }
-    }
-    for c in commands {
-        let args: Vec<Option<i32>> = esd
-            .command_args(c)
-            .into_iter()
-            .map(|e| {
-                let e = e?;
-                expr::constant(e).or_else(|| passed.get(expr::argument(e)?).copied().flatten())
-            })
-            .collect();
-        if c.bank == CALL_BANK {
-            if let Some(target) = groups.get(&i64::from(c.id))
-                && depth < MAX_DEPTH
-                && seen.insert((target.id, args.clone()))
-            {
-                visit(esd, groups, target, &args, root, depth + 1, seen, out);
-            }
-            continue;
-        }
-        out.push(Resolved {
-            root,
-            group: g.id,
-            bank: c.bank,
-            id: c.id,
-            args,
-        });
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Command, Span, State};
+    use crate::{Command, Condition, Span, State};
 
     /// Machine 1 calls machine 2 with 100000; machine 2 runs command 1[104]
     /// on its argument 0, and a condition's pass runs 1[7] on the constant 5.
@@ -248,14 +270,16 @@ mod tests {
                     group: 2,
                     bank: 1,
                     id: 104,
-                    args: vec![Some(100_000)]
+                    args: vec![Some(100_000)],
+                    needs: BTreeSet::new(),
                 },
                 Resolved {
                     root: 1,
                     group: 2,
                     bank: 1,
                     id: 7,
-                    args: vec![Some(5)]
+                    args: vec![Some(5)],
+                    needs: BTreeSet::new(),
                 },
             ]
         );

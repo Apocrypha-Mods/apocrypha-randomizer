@@ -178,3 +178,46 @@ fn shop_rows_wait_for_what_puts_them_on_sale() {
         vec!["Smithing-Stone Miner's Bell Bearing [1]"]
     );
 }
+
+#[test]
+fn gifts_wait_for_what_their_talk_asks() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let ways = |item: &str| {
+        let (i, _) = m
+            .locations
+            .iter()
+            .enumerate()
+            .find(|(_, l)| {
+                l.kind == gamedata::model::Kind::Gift
+                    && l.items.iter().any(|it| it.name.as_deref() == Some(item))
+            })
+            .unwrap_or_else(|| panic!("no gift of {item}"));
+        b.location_terms[i].ways.clone()
+    };
+    // Melina gives the Rold Medallion once Morgott is beaten: every way
+    // asks for him. (The area map's place entry speaks for it in the walk.)
+    let morgott = logic::find_boss(m, "Morgott, the Omen King").unwrap();
+    let rold = m
+        .locations
+        .iter()
+        .find(|l| {
+            l.items
+                .iter()
+                .any(|it| it.name.as_deref() == Some("Rold Medallion"))
+        })
+        .and_then(|l| l.given_if.as_ref())
+        .unwrap();
+    assert!(!rold.is_empty());
+    assert!(
+        rold.iter()
+            .all(|w| w.contains(&gamedata::model::Cond::Boss(m.bosses[morgott].area)))
+    );
+    // Rya gives the Volcano Manor Invitation for her necklace.
+    let invitation = ways("Volcano Manor Invitation").unwrap();
+    assert!(
+        invitation
+            .iter()
+            .all(|w| w.contains(&logic::Req::Holds("Rya's Necklace")))
+    );
+}

@@ -15,7 +15,11 @@
 //!   each event's arguments filled
 //!   in from the call that starts it.
 //! - **Gifts:** the lots the talk scripts award (`AWARD_ITEM_LOT`), with
-//!   every call between a script's state machines followed.
+//!   every call between a script's state machines followed. What holds on
+//!   the way to each award (`fs_esd::reach`) becomes the gift's ways
+//!   ([`Location::given_if`]): flags explained as a boss beaten, an item
+//!   handed over, a location got, or a talk script setting them on what it
+//!   asks in turn; a flag nothing explains stays a [`Cond::Flag`].
 //! - **Shops:** every ShopLineupParam row, placed where the characters stand
 //!   whose talk scripts open a range holding it (`SHOP_RANGES`: shops,
 //!   dragon communion, puppets and exchanges). A row the Twin Maiden Husks
@@ -36,7 +40,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use fs_bytes::Result;
 use fs_emevd::catalogue;
-use fs_esd::commands::{AWARD_ITEM_LOT, SHOP_RANGES};
+use fs_esd::commands::{AWARD_ITEM_LOT, SET_EVENT_FLAG, SHOP_RANGES};
+use fs_esd::cond::Atom;
 use fs_msb::layout::{entry_name, field};
 use fs_param::layout::{Layout, for_table};
 use fs_param::param::Row;
@@ -268,6 +273,9 @@ pub fn extract(s: &Sources) -> Result<Model> {
     let mut sold_by: HashMap<i32, BTreeSet<(MapId, &str)>> = HashMap::new();
     // The goods whose handing over turns each flag on.
     let mut handed: HashMap<u32, BTreeSet<i32>> = HashMap::new();
+    // What holds on each way a talk script gives a lot, or turns a flag on.
+    let mut gift_ways: HashMap<i32, BTreeSet<BTreeSet<Atom>>> = HashMap::new();
+    let mut talk_sets: HashMap<u32, BTreeSet<BTreeSet<Atom>>> = HashMap::new();
     for (map, name, esd) in &s.talk {
         for h in fs_esd::handover::handovers(esd) {
             for f in h.flags {
@@ -280,6 +288,12 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 && *lot > 0
             {
                 gifts.push(((*map != EVERYWHERE).then_some(*map), name, *lot));
+                gift_ways.entry(*lot).or_default().insert(r.needs.clone());
+            }
+            if let (SET_EVENT_FLAG, [Some(flag), Some(1)]) = (command, &r.args[..])
+                && let Ok(flag) = u32::try_from(*flag)
+            {
+                talk_sets.entry(flag).or_default().insert(r.needs.clone());
             }
             for (_, a, b) in SHOP_RANGES.iter().filter(|s| s.0 == command) {
                 let (Some(Some(first)), Some(Some(last))) = (r.args.get(*a), r.args.get(*b)) else {
@@ -457,6 +471,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             flag: lots.flag(table, id),
             also: Vec::new(),
             terms: None,
+            given_if: None,
             lot: Some(Lot {
                 table: table.into(),
                 ids,
@@ -738,6 +753,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
                     })
                     .collect(),
             }),
+            given_if: None,
         });
     }
 
@@ -784,6 +800,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             flag: None,
             also: Vec::new(),
             terms: None,
+            given_if: None,
         });
     }
 
@@ -807,6 +824,33 @@ pub fn extract(s: &Sources) -> Result<Model> {
         ids.sort();
         model.gaps.unreached_lots.insert(t.into(), ids);
     }
+    // What each gift asks, in the model's terms.
+    let explain = Explain {
+        after_boss: &after_boss,
+        handed: &handed,
+        got: model.locations.iter().filter_map(|l| l.flag).collect(),
+        talk_sets: &talk_sets,
+        names: &names,
+    };
+    for l in model.locations.iter_mut().filter(|l| l.kind == Kind::Gift) {
+        let Some(ways) = l
+            .lot
+            .as_ref()
+            .and_then(|lot| gift_ways.get(lot.ids.first()?))
+        else {
+            continue;
+        };
+        let mut out: Vec<Way> = Vec::new();
+        for atoms in ways {
+            out.extend(explain.ways(atoms, 0));
+        }
+        out.sort_by_key(Vec::len);
+        out.dedup();
+        out.truncate(MAX_WAYS);
+        // A way that asks nothing makes the rest moot.
+        l.given_if = (!out.first().is_none_or(Vec::is_empty)).then_some(out);
+    }
+
     Ok(model)
 }
 
@@ -848,6 +892,110 @@ impl Names<'_> {
             .or_else(|| self.0.text(table, base))
             .map(String::from)
     }
+}
+
+/// How many ways to keep for one gift or flag: the shortest.
+const MAX_WAYS: usize = 8;
+/// How deep a flag set in talk is followed back to what that talk asks.
+const MAX_DEPTH: usize = 4;
+
+/// Turns what talk conditions ask ([`Atom`]s) into the model's terms.
+struct Explain<'a> {
+    after_boss: &'a HashMap<u32, Option<i32>>,
+    handed: &'a HashMap<u32, BTreeSet<i32>>,
+    /// Flags that picking up a location sets.
+    got: HashSet<u32>,
+    talk_sets: &'a HashMap<u32, BTreeSet<BTreeSet<Atom>>>,
+    names: &'a Names<'a>,
+}
+
+impl Explain<'_> {
+    /// The ways to have all of `atoms`: flags that must be on and items that
+    /// must be held. Flags that must be off are taken to be off.
+    fn ways(&self, atoms: &BTreeSet<Atom>, depth: usize) -> Vec<Way> {
+        let mut ways: Vec<Way> = vec![Vec::new()];
+        for a in atoms {
+            let options = match *a {
+                Atom::Flag(f, true) => self.flag(f, depth),
+                Atom::Holds(t, id) => match shop_item_kind(t) {
+                    Some(kind) => vec![vec![Cond::Holds(self.item(kind, id))]],
+                    None => continue,
+                },
+                _ => continue,
+            };
+            let mut next: Vec<Way> = Vec::new();
+            for w in &ways {
+                for o in &options {
+                    let mut both = w.clone();
+                    both.extend(o.iter().filter(|c| !w.contains(c)).cloned());
+                    next.push(both);
+                }
+            }
+            next.sort_by_key(Vec::len);
+            next.dedup();
+            next.truncate(MAX_WAYS);
+            ways = next;
+        }
+        ways
+    }
+
+    /// The ways a flag comes to be on: a boss beaten, an item handed over, a
+    /// location got, or a talk script setting it, on what that talk asks.
+    fn flag(&self, f: u32, depth: usize) -> Vec<Way> {
+        if let Some(Some(boss)) = self.after_boss.get(&f) {
+            return vec![vec![Cond::Boss(*boss)]];
+        }
+        if let Some(goods) = self.handed.get(&f) {
+            return goods
+                .iter()
+                .map(|&id| vec![Cond::Holds(self.item(ItemKind::Goods, id))])
+                .collect();
+        }
+        if self.got.contains(&f) {
+            return vec![vec![Cond::Got(f)]];
+        }
+        if let Some(setters) = self.talk_sets.get(&f).filter(|_| depth < MAX_DEPTH) {
+            let mut out: Vec<Way> = setters
+                .iter()
+                .flat_map(|atoms| {
+                    // The flag itself is not a reason for itself.
+                    let rest: BTreeSet<Atom> = atoms
+                        .iter()
+                        .filter(|a| **a != Atom::Flag(f, true))
+                        .copied()
+                        .collect();
+                    self.ways(&rest, depth + 1)
+                })
+                .collect();
+            out.sort_by_key(Vec::len);
+            out.dedup();
+            out.truncate(MAX_WAYS);
+            return out;
+        }
+        vec![vec![Cond::Flag(f)]]
+    }
+
+    fn item(&self, kind: ItemKind, id: i32) -> Item {
+        Item {
+            kind,
+            id,
+            count: 1,
+            chance: 1000,
+            name: self.names.of(kind, id),
+        }
+    }
+}
+
+/// An item kind by ShopLineupParam's numbering, which talk scripts share.
+fn shop_item_kind(t: i32) -> Option<ItemKind> {
+    Some(match t {
+        0 => ItemKind::Weapon,
+        1 => ItemKind::Protector,
+        2 => ItemKind::Accessory,
+        3 => ItemKind::Goods,
+        4 => ItemKind::Gem,
+        _ => return None,
+    })
 }
 
 /// The items a lot row holds, in its eight slots.

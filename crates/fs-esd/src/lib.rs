@@ -26,8 +26,10 @@
 
 pub mod calls;
 pub mod commands;
+pub mod cond;
 pub mod expr;
 pub mod handover;
+pub mod reach;
 
 use fs_bytes::{self as rd, Error, Result, format_err};
 
@@ -408,6 +410,13 @@ impl Esd {
         self.states.get(i / STATE_LEN).map(|s| (i / STATE_LEN, s))
     }
 
+    /// A state's index in [`Esd::states`], for a state of this script.
+    pub fn index_of(&self, s: &State) -> Option<usize> {
+        let at = (s as *const State as usize).checked_sub(self.states.as_ptr() as usize)?;
+        let i = at / std::mem::size_of::<State>();
+        (i < self.states.len() && std::ptr::eq(&self.states[i], s)).then_some(i)
+    }
+
     /// The commands a span names.
     pub fn commands_in(&self, span: Span) -> &[Command] {
         Self::records(&self.commands, self.commands_at(), COMMAND_LEN, span)
@@ -649,6 +658,8 @@ mod tests {
                 b.truncate((next() as usize) % b.len());
             }
             if let Ok(esd) = Esd::read(&b) {
+                let _ = calls::resolve(&esd);
+                let _ = handover::handovers(&esd);
                 for c in &esd.commands {
                     for a in esd.command_args(c).into_iter().flatten() {
                         let _ = expr::constant(a);

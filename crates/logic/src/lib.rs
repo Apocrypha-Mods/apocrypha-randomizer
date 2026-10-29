@@ -18,6 +18,13 @@
 //! flag is explained by the model (a boss beaten, an item handed over) or by
 //! an `on_sale` entry here; a row whose flag nothing explains is never
 //! counted as got.
+//!
+//! A gift asks what its talk scripts' conditions do
+//! ([`gamedata::model::Location::given_if`]): any one of its ways, each a
+//! list of bosses beaten, items held and other locations got. A way that
+//! waits on a flag nothing explains (an NPC's quest phase, mostly) is never
+//! open. A `place` entry for the gift is checked by hand and takes the
+//! talk's place.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -195,6 +202,21 @@ pub struct Terms<'a> {
     pub bosses: Vec<usize>,
     /// For a shop row whose on-sale flag nothing explains: never got.
     pub unexplained: Option<u32>,
+    /// For a gift, the ways it is given, any one enough; `None` when its
+    /// talk asks nothing (or a `place` entry speaks for it).
+    pub ways: Option<Vec<Vec<Req<'a>>>>,
+}
+
+/// One thing a gift's way asks.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Req<'a> {
+    /// A boss beaten, by index in the model.
+    Boss(usize),
+    Holds(&'a str),
+    /// Any of these locations got (the ones whose pick-up sets one flag).
+    Got(Vec<usize>),
+    /// A flag nothing explains: never.
+    Never(u32),
 }
 
 /// The graph bound to a model: every name resolved, every location in an
@@ -451,6 +473,12 @@ impl<'a> Bound<'a> {
         let mut location_area = Vec::with_capacity(model.locations.len());
         let mut location_also = Vec::with_capacity(model.locations.len());
         let mut location_terms = Vec::with_capacity(model.locations.len());
+        let mut flag_locations: HashMap<u32, Vec<usize>> = HashMap::new();
+        for (i, l) in model.locations.iter().enumerate() {
+            if let Some(f) = l.flag {
+                flag_locations.entry(f).or_default().push(i);
+            }
+        }
         let boss_index: HashMap<i32, usize> = model
             .bosses
             .iter()
@@ -462,6 +490,17 @@ impl<'a> Bound<'a> {
             let placed = place_of(l);
             let mut terms = Terms::default();
             terms.needs.extend(placed.map(|p| &p.need));
+            if let Some(ways) = l.given_if.as_ref().filter(|_| placed.is_none()) {
+                terms.ways = Some(
+                    ways.iter()
+                        .map(|w| {
+                            w.iter()
+                                .map(|c| Self::req(c, &boss_index, &flag_locations))
+                                .collect()
+                        })
+                        .collect(),
+                );
+            }
             if let Some(t) = l.terms.as_ref().filter(|_| !unused) {
                 Self::shop_terms(graph, t, &boss_index, &mut terms, &mut problems);
             }
@@ -503,6 +542,20 @@ impl<'a> Bound<'a> {
             location_unused,
             boss_area,
             problems,
+        }
+    }
+
+    fn req(
+        c: &'a gamedata::model::Cond,
+        boss_index: &HashMap<i32, usize>,
+        flag_locations: &HashMap<u32, Vec<usize>>,
+    ) -> Req<'a> {
+        use gamedata::model::Cond;
+        match c {
+            Cond::Boss(a) => boss_index.get(a).map_or(Req::Never(0), |&b| Req::Boss(b)),
+            Cond::Holds(i) => i.name.as_deref().map_or(Req::Never(0), Req::Holds),
+            Cond::Got(f) => Req::Got(flag_locations.get(f).cloned().unwrap_or_default()),
+            Cond::Flag(f) => Req::Never(*f),
         }
     }
 
@@ -572,7 +625,7 @@ impl<'a> Bound<'a> {
                 }
                 let here = self.location_area[i].is_none_or(|a| reached[a])
                     || self.location_also[i].iter().any(|&a| reached[a]);
-                let ok = self.allows(&self.location_terms[i], &items, &reached);
+                let ok = self.allows(&self.location_terms[i], &items, &reached, &taken);
                 if here && ok {
                     taken[i] = true;
                     // Every item, not just up to the first new one.
@@ -624,14 +677,22 @@ impl<'a> Bound<'a> {
             .collect()
     }
 
-    fn allows(&self, t: &Terms, items: &BTreeSet<&str>, reached: &[bool]) -> bool {
+    fn allows(&self, t: &Terms, items: &BTreeSet<&str>, reached: &[bool], taken: &[bool]) -> bool {
+        let boss = |b: usize| self.boss_area[b].is_some_and(|a| reached[a]);
+        let open = |r: &Req| match r {
+            Req::Boss(b) => boss(*b),
+            Req::Holds(i) => items.contains(i),
+            Req::Got(ls) => ls.iter().any(|&l| taken[l]),
+            Req::Never(_) => false,
+        };
         t.unexplained.is_none()
+            && t.ways
+                .as_ref()
+                .is_none_or(|ways| ways.iter().any(|w| w.iter().all(open)))
             && t.needs.iter().all(|n| self.met(n, items, reached))
             && t.items.iter().all(|i| items.contains(i))
             && (t.any_of.is_empty() || t.any_of.iter().any(|i| items.contains(i)))
-            && t.bosses
-                .iter()
-                .all(|&b| self.boss_area[b].is_some_and(|a| reached[a]))
+            && t.bosses.iter().all(|&b| boss(b))
     }
 
     fn met(&self, need: &Need, items: &BTreeSet<&str>, reached: &[bool]) -> bool {
@@ -706,6 +767,7 @@ mod tests {
             flag: None,
             also: vec![],
             terms: None,
+            given_if: None,
         }
     }
 
@@ -921,6 +983,52 @@ mod tests {
             note: String::new(),
         });
         assert!(opens_cave(&g, &m, false));
+    }
+
+    #[test]
+    fn a_gift_is_given_by_any_one_of_its_ways() {
+        use gamedata::model::Cond;
+        let (mut g, mut m) = (graph(), model());
+        m.locations[0].kind = Kind::Gift;
+        m.bosses.push(Boss {
+            area: 2,
+            map: Some(MapId([60, 40, 37, 0])),
+            entity: None,
+            name: Some("Warden".into()),
+            defeat_flag: 2,
+        });
+        let walk = |g: &Graph, m: &Model| {
+            let b = Bound::new(g, m);
+            assert!(b.problems.is_empty(), "{:?}", b.problems);
+            b.walk(&b.vanilla()).goal
+        };
+        // A way through the cave's own boss, which needs the key, is shut;
+        // one through the first area's boss is open.
+        m.locations[0].given_if = Some(vec![vec![Cond::Boss(1)]]);
+        assert!(!walk(&g, &m));
+        m.locations[0].given_if = Some(vec![vec![Cond::Boss(1)], vec![Cond::Boss(2)]]);
+        assert!(walk(&g, &m));
+        // A flag nothing explains shuts its way.
+        m.locations[0].given_if = Some(vec![vec![Cond::Boss(2), Cond::Flag(9)]]);
+        assert!(!walk(&g, &m));
+        // Another location got: the prize's pick-up flag.
+        let prize = m.locations.len();
+        m.locations.push(at(MapId([60, 40, 37, 0]), [0.0; 3], &[]));
+        m.locations[prize].flag = Some(77);
+        m.locations[0].given_if = Some(vec![vec![Cond::Got(77)]]);
+        assert!(walk(&g, &m));
+        // A place entry speaks for the gift instead.
+        m.locations[0].given_if = Some(vec![vec![Cond::Flag(9)]]);
+        m.locations[0].items = vec![item("Key")];
+        g.places.push(Place {
+            item: "Key".into(),
+            kind: Kind::Gift,
+            area: "west".into(),
+            need: Need::default(),
+            sure: true,
+            note: String::new(),
+        });
+        assert!(walk(&g, &m));
     }
 
     #[test]

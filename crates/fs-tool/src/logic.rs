@@ -45,6 +45,30 @@ pub fn run(game: PathBuf) -> Result<()> {
     for (f, names) in &unexplained {
         println!("  {f}: {}", names.join(", "));
     }
+    // Gifts whose every way waits on a flag nothing explains.
+    let mut blocked: BTreeMap<u32, Vec<&str>> = BTreeMap::new();
+    let mut gifts = 0;
+    for (l, t) in model.locations.iter().zip(&b.location_terms) {
+        let Some(ways) = &t.ways else { continue };
+        gifts += 1;
+        let never = |w: &Vec<logic::Req>| {
+            w.iter().find_map(|r| match r {
+                logic::Req::Never(f) => Some(*f),
+                _ => None,
+            })
+        };
+        if let Some(f) = ways.iter().map(never).collect::<Option<Vec<u32>>>() {
+            let name = l.items.first().and_then(|i| i.name.as_deref());
+            blocked.entry(f[0]).or_default().push(name.unwrap_or("?"));
+        }
+    }
+    println!(
+        "gifts whose talk asks something: {gifts}; never counted, every way waiting on a flag nothing explains: {}",
+        blocked.values().map(Vec::len).sum::<usize>()
+    );
+    for (f, names) in &blocked {
+        println!("  {f}: {}", names.join(", "));
+    }
     println!("\nproblems: {}", b.problems.len());
     for p in &b.problems {
         println!("  {p}");

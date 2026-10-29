@@ -155,3 +155,21 @@ fn handing_over_a_book_puts_its_spells_on_sale() {
         .collect();
     assert!(on_sale.contains(&1044369244) && on_sale.contains(&11109881));
 }
+
+#[test]
+fn conditions_read_as_one_value() {
+    let s = sources_or_skip!();
+    let (mut ok, mut all, mut asks) = (0, 0, 0);
+    for (_, _, esd) in &s.talk {
+        for c in &esd.conditions {
+            let Some(e) = esd.expression(c.evaluator) else {
+                continue;
+            };
+            all += 1;
+            ok += usize::from(fs_esd::cond::understood(e));
+            asks += usize::from(!fs_esd::cond::requires(e).is_empty());
+        }
+    }
+    eprintln!("conditions: {ok}/{all} understood, {asks} ask for a flag or an item");
+    assert!(ok * 100 >= all * 99);
+}
