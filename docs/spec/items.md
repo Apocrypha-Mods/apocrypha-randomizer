@@ -117,6 +117,9 @@ map count as the base game.
   - *Somber path* (Somber Smithing Stones, +0 to +10): kept separately. Only
     raising a somber weapon to +N makes later somber pick-ups arrive at +N.
   - A weapon never arrives below its own unmodded level.
+  - Weapons bought for runes count as picked up (Nova, 2026-10-30): a
+    merchant sells them at the same level. Weapons paid for in items
+    (remembrance trades, Dragon Communion) are not upgraded.
 
 ### 2.8 Help for the player
 

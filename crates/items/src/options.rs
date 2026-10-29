@@ -105,6 +105,9 @@ pub struct Options {
     bias: [u8; 12],
     /// Whether base-game and DLC items stay on their own side.
     pub dlc_separate: bool,
+    /// Whether weapons arrive at the level the player has raised one to
+    /// (§2.7). Done in play by our native module; placement ignores it.
+    pub auto_upgrade: bool,
 }
 
 impl Default for Options {
@@ -114,6 +117,7 @@ impl Default for Options {
             shuffle: [100; 12],
             bias: [0; 12],
             dlc_separate: false,
+            auto_upgrade: false,
         }
     }
 }
@@ -195,6 +199,11 @@ impl fmt::Display for Options {
             } else {
                 "mixed"
             }
+        )?;
+        writeln!(
+            f,
+            "  auto-upgrade: {}",
+            if self.auto_upgrade { "on" } else { "off" }
         )
     }
 }

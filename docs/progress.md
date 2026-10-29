@@ -700,28 +700,75 @@ native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
   into process 376`.
 - me3's `Native` entry takes `path`, `optional`, `load_before`, `load_after`
   and `load_early`. Its initializer and finalizer can be left out.
-- The upgrading itself is still to do. It rests on our own reverse
-  engineering of the game, done in the lab. What is known so far:
-  - **Vtables are found at run time**, from the loaded game's RTTI, by
-    decorated class name (`.?AVCSWepGaitemIns@CS@@`), not fixed addresses.
-    The game updated to 2.7.2.0 on 2026-10-29, which moved every vtable
-    (CSWepGaitemIns went from 0x142a81bb8 to 0x142a83cb8).
-  - **Item instances**, as found by the probe (`ER_PROBE=1`) in the
-    2026-10-29 lab, with Moonveil in hand:
-    - a weapon (CSWepGaitemIns, 0x30 bytes) holds its vtable, a gaitem
-      handle at +8 (`0x808…`), the item id at +0xC (Moonveil, 9060000 =
-      0x8A3EA0) and the handle of its fitted Ash of War at +0x28;
-    - a gem (CSGemGaitemIns) holds its handle at +8 (`0xC08…`), its id at
-      +0xC and the handle of its weapon at +0x10;
-    - armour (CSProGaitemIns) holds its handle at +8 (`0x908…`) and its id
-      at +0xC.
-  - The inventory also keeps each weapon's handle beside its id
-    (`80800035 008a3ea0 00000001 00000048`: handle, id, quantity and,
-    likely, an index). So a level change must keep the instance and the
-    inventory agreeing, or must happen before the item is made.
-  - Still to find: where a new item is made (to set its level as it
-    arrives), and whether the level is the id's last two digits for every
-    weapon.
+- **Auto-upgrade works in the lab** (2026-10-30, game 2.7.2). How it works:
+  it changes no game code, only table values. Every two seconds it reads the
+  player's weapons. When the highest raised level on a path changes, it
+  rewrites the item id of every weapon pick-up (1,088 lot slots and rune-shop
+  rows) to the weapon's base id plus that level. The game then makes the
+  weapon at that level as it gives it.
+- **The lab test.** The chapel's event script was given three extra
+  instructions: award lot 103500 (patched to give custom weapon 5010,
+  Rogier's Rapier +8), wait 10 s (1001[0], one float in seconds, used 1,883
+  times in the game's own scripts), then award lot 10010000, seed 22's
+  Twinblade. In that order:
+  - the module's log showed the Rapier arrive (5030008);
+  - it read +8 regular and rewrote the pick-ups (15 ms);
+  - the Twinblade arrived as 10000008, Twinblade +8.
+  
+  With no raised weapon held, the same award gave a plain Twinblade. The
+  game's memory stayed at 5.3 GB.
+- **Three copies of the regulation** sit in memory, identical. Writing +1, +2
+  and +3 into them gave Twinblade+3, so the game gives from one copy only.
+  The param store (`CS::ParamRepositoryImp`) points at that copy's tables
+  directly, five pointers in, and at no other copy.
+- **Never read all memory.** A first version scanned every writable region
+  for the tables and the weapon instances. Reading pages the game reserved
+  but never touched makes the system back them, and a run that scanned twice
+  pushed the game past the lab's 9 GB cap. The module now follows the game's
+  own pointers (`crates/native/src/walk.rs`):
+  - the game image holds pointers to the param store and to a
+    `CS::PlayerGameData`;
+  - the walk from the store finds the live tables in about 0.4 s, once;
+  - two pointers from the player data lead to `CS::EquipInventoryData`
+    objects (seven at once in the lab). Each one holds its record capacity at
+    +0x08 and a pointer to its records at +0x10. A record is 0x18 bytes:
+    handle, item id, count, list index and two more words. Weapons have
+    handles starting with 8 (`0x8080…`).
+  - Reading them takes about 12 ms.
+- **Weapon instances are not the inventory.** The store of item instances
+  (`CS::CSGaitemImp`, an array indexed by the handle's low bits) held 54
+  weapons for a new level 9 Vagabond, three of them at +10. The inventory
+  held seven: three unarmed slots, Moonveil, the Halberd, the Heater Shield
+  and the Twinblade. The extras look like leftovers kept in the save, likely
+  from character creation, so only the inventory is read.
+- **What counts as raised.** 25 map pick-ups give a weapon at +1 to +10, so
+  holding one proves nothing. A held weapon counts only above the highest
+  level any pick-up, shop row or class gives it at.
+  - Custom-weapon lots (category 6, a weapon with a set level, e.g. custom
+    5010 is Rogier's Rapier +8) are not counted as given. This is what made
+    the lab test possible. It also means that picking up the Rapier raises
+    the regular level to +8.
+- **What is upgraded:** item-lot slots that give a weapon (category 2), and
+  rows of ShopLineupParam / ShopLineupParam_Recipe that sell a weapon for
+  runes alone. Nova chose to include shops (spec §2.7). Rows paid for in
+  items are left alone.
+- **In `apoc-rando`:** `gen --auto-upgrade` copies `apoc_native.dll` into
+  the mod folder. It takes the DLL from beside the program, or from
+  `--native <dll>`. It also writes a me3 profile `<out>.me3` beside the
+  folder that loads both, and records the option in the spoiler log.
+  - The profile's format (`profileVersion = "v1"`, `[[packages]]`,
+    `[[natives]]`) is not yet tested by a launch; the lab uses its own attach
+    config.
+- **Known limits:**
+  - The levels come from what the player holds now. Selling or dropping
+    every raised weapon lowers them again; nothing is kept between sessions
+    other than the inventory itself.
+  - Offline only one inventory is filled. In co-op, another player's
+    inventory may be read too (not tested).
+  - The lab could not press the pick-up prompt on the chapel's body. Awards
+    from an event script take the same table path, and those were tested.
+- **Lab tools:** `keys.sh` holds a key with `KEY:N` (seconds). `run.sh`
+  passes `ER_LEVELS=regular,somber`, a floor for testing.
 
 ## Phase 3: game model
 

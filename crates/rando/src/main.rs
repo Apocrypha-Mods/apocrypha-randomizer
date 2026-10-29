@@ -62,6 +62,15 @@ struct Sliders {
     /// shuffle them together (`mixed`, the default).
     #[arg(long, default_value = "mixed", value_parser = ["mixed", "separate"])]
     dlc: String,
+    /// Weapons picked up or bought for runes arrive at the highest level the
+    /// player has raised one of their path to. Puts our native module in the
+    /// mod folder.
+    #[arg(long)]
+    auto_upgrade: bool,
+    /// The native module for `--auto-upgrade` (default: `apoc_native.dll`
+    /// beside this program).
+    #[arg(long)]
+    native: Option<PathBuf>,
 }
 
 impl Sliders {
@@ -70,6 +79,7 @@ impl Sliders {
         o.set(false, &self.shuffle).map_err(format_err)?;
         o.set(true, &self.bias).map_err(format_err)?;
         o.dlc_separate = self.dlc == "separate";
+        o.auto_upgrade = self.auto_upgrade;
         Ok(o)
     }
 }
@@ -84,7 +94,7 @@ fn main() {
             sliders,
         } => sliders
             .options()
-            .and_then(|o| gen_seed(game, seed, out, &o)),
+            .and_then(|o| gen_seed(game, seed, out, &o, sliders.native.as_deref())),
         Command::Check {
             game,
             seeds,
@@ -98,7 +108,13 @@ fn main() {
     }
 }
 
-fn gen_seed(game: PathBuf, seed: u64, out: PathBuf, options: &items::Options) -> Result<()> {
+fn gen_seed(
+    game: PathBuf,
+    seed: u64,
+    out: PathBuf,
+    options: &items::Options,
+    native: Option<&std::path::Path>,
+) -> Result<()> {
     let sources = Sources::open(&game)?;
     let model = elden_ring::extract(&sources)?;
     let graph = logic::elden_ring();
@@ -114,6 +130,9 @@ fn gen_seed(game: PathBuf, seed: u64, out: PathBuf, options: &items::Options) ->
     let mut reg = fs_param::Regulation::open(&game)?;
     items::apply(&mut reg, &units, &plan)?;
     std::fs::create_dir_all(&out)?;
+    if options.auto_upgrade {
+        native_module(&out, native)?;
+    }
     std::fs::write(out.join("regulation.bin"), reg.write()?)?;
     let spoiler = out.with_extension("spoiler.txt");
     std::fs::write(&spoiler, items::spoiler(&bound, &units, &plan))?;
@@ -123,6 +142,33 @@ fn gen_seed(game: PathBuf, seed: u64, out: PathBuf, options: &items::Options) ->
         out.display(),
         spoiler.display()
     );
+    Ok(())
+}
+
+/// Put the native module in the mod folder, and write a me3 profile beside
+/// it that loads both: `<out>.me3`.
+fn native_module(out: &std::path::Path, native: Option<&std::path::Path>) -> Result<()> {
+    const DLL: &str = "apoc_native.dll";
+    let from = match native {
+        Some(p) => p.to_path_buf(),
+        None => std::env::current_exe()?.with_file_name(DLL),
+    };
+    if !from.is_file() {
+        return Err(format_err(format!(
+            "--auto-upgrade needs the native module, and {} is not there (give it with --native)",
+            from.display()
+        )));
+    }
+    std::fs::copy(&from, out.join(DLL))?;
+    let name = out
+        .file_name()
+        .ok_or_else(|| format_err("the mod folder has no name"))?
+        .to_string_lossy();
+    let profile = format!(
+        "profileVersion = \"v1\"\n\n[[supports]]\ngame = \"eldenring\"\n\n\
+         [[packages]]\npath = \"{name}\"\n\n[[natives]]\npath = \"{name}/{DLL}\"\n"
+    );
+    std::fs::write(out.with_extension("me3"), profile)?;
     Ok(())
 }
 

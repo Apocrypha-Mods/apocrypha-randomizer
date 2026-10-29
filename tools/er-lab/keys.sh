@@ -1,7 +1,7 @@
 #!/bin/bash
 # Press keys in the lab game, then save a screenshot: keys.sh OUT.png KEY...
 # A key is an xdotool name (Return, Escape, Down, w, e); `waitN` pauses N
-# seconds. Keys go to the game's own X display inside gamescope, never the
+# seconds; `KEY:N` holds a key N seconds (w:2 walks). Keys go to the game's own X display inside gamescope, never the
 # desktop's.
 set -eu
 OUT=$1; shift
@@ -12,7 +12,8 @@ export DISPLAY=$(envof DISPLAY) GAMESCOPE_WAYLAND_DISPLAY=$(envof GAMESCOPE_WAYL
 [ -n "$GAMESCOPE_WAYLAND_DISPLAY" ] || { echo "the game is not inside gamescope"; exit 1; }
 for k in "$@"; do
   case $k in wait*) sleep "${k#wait}"; continue;; esac
-  xdotool keydown "$k"; sleep 0.25; xdotool keyup "$k"; sleep 0.8
+  hold=0.25; case $k in *:*) hold=${k#*:}; k=${k%%:*};; esac
+  xdotool keydown "$k"; sleep "$hold"; xdotool keyup "$k"; sleep 0.8
 done
 rm -f "$OUT"; gamescopectl screenshot "$OUT"
 for _ in $(seq 20); do [ -s "$OUT" ] && break; sleep 0.5; done

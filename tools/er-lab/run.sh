@@ -13,7 +13,8 @@ set -eu
 source "$(dirname "$0")/env.sh"
 pgrep -x steam >/dev/null || { echo "Steam is not running: start it with 'steam -silent'"; exit 1; }
 rm -f "$L/me3.log" "$L/native.log"; : > "$L/console.txt"
-# A native module of ours for me3 to load too ($ER_NATIVE, a .dll).
+# A native module of ours for me3 to load too ($ER_NATIVE, a .dll); $ER_LEVELS
+# (regular,somber) floors its auto-upgrade.
 NATIVES=""
 if [ -n "${ER_NATIVE:-}" ]; then
   NATIVES="{ path = 'Z:$(printf '%s' "$ER_NATIVE" | sed 's#/#\\#g')', optional = false, load_before = [], load_after = [], load_early = false }"
@@ -52,6 +53,6 @@ exec systemd-run --user --scope --unit=apoc-er-lab \
     ME3_TELEMETRY_ENABLED=false ME3_FILE_LOG_LEVEL='"info"' \
     ME3_TELEMETRY_LOG_FILE_PATH="$(win "$L/me3.log")" \
     ME3_TELEMETRY_MONITOR_PIPE_PATH="$(win "$L/console.txt")" \
-    ${ER_PROBE:+APOC_NATIVE_PROBE=1} \
+    ${ER_LEVELS:+APOC_NATIVE_LEVELS=$ER_LEVELS} \
     APOC_NATIVE_LOG="Z:$(printf '%s' "$L/native.log" | sed 's#/#\\#g')" \
   "$PROTON" waitforexitandrun "$RT/me3-launcher.exe"
