@@ -11,7 +11,10 @@
 //!   award on a flag (`item_lot_for_flag`, mostly a boss's defeat flag), with
 //!   each event's arguments filled
 //!   in from the call that starts it.
-//! - **Shops:** every ShopLineupParam row.
+//! - **Gifts:** the lots the talk scripts award (`AWARD_ITEM_LOT`), with
+//!   every call between a script's state machines followed.
+//! - **Shops:** every ShopLineupParam row, placed by the talk scripts that
+//!   open a range holding it (`OPEN_SHOP`).
 //! - **Starting:** the ten classes' CharaInitParam rows (3000–3009).
 //!
 //! A lot may run on into the rows after it: rows that follow a lot directly
@@ -19,15 +22,17 @@
 //! the probable reading (treasure lots followed by such a row share its flag
 //! in 50 of 63 cases) and waits on play to be confirmed.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use fs_bytes::Result;
 use fs_emevd::catalogue;
+use fs_esd::commands::{AWARD_ITEM_LOT, OPEN_SHOP};
 use fs_msb::layout::{entry_name, field};
 use fs_param::layout::{Layout, for_table};
 use fs_param::param::Row;
 
 use crate::model::*;
+use crate::sources::EVERYWHERE;
 use crate::{MapId, Sources};
 
 const LOT_MAP: &str = "ItemLotParam_map";
@@ -225,6 +230,27 @@ pub fn extract(s: &Sources) -> Result<Model> {
         }
     }
 
+    // What the talk scripts give, and which shop rows they open.
+    let mut gifts: Vec<(Option<MapId>, &str, i32)> = Vec::new();
+    let mut sold_by: HashMap<i32, BTreeSet<(MapId, &str)>> = HashMap::new();
+    for (map, name, esd) in &s.talk {
+        for r in fs_esd::calls::resolve(esd) {
+            match ((r.bank, r.id), &r.args[..]) {
+                (AWARD_ITEM_LOT, [Some(lot), ..]) if *lot > 0 => {
+                    gifts.push(((*map != EVERYWHERE).then_some(*map), name, *lot))
+                }
+                (OPEN_SHOP, [Some(first), Some(last), ..])
+                    if (0..1000).contains(&(last - first)) =>
+                {
+                    for id in *first..=*last {
+                        sold_by.entry(id).or_default().insert((*map, name));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     // Bosses.
     let area = layout("GameAreaParam");
     for r in &s.reg.table("GameAreaParam")?.rows {
@@ -280,6 +306,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             .filter_map(|(_, e, _)| ev("item_lot").get(e, 0).map(|v| v as i32)),
     );
     refs.extend(awards.iter().map(|a| a.lot));
+    refs.extend(gifts.iter().map(|g| g.2));
     for r in npcs.values() {
         for (t, f) in [
             (LOT_ENEMY, "item_lot_enemy_id"),
@@ -408,6 +435,20 @@ pub fn extract(s: &Sources) -> Result<Model> {
         model.locations.push(l);
     }
 
+    // Gifts, each lot once, and not again if a script awards it too.
+    for (map, name, lot) in gifts {
+        if lots.row(LOT_MAP, lot).is_none() || !given.insert(lot) {
+            continue;
+        }
+        model.locations.push(at_lot(
+            Kind::Gift,
+            map,
+            format!("talk {name}"),
+            LOT_MAP,
+            lot,
+        ));
+    }
+
     // Shops.
     let shop = layout("ShopLineupParam");
     for r in &s.reg.table("ShopLineupParam")?.rows {
@@ -424,10 +465,18 @@ pub fn extract(s: &Sources) -> Result<Model> {
             continue;
         }
         let stock = shop.field("sell_quantity").get(&r.data, 0);
+        // Placed when every talk script that opens it is in one map.
+        let openers = sold_by.get(&r.id);
+        let maps: BTreeSet<MapId> = openers.into_iter().flatten().map(|o| o.0).collect();
+        let mut source = format!("ShopLineupParam {}", r.id);
+        if let Some(o) = openers {
+            let talk: Vec<&str> = o.iter().map(|o| o.1).collect();
+            source += &format!(" (talk {})", talk.join(", "));
+        }
         model.locations.push(Location {
             kind: Kind::Shop,
-            map: None,
-            source: format!("ShopLineupParam {}", r.id),
+            map: (maps.len() == 1).then(|| *maps.first().unwrap()),
+            source,
             entity: None,
             position: None,
             lot: None,

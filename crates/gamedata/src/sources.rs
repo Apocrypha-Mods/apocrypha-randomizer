@@ -1,9 +1,10 @@
 //! The game files the model is extracted from, read once: `regulation.bin`,
-//! every map, every event script, and the English item text.
+//! every map, event script and talk script, and the English item text.
 //!
-//! Maps and scripts are found by name (`mAA_BB_CC_DD`): 1,248 maps and 544
-//! scripts in build 25080141. The rest of each kind is named some other way,
-//! still unknown (docs/progress.md, Phase 2), so the model does not see them.
+//! Maps and scripts are found by name (`mAA_BB_CC_DD`): 1,248 maps, 542
+//! event scripts and 36 talk binders (all 365 talk scripts) in build 25080141. The
+//! rest of each kind is named some other way, still unknown (docs/progress.md),
+//! so the model does not see them.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -12,6 +13,7 @@ use fs_bnd4::Bnd4;
 use fs_bytes::Result;
 use fs_dvdbnd::Dvd;
 use fs_emevd::Emevd;
+use fs_esd::Esd;
 use fs_fmg::Fmg;
 use fs_msb::Msb;
 use fs_param::Regulation;
@@ -22,6 +24,9 @@ use serde::Serialize;
 /// of Shadow, the others legacy dungeons and smaller places.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MapId(pub [u8; 4]);
+
+/// Not a map: talk scripts that run anywhere, such as the grace menu.
+pub const EVERYWHERE: MapId = MapId([0, 0, 0, 0]);
 
 impl MapId {
     pub fn area(self) -> u8 {
@@ -73,6 +78,8 @@ pub struct Sources {
     pub common_func: Emevd,
     /// The script that runs everywhere (`common`).
     pub common: Emevd,
+    /// Each map's talk scripts (NPC dialogue), by name (`t…`).
+    pub talk: Vec<(MapId, String, Esd)>,
     pub text: Text,
 }
 
@@ -100,12 +107,42 @@ impl Sources {
                     .map(|_| Ok((m, Emevd::read(&read(&path)?)?)))
             })
             .collect::<Result<Vec<_>>>()?;
+        // Talk binders are named by map too, but the open worlds' NPCs sit in
+        // m60_00_00_00 and m61_00_00_00, which have no map file, and the
+        // grace menu (Melina among it) in m00_00_00_00.
+        let mut talk_ids = named(&dvd, |m| format!("/script/talk/{m}.talkesdbnd.dcx"));
+        if dvd
+            .find(&format!("/script/talk/{EVERYWHERE}.talkesdbnd.dcx"))
+            .is_some()
+        {
+            talk_ids.insert(0, EVERYWHERE);
+        }
+        let talk = talk_ids
+            .par_iter()
+            .filter_map(|&m| {
+                let path = format!("/script/talk/{m}.talkesdbnd.dcx");
+                dvd.find(&path).map(|_| -> Result<Vec<_>> {
+                    Bnd4::read(&read(&path)?)?
+                        .files
+                        .iter()
+                        .map(|f| {
+                            let name = f.short_name().unwrap_or("").trim_end_matches(".esd");
+                            Ok((m, name.to_string(), Esd::read(&f.data)?))
+                        })
+                        .collect()
+                })
+            })
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .collect();
         Ok(Sources {
             reg: Regulation::open(game)?,
             maps,
             scripts,
             common_func: Emevd::read(&read("/event/common_func.emevd.dcx")?)?,
             common: Emevd::read(&read("/event/common.emevd.dcx")?)?,
+            talk,
             text: text(&dvd)?,
         })
     }
@@ -117,13 +154,18 @@ impl Sources {
 
 /// Every map the archives hold under a `mAA_BB_CC_DD` name, in order.
 fn map_ids(dvd: &Dvd) -> Vec<MapId> {
+    named(dvd, |m| format!("/map/mapstudio/{m}.msb.dcx"))
+}
+
+/// Every map id for which the archives hold the file `path` names.
+fn named(dvd: &Dvd, path: impl Fn(MapId) -> String) -> Vec<MapId> {
     let mut out = Vec::new();
     for a in 10..100 {
         for b in 0..100 {
             for c in 0..100 {
                 for d in 0..4 {
                     let m = MapId([a, b, c, d]);
-                    if dvd.find(&format!("/map/mapstudio/{m}.msb.dcx")).is_some() {
+                    if dvd.find(&path(m)).is_some() {
                         out.push(m);
                     }
                 }

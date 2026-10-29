@@ -17,8 +17,10 @@ pub enum Kind {
     EnemyDrop,
     /// Dropped by an enemy every time it rolls (no flag): farmable.
     RepeatDrop,
-    /// Given by an event script: a boss reward, an NPC's gift, a chest.
+    /// Given by an event script: a boss reward, a chest, a restored rune.
     Event,
+    /// Given by an NPC in conversation (a talk script).
+    Gift,
     /// Given by a script for a particular boss.
     BossReward,
     /// Sold by a merchant.
@@ -28,11 +30,12 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub const ALL: [Kind; 7] = [
+    pub const ALL: [Kind; 8] = [
         Kind::Treasure,
         Kind::EnemyDrop,
         Kind::RepeatDrop,
         Kind::Event,
+        Kind::Gift,
         Kind::BossReward,
         Kind::Shop,
         Kind::Starting,
@@ -44,6 +47,7 @@ impl Kind {
             Kind::EnemyDrop => "enemy drop",
             Kind::RepeatDrop => "repeat drop",
             Kind::Event => "event",
+            Kind::Gift => "gift",
             Kind::BossReward => "boss reward",
             Kind::Shop => "shop",
             Kind::Starting => "starting",

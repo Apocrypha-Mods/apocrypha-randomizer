@@ -10,11 +10,11 @@ Every dependency, its licence and why it is here.
 | aes 0.8 | MIT OR Apache-2.0 | fs-dvdbnd | AES-128-ECB of archive entries |
 | base64 0.22 | MIT OR Apache-2.0 | fs-dvdbnd | PEM bodies of the archive keys |
 | num-bigint 0.4 | MIT OR Apache-2.0 | fs-dvdbnd | raw RSA (modpow) of the `.bhd` headers |
-| rayon 1 | MIT OR Apache-2.0 | fs-dvdbnd, fs-tool | parallel header decryption; whole-game checks |
+| rayon 1 | MIT OR Apache-2.0 | fs-dvdbnd, fs-tool, gamedata | parallel header decryption; whole-game checks; reading every map and script |
 | thiserror 2 | MIT OR Apache-2.0 | fs-bytes | the shared error type |
 | zstd 0.13 (zstd: BSD-3-Clause) | MIT; BSD-3-Clause | fs-dcx | zstd read and write |
 | flate2 1 (miniz_oxide) | MIT OR Apache-2.0 | fs-dcx | deflate read and write |
-| serde 1, toml 1 | MIT OR Apache-2.0 | fs-param, fs-emevd | reading our own param layouts and instruction catalogue |
+| serde 1, toml 1 | MIT OR Apache-2.0 | fs-param, fs-emevd, fs-msb, gamedata, fs-tool | reading our own layouts and catalogue; the model's TOML dump |
 | clap 4 | MIT OR Apache-2.0 | fs-tool | the `apoc-fs` command line |
 | tempfile 3 (dev only) | MIT OR Apache-2.0 | fs-dvdbnd tests | synthetic archives on disk |
 | oozextract 0.5.7 | MIT label, **disputed** (port of GPL ooz) | fs-kraken only | Kraken decode. Reached only through `fs-dcx`'s `kraken` feature, which is off by default; `fs-tool` (a developer tool, never shipped) turns it on. Legal check before anything that ships enables it. |

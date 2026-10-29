@@ -101,6 +101,7 @@ fn short(k: Kind) -> &'static str {
         Kind::EnemyDrop => "drop",
         Kind::RepeatDrop => "repeat",
         Kind::Event => "event",
+        Kind::Gift => "gift",
         Kind::BossReward => "boss",
         Kind::Shop => "shop",
         Kind::Starting => "start",

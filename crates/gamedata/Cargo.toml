@@ -17,6 +17,7 @@ fs-param.workspace = true
 fs-fmg.workspace = true
 fs-emevd.workspace = true
 fs-msb.workspace = true
+fs-esd.workspace = true
 rayon.workspace = true
 serde.workspace = true
 

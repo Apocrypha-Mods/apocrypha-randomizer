@@ -59,7 +59,7 @@ Permissive references:
 | MSB | per-map placements: Parts (Enemy, Asset, Player…), Events (Treasure = item lot → asset), Regions, Models | params of typed entries with name/offset tables; ER is the MSBE variant | fstools-rs `msb.rs` + `msb/` (read; write unknown, check) |
 | EMEVD | event scripts (flags, boss spawns, item awards, entity enable/disable) | events → instructions (bank, id, arg blob), parameter substitutions, linked files, string table | none found in Rust. Write our own from public docs. DarkScript3 is GPL? (unverified, so don't read it) |
 | FMG | text (item names/descriptions, for the spoiler log/hints) | header, group ranges, string offsets, UTF-16 | none in Rust found; trivial format |
-| ESD (talkesdbnd) | NPC talk/shop state machines; needed only if randomizing merchant-bound items | bytecode state machines | none; defer, use ShopLineupParam instead |
+| ESD (talkesdbnd) | NPC talk/shop state machines; needed only if randomizing merchant-bound items | bytecode state machines | **`fs-esd`, read+write, all 365 round-trip (2026-10-29)**: needed after all, for NPC gifts and which merchant opens which shop rows |
 | Entity IDs / flags | MSB `EntityID` and `EntityGroupIDs` tie enemies to EMEVD; event flags gate items (ItemLot `getItemFlagId`) | convention: flag ranges per map block | data we derive ourselves |
 
 **Paramdex.**

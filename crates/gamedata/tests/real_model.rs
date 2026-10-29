@@ -49,6 +49,7 @@ fn every_kind_of_location_is_found() {
         (Kind::Treasure, 3_400),
         (Kind::EnemyDrop, 120),
         (Kind::Event, 400),
+        (Kind::Gift, 100),
         (Kind::BossReward, 180),
         (Kind::Shop, 1_200),
         (Kind::Starting, 10),
@@ -62,6 +63,7 @@ fn every_kind_of_location_is_found() {
 #[test]
 fn one_time_locations_carry_a_flag_and_a_map() {
     let m = model_or_skip!();
+    // Gifts are left out: the grace menu's are given anywhere.
     for kind in [
         Kind::Treasure,
         Kind::EnemyDrop,
@@ -146,4 +148,18 @@ fn maps_are_named_by_their_graces() {
             .iter()
             .any(|n| n == "Stranded Graveyard")
     );
+}
+
+#[test]
+fn melinas_gifts_come_from_the_grace_menu() {
+    let m = model_or_skip!();
+    for item in ["Spectral Steed Whistle", "Rold Medallion"] {
+        let at = giving(m, item);
+        assert!(
+            at.iter()
+                .any(|l| l.kind == Kind::Gift && l.map.is_none() && l.flag.is_some()),
+            "{item}: {:?}",
+            at.iter().map(|l| (l.kind, &l.source)).collect::<Vec<_>>()
+        );
+    }
 }

@@ -5,9 +5,9 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | Phase | State | Evidence |
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
-| 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589) and MSB (1,347) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
+| 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | extraction started | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 414 script awards, 191 flag-awarded (boss) rewards, 1,293 shop rows and 10 starting classes, with bosses and graces placed and named. Open: NPC dialogue gifts, gathering nodes, the area graph, and the play-through review. |
+| 3. Game model | extraction in progress | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 414 script awards, 112 NPC gifts, 191 flag-awarded (boss) rewards, 1,293 shop rows and 10 starting classes, with bosses and graces placed and named. Open: gathering nodes, the remaining gift lots, the area graph, and the play-through review. |
 
 ## Phase 0: setup
 
@@ -459,6 +459,65 @@ So picking up the treasure sets the flag, not a script.
 - [ ] **Type-specific layouts** for when entries must be added or resized.
 - [ ] **Names for the other 99 maps.**
 
+### ESD
+
+`fs-esd` reads and writes the talk scripts: the state machines behind NPC
+dialogue, shops and gifts. All 365 ESDs in the archives round-trip byte for
+byte, and `apoc-fs check` covers them. On 2026-10-29, `apoc-fs check
+--no-recompress` reported `ESD round-tripped byte for byte: 365` and no
+failures, in 102 s.
+
+The layout was worked out from the files (see the module comment in
+`crates/fs-esd/src/lib.rs`):
+
+- **Header.** A 0x6C-byte header gives the size and count of each table.
+- **Tables.** Fixed-size records follow one after another: the script
+  header, state groups (machines), states, conditions, commands and command
+  arguments.
+- **After the tables:** a list of condition offsets, the expression bytes,
+  and the name.
+- **The writer** rebuilds the header from the tables. Rebuilding it right for
+  every file is what confirms the layout.
+
+**Where the scripts are.** 35 binders are named `/script/talk/mAA_BB_CC_DD`.
+The open worlds' NPCs are in `m60_00_00_00` and `m61_00_00_00`, which have no
+map file. A 36th binder, `m00_00_00_00`, holds the grace menu, Melina among
+it; it was found by scanning the archives for ESDs outside the named
+binders.
+
+**Expressions** (`expr.rs`) are small stack programs. Only four readings are
+needed so far, and `fs-tool/tests/real_talk.rs` checks them:
+
+- each expression ends with 0xA1;
+- 0x82 introduces a 4-byte integer;
+- a byte below 0x80 is that byte minus 64;
+- `[k, 0xB8]` is the k-th argument the machine was called with.
+
+Of 100,374 arguments, 73,364 are plain numbers and 23,837 pass on an
+argument.
+
+**Calls** (`calls.rs`). A bank-6 command starts another machine of the same
+script (all 28,528 name one), and which machine an id names differs between
+scripts. So `resolve` follows every call from the machines nothing calls,
+carrying numbers down, and reports the game's own commands with the values
+they end up with.
+
+**Commands** (`commands.rs`), checked by the real-file test:
+
+| Command | Name | Evidence |
+| --- | --- | --- |
+| 1[104] | `AWARD_ITEM_LOT` | argument 0 is an ItemLotParam_map row in 122 of 128 distinct values |
+| 1[22] | `OPEN_SHOP` | arguments 0 and 1 are the first and last ShopLineupParam rows of a range (100000–100024, …); 37 of 47 first rows are rows |
+| 1[52] | (not catalogued) | (3, a goods id, -1): takes an item from the player (Deathroot to Gurranq) |
+
+`1[144]` and `1[146]` also take shop-row ranges; they are not catalogued yet.
+
+### Still to do in ESD
+
+- [ ] **The other commands**, as later phases need them.
+- [ ] **Conditions' evaluators** (which flags gate a gift) are not read yet.
+      The logic will want them for quest gifts.
+
 ## Phase 3: game model
 
 `crates/gamedata` extracts the model from the player's own files, and
@@ -471,8 +530,8 @@ below.
 
 - **Model types** (`model.rs`) say nothing about Elden Ring.
 - **The extraction** is in `elden_ring.rs`.
-- **The sources** (`sources.rs`) are `regulation.bin`, every map and script
-  found by name, and the English item text.
+- **The sources** (`sources.rs`) are `regulation.bin`, every map and event
+  script found by name, all 365 talk scripts, and the English item text.
 - **Time:** everything is read and the model built in about 2.5 s.
 
 ### Where each kind comes from
@@ -483,8 +542,9 @@ below.
 | enemy drop | a placed enemy's NpcParam lot (`_enemy` or `_map`) that carries a flag: drops once | 133 | all |
 | repeat drop | the same with no flag: drops on every roll; counted once per map | 4,488 | none |
 | event | lots the scripts award (`award_item_lot`, `_b`) | 414 | 413 |
+| gift | lots the talk scripts award (`AWARD_ITEM_LOT`), calls followed | 112 | 87 |
 | boss reward | lots awarded on a flag (`item_lot_for_flag`) | 191 | all |
-| shop | ShopLineupParam rows | 1,293 | not read yet |
+| shop | ShopLineupParam rows; placed when every script that opens it is in one map | 1,293 (98 placed) | not read yet |
 | starting | the ten classes, CharaInitParam 3000–3009 | 10 | — |
 
 There are 31,969 enemies in the maps. There are 216 bosses (GameAreaParam
@@ -513,13 +573,16 @@ the asset whose entity id the grace row names, and they name the maps.
 
 ### Gaps: what the extraction does not reach yet
 
-There are 902 ItemLotParam_map lots and 985 ItemLotParam_enemy lots that hold
-items but that nothing in the model gives. Grouped by id, they are:
+When Phase 3 started, 902 ItemLotParam_map lots and 985 ItemLotParam_enemy
+lots held items that nothing in the model gave. The talk scripts bring the map
+lots down to 772. Grouped by id, they are:
 
-- [ ] **NPC dialogue gifts.** These are mostly the 100000s, 164 of 189 of them
-      flagged: the Spectral Steed Whistle, the Rold Medallion and other gifts
-      handed over in conversation. The talk scripts (ESD) are a format we don't
-      read yet, and the key items among these matter most for the logic.
+- [x] **NPC dialogue gifts.** These were mostly the 100000s (164 of 189 of
+      them flagged). Since `fs-esd`, 112 gifts are found: the grace menu gives
+      the Spectral Steed Whistle and the Rold Medallion (`t000003000`), and
+      Ranni, Hyetta and the others give theirs. 59 lots in the 100000s are
+      still unreached, many in runs (101580–101583): perhaps the
+      uncatalogued shop-range commands, or computed arguments.
 - [ ] **Gathering nodes and other asset pick-ups.** Rada Fruit, mushrooms,
       Glass Shards and Poisonbloom; unflagged ones in the 990000s and
       4,636,000s, flagged ones in `m12` and `m21`.
@@ -529,12 +592,14 @@ items but that nothing in the model gives. Grouped by id, they are:
       item.
 - [ ] **The 99 maps and 45 scripts not found by name** (Phase 2) are not seen
       at all.
-- [ ] **Shops have no merchant or map yet**, and which of the two shop flags
-      records a purchase waits on play.
+- [ ] **Shops.** The `OPEN_SHOP` ranges cover 550 of 1,296 rows. Most
+      merchants are opened from several maps (the Twin Maiden Husks resell what
+      bell bearings unlock), so only 98 rows get a single map. Which of the two
+      shop flags records a purchase waits on play.
 
 ### Still to do for the gate
 
-- [ ] Close the gaps above, NPC gifts first.
+- [ ] Close the gaps above: gathering nodes next.
 - [ ] **The area graph and key-item requirements**, authored here (PLAN.md §1,
       rule 4). The coverage report's areas and grace names are the starting
       point.

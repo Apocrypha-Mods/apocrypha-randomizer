@@ -31,6 +31,7 @@ struct Totals {
     bnd4_nested: u64,
     bnd4_files: u64,
     fmg: u64,
+    esd: u64,
     emevd: u64,
     msb: u64,
     failures: Vec<String>,
@@ -74,6 +75,7 @@ pub fn run(game: PathBuf, names: Option<PathBuf>, recompress: bool, jobs: usize)
             t.bnd4_nested += local.bnd4_nested;
             t.bnd4_files += local.bnd4_files;
             t.fmg += local.fmg;
+            t.esd += local.esd;
             t.emevd += local.emevd;
             t.msb += local.msb;
             t.failures.extend(local.failures);
@@ -110,6 +112,7 @@ pub fn run(game: PathBuf, names: Option<PathBuf>, recompress: bool, jobs: usize)
         t.bnd4_top, t.bnd4_nested, t.bnd4_files
     );
     println!("FMG round-tripped byte for byte: {}", t.fmg);
+    println!("ESD round-tripped byte for byte: {}", t.esd);
     println!("EMEVD round-tripped byte for byte: {}", t.emevd);
     println!("MSB round-tripped byte for byte: {}", t.msb);
     println!("failures: {}", t.failures.len());
@@ -234,6 +237,18 @@ fn bnd4_round_trip(bytes: &[u8], recompress: bool, t: &mut Totals, depth: usize)
                 )));
             }
             t.fmg += 1;
+            continue;
+        }
+        if fs_esd::is_esd(&f.data) {
+            let esd = fs_esd::Esd::read(&f.data)
+                .map_err(|e| format_err(format!("ESD {:?}: {e}", f.short_name())))?;
+            if esd.write()? != f.data {
+                return Err(format_err(format!(
+                    "ESD {:?} differs when rewritten",
+                    f.short_name()
+                )));
+            }
+            t.esd += 1;
             continue;
         }
         let decompressed;

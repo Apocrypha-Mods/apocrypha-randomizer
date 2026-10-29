@@ -348,6 +348,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-esd"
+version = "0.1.0"
+dependencies = [
+ "fs-bytes",
+]
+
+[[package]]
 name = "fs-fmg"
 version = "0.1.0"
 dependencies = [
@@ -394,6 +401,7 @@ dependencies = [
  "fs-dcx",
  "fs-dvdbnd",
  "fs-emevd",
+ "fs-esd",
  "fs-fmg",
  "fs-msb",
  "fs-param",
@@ -499,6 +507,7 @@ dependencies = [
  "fs-dcx",
  "fs-dvdbnd",
  "fs-emevd",
+ "fs-esd",
  "fs-fmg",
  "fs-msb",
  "fs-param",
