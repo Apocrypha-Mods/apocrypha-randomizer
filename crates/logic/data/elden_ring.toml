@@ -517,9 +517,7 @@ bosses = ["Margit, the Fell Omen"]
 [[edge]]
 from = "stormveil"
 to = "liurnia"
-bosses = ["Godrick the Grafted"]
-sure = false
-note = "The castle's way out to Liurnia is past Godrick. A route along the cliffs may skip him; check."
+note = "A side path through the castle reaches Liurnia without Godrick (checked in play, 2026-10-29). Past Margit, so it is from the castle, not the approach."
 
 [[edge]]
 from = "stormveil"
@@ -601,8 +599,7 @@ note = "Ainsel River Well."
 [[edge]]
 from = "ainsel_river"
 to = "lake_of_rot"
-sure = false
-note = "Ranni's quest may be what opens the Lake of Rot; nothing is required here yet. Check."
+note = "Open without Ranni's quest (checked in play, 2026-10-29)."
 
 [[edge]]
 from = "lake_of_rot"
@@ -657,8 +654,7 @@ note = "Through the Sealed Tunnel under the Fortified Manor."
 from = "leyndell"
 to = "forbidden_lands"
 bosses = ["Morgott, the Omen King"]
-sure = false
-note = "The way out to the Forbidden Lands is taken to need Morgott; check."
+note = "Needs Morgott (checked in play, 2026-10-29)."
 
 [[edge]]
 from = "forbidden_lands"
@@ -753,8 +749,7 @@ bosses = ["Rellana, Twin Moon Knight"]
 [[edge]]
 from = "gravesite_plain"
 to = "scadu_altus"
-sure = false
-note = "A route along the Ellac River is taken to skip Castle Ensis; check."
+note = "Along the Ellac River, skipping Castle Ensis (checked in play, 2026-10-29)."
 
 [[edge]]
 from = "scadu_altus"
@@ -801,8 +796,7 @@ item = "Rold Medallion"
 kind = "gift"
 area = "leyndell"
 need = { bosses = ["Morgott, the Omen King"] }
-sure = false
-note = "Melina gives it after Morgott; check where."
+note = "Melina gives it after Morgott, in his arena (checked in play, 2026-10-29)."
 
 [[place]]
 item = "Carian Inverted Statue"
@@ -822,5 +816,4 @@ note = "Varré, at the end of his quest at the Rose Church."
 item = "Haligtree Secret Medallion (Right)"
 kind = "gift"
 area = "liurnia"
-sure = false
-note = "Albus, in the Village of the Albinaurics; the model has it on an open-world talk script."
+note = "Albus, in the Village of the Albinaurics (checked in play, 2026-10-29); the model has it on an open-world talk script."

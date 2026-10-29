@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Open: the review of 38 marked claims, and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Open: the review of the 32 claims still marked, and the play-through review of the counts. |
 
 ## Phase 0: setup
 
@@ -686,13 +686,20 @@ expansion is drafted with less confidence than the base game.
 - The expansion's regions: Scadu Altus, Rauh, Hinterland, Cerulean Coast,
   Jagged Peak, Abyssal Woods, and which dungeons open off the Gravesite Plain.
 
+**Settled in play (2026-10-29):**
+
+- Stormveil to Liurnia does not need Godrick: a side path through the castle
+  skips him.
+- Leyndell to the Forbidden Lands needs Morgott.
+- The Lake of Rot is open from the Ainsel River without Ranni's quest.
+- The Rold Medallion is given by Melina in Morgott's arena, after him.
+- Albus gives Haligtree Secret Medallion (Right), in the Village of the
+  Albinaurics.
+- The Gravesite Plain to Scadu Altus is open along the Ellac River, without
+  Castle Ensis.
+
 **What a way needs:**
 
-- Stormveil to Liurnia needs Godrick? (A cliff route may skip him.)
-- Leyndell to the Forbidden Lands needs Morgott?
-- The Lake of Rot is open from Ainsel River, or does Ranni's quest open it?
-- The Gravesite Plain to Scadu Altus is open along the Ellac River, skipping
-  Castle Ensis?
 - Belurat to Enir-Ilim needs Messmer's Kindling?
 - Smaller ones, each with a note in the file:
   - Limgrave → Roundtable Hold (Melina);
@@ -708,11 +715,10 @@ expansion is drafted with less confidence than the base game.
 
 **Where a gift is given:**
 
-- The Rold Medallion: from Melina after Morgott, and where?
 - The Pureblood Knight's Medal: from Varré at the Rose Church?
-- Haligtree Secret Medallion (Right): from Albus, in the Village of the
-  Albinaurics? The model also has the left half as a gift on a Leyndell talk
-  script, which needs explaining.
+- The model also has Haligtree Secret Medallion (Left) as a gift on a
+  Leyndell talk script, as well as the treasure in Castle Sol; that needs
+  explaining.
 
 ### Still to do for the gate
 
