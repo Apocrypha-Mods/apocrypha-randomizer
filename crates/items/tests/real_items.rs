@@ -174,3 +174,29 @@ fn shops_and_classes_are_written() {
         assert_eq!(got, i64::from(now.id), "{:?} {}", unit.place, unit.row);
     }
 }
+
+#[test]
+fn separate_keeps_base_game_and_dlc_apart() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let dlc = |u: usize| items::in_dlc(m, units[u].location);
+    let dlc_slots = (0..units.len()).filter(|&u| dlc(u)).count();
+    eprintln!("{dlc_slots} of {} slots in the DLC", units.len());
+    assert!(dlc_slots > 500);
+    let mut o = items::Options::default();
+    o.dlc_separate = true;
+    for seed in 0..10 {
+        let plan = items::shuffle(&b, &units, seed, &o).unwrap();
+        for u in 0..units.len() {
+            assert_eq!(
+                dlc(u),
+                dlc(plan.placed[u]),
+                "seed {seed}: slot {u} crossed sides"
+            );
+        }
+    }
+    // Mixed, items do cross.
+    let plan = items::shuffle(&b, &units, 0, &items::Options::default()).unwrap();
+    assert!((0..units.len()).any(|u| dlc(u) != dlc(plan.placed[u])));
+}

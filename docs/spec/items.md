@@ -88,7 +88,9 @@ The player chooses one of:
 - **separate:** base-game items shuffle among base-game places, DLC items
   among DLC places.
 
-The DLC weight of §2.3 applies to the mixed setting.
+The DLC counts by map: Shadow of the Erdtree's open world and its own legacy
+dungeons, catacombs, gaols, forges and pits. Starting gear and gifts with no
+map count as the base game.
 
 ### 2.6 Starting gear
 

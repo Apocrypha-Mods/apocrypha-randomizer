@@ -103,6 +103,8 @@ impl Category {
 pub struct Options {
     shuffle: [u8; 12],
     bias: [u8; 12],
+    /// Whether base-game and DLC items stay on their own side.
+    pub dlc_separate: bool,
 }
 
 impl Default for Options {
@@ -111,6 +113,7 @@ impl Default for Options {
         Options {
             shuffle: [100; 12],
             bias: [0; 12],
+            dlc_separate: false,
         }
     }
 }
@@ -184,7 +187,15 @@ impl fmt::Display for Options {
                 self.bias(c)
             )?;
         }
-        Ok(())
+        writeln!(
+            f,
+            "  base game and DLC: {}",
+            if self.dlc_separate {
+                "separate"
+            } else {
+                "mixed"
+            }
+        )
     }
 }
 

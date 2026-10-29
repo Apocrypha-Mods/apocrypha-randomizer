@@ -131,6 +131,18 @@ fn body_part(id: i32) -> i32 {
     (id / 100) % 10
 }
 
+/// Shadow of the Erdtree's maps: its open world (m61) and its legacy
+/// dungeons, catacombs, gaols, forges and pits.
+const DLC_MAPS: [u8; 10] = [20, 21, 22, 25, 28, 40, 41, 42, 43, 61];
+
+/// Whether a location is in the DLC, by its map. One with no map (a class's
+/// starting gear, a gift with no map) counts as the base game.
+pub fn in_dlc(model: &Model, location: usize) -> bool {
+    model.locations[location]
+        .map
+        .is_some_and(|m| DLC_MAPS.contains(&m.area()))
+}
+
 /// Arrows and bolts, which are weapons to the game but go in no hand.
 fn is_ammo(id: i32) -> bool {
     (50_000_000..54_000_000).contains(&id)
@@ -515,6 +527,14 @@ fn attempt(
     rng: &mut Rng,
 ) -> std::result::Result<Vec<usize>, String> {
     let n = units.len();
+    // With the DLC kept separate, an item stays on its own side.
+    let dlc: Vec<bool> = units
+        .iter()
+        .map(|u| in_dlc(bound.model, u.location))
+        .collect();
+    let fits = |slot: usize, item: usize| {
+        fits(&units[slot], &units[item]) && (!options.dlc_separate || dlc[slot] == dlc[item])
+    };
     // Which items move: each with its slider's shuffle chance.
     let moving: Vec<bool> = units
         .iter()
@@ -548,7 +568,7 @@ fn attempt(
             .filter(|&u| {
                 placed[u].is_none()
                     && open_for_key(u)
-                    && fits(&units[u], &units[k])
+                    && fits(u, k)
                     && walk.taken[units[u].location]
             })
             .collect();
@@ -570,9 +590,7 @@ fn attempt(
         .filter(|&u| placed[u].is_none() && matches!(units[u].place, Place::Start(_)))
         .collect();
     for u in starts {
-        let ok: Vec<usize> = (0..rest.len())
-            .filter(|&i| fits(&units[u], &units[rest[i]]))
-            .collect();
+        let ok: Vec<usize> = (0..rest.len()).filter(|&i| fits(u, rest[i])).collect();
         if ok.is_empty() {
             return Err(format!(
                 "nothing to start with in {} {}",
@@ -604,7 +622,7 @@ fn attempt(
         let mut pick = None;
         for _ in 0..16 {
             let i = rng.below(bands[b].len());
-            if fits(&units[bands[b][i]], &units[from]) {
+            if fits(bands[b][i], from) {
                 pick = Some((b, i));
                 break;
             }
@@ -612,7 +630,7 @@ fn attempt(
         let pick = pick
             .or_else(|| {
                 bands.iter().enumerate().find_map(|(b, slots)| {
-                    let i = slots.iter().position(|&u| fits(&units[u], &units[from]))?;
+                    let i = slots.iter().position(|&u| fits(u, from))?;
                     Some((b, i))
                 })
             })

@@ -58,6 +58,10 @@ struct Sliders {
     /// (default 0): `--bias keys=60,weapons=30`.
     #[arg(long, default_value = "")]
     bias: String,
+    /// Keep base-game and DLC items on their own side (`separate`) or
+    /// shuffle them together (`mixed`, the default).
+    #[arg(long, default_value = "mixed", value_parser = ["mixed", "separate"])]
+    dlc: String,
 }
 
 impl Sliders {
@@ -65,6 +69,7 @@ impl Sliders {
         let mut o = items::Options::default();
         o.set(false, &self.shuffle).map_err(format_err)?;
         o.set(true, &self.bias).map_err(format_err)?;
+        o.dlc_separate = self.dlc == "separate";
         Ok(o)
     }
 }

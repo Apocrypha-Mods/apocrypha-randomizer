@@ -651,7 +651,11 @@ the seed.
   still in 164 s, none failing. These ran on three threads beside the
   Cyberpunk lab, hence the time.
 
-  The starting slots are filled first, after the key items. With shops in
+  The starting slots are filled first, after the key items.
+- **Base game and DLC** (`--dlc mixed|separate`). The DLC is told by map:
+  m20–m22, m25, m28, m40–m43 and m61. That gives 1,371 of the 5,451 slots.
+  Separate, no item crosses sides. 2,000 seeds proven, none failing, in
+  226 s beside the Cyberpunk lab. With shops in
   play, key items average a depth of 0.42 at no bias, as merchants stand
   early, and 0.70 at full bias.
 - **Gate rerun, 2026-10-29** (nice 19, four threads), none failing:
