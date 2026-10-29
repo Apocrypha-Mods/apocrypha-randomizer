@@ -20,5 +20,6 @@ fs-bnd4.workspace = true
 fs-param.workspace = true
 fs-fmg.workspace = true
 fs-emevd.workspace = true
+fs-msb.workspace = true
 clap.workspace = true
 rayon.workspace = true

@@ -20,6 +20,7 @@ fs-bnd4 = { path = "crates/fs-bnd4" }
 fs-param = { path = "crates/fs-param" }
 fs-fmg = { path = "crates/fs-fmg" }
 fs-emevd = { path = "crates/fs-emevd" }
+fs-msb = { path = "crates/fs-msb" }
 
 aes = "0.8"
 base64 = "0.22"

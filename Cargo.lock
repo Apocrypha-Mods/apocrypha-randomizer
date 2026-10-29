@@ -363,6 +363,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-msb"
+version = "0.1.0"
+dependencies = [
+ "fs-bytes",
+]
+
+[[package]]
 name = "fs-param"
 version = "0.1.0"
 dependencies = [
@@ -386,6 +393,7 @@ dependencies = [
  "fs-dvdbnd",
  "fs-emevd",
  "fs-fmg",
+ "fs-msb",
  "fs-param",
  "rayon",
 ]
