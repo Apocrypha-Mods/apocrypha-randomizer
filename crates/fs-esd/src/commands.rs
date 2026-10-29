@@ -17,3 +17,26 @@ pub const AWARD_ITEM_LOT: Id = (1, 104);
 /// distinct first rows are rows of the table; the ranges cover 550 of its
 /// 1,296 rows.
 pub const OPEN_SHOP: Id = (1, 22);
+
+/// Opens a dragon communion altar's exchange on a range of ShopLineupParam
+/// rows (first, last): the Church of Dragon Communion's two scripts and the
+/// Grand Altar's, whose rows are incantations (Dragonclaw, Bayle's Tyranny).
+pub const OPEN_DRAGON_COMMUNION: Id = (1, 135);
+
+/// Opens Seluvis's puppets on a range of ShopLineupParam rows (first, last):
+/// one script, two uses.
+pub const OPEN_PUPPET_SHOP: Id = (1, 144);
+
+/// Opens an exchange on a range of ShopLineupParam rows: argument 0 a kind
+/// (1 for the remembrance lists of Finger Reader Enia and the Walking
+/// Mausoleum, 0 for Seluvis's puppets), then the first and last rows.
+pub const OPEN_EXCHANGE: Id = (1, 146);
+
+/// Every command that makes a range of ShopLineupParam rows available, with
+/// where its first and last rows are in the arguments.
+pub const SHOP_RANGES: [(Id, usize, usize); 4] = [
+    (OPEN_SHOP, 0, 1),
+    (OPEN_DRAGON_COMMUNION, 0, 1),
+    (OPEN_PUPPET_SHOP, 0, 1),
+    (OPEN_EXCHANGE, 1, 2),
+];

@@ -13,6 +13,8 @@
 #   the open world) in an area, optionally behind its own need.
 # - An `unused` entry rules out a location the game has but never gives in
 #   play, so the randomizer neither counts on it nor puts anything there.
+# - `shop_rows` place, or rule out, ranges of shop rows that no merchant's
+#   talk script opens.
 #
 # `apoc-fs logic <game>` checks every name against the game and walks the
 # vanilla game from the start.
@@ -826,3 +828,38 @@ item = "Haligtree Secret Medallion (Left)"
 kind = "gift"
 source = "talk t324001100"
 note = "A Leyndell talk script can award it (lot 102800), but nobody in Leyndell gives it: the left half is only in Castle Sol (checked in play, 2026-10-29)."
+
+# --- Shop rows no merchant opens ---------------------------------------------------
+
+[[shop_rows]]
+first = 101500
+last = 101999
+area = "roundtable_hold"
+note = "Finger Reader Enia: boss armour after each boss, and what remembrances trade for."
+
+[[shop_rows]]
+first = 110000
+last = 112199
+unused = true
+note = "Altered garments and Ash of War duplication: they change items already held, and give none new."
+
+[[shop_rows]]
+first = 0
+last = 99999
+unused = true
+sure = false
+note = "Five rows with no item name; taken to be unused."
+
+[[shop_rows]]
+first = 100000
+last = 100099
+unused = true
+sure = false
+note = "A Memory Stone and a Stonesword Key in Kalé's range but outside what his script opens; taken to be unused."
+
+[[shop_rows]]
+first = 600000
+last = 9999999
+unused = true
+sure = false
+note = "Plain starter weapons, armour, staves and dragon incantations (600000, 900000, 1600100, 1600400, 9000000, 9001000): lists no script opens, taken to be leftovers."

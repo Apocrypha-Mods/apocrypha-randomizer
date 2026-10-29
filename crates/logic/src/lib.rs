@@ -112,6 +112,22 @@ impl Unused {
     }
 }
 
+/// Shop rows by range that no merchant opens: placed in an area, or ruled
+/// out like an `unused` location.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ShopRows {
+    pub first: i32,
+    pub last: i32,
+    #[serde(default)]
+    pub area: Option<String>,
+    #[serde(default)]
+    pub unused: bool,
+    #[serde(default = "yes")]
+    pub sure: bool,
+    pub note: String,
+}
+
 fn yes() -> bool {
     true
 }
@@ -129,6 +145,8 @@ pub struct Graph {
     pub places: Vec<Place>,
     #[serde(default)]
     pub unused: Vec<Unused>,
+    #[serde(default)]
+    pub shop_rows: Vec<ShopRows>,
 }
 
 /// Elden Ring's graph.
@@ -143,6 +161,8 @@ pub struct Bound<'a> {
     pub model: &'a Model,
     /// For each location, its area's index, and the `place` it came from.
     pub location_area: Vec<Option<usize>>,
+    /// For each location, the areas of the other places it is offered.
+    pub location_also: Vec<Vec<usize>>,
     pub location_need: Vec<Option<&'a Need>>,
     /// Locations an `unused` entry rules out.
     pub location_unused: Vec<bool>,
@@ -330,10 +350,30 @@ impl<'a> Bound<'a> {
                 ));
             }
         }
+        for r in &graph.shop_rows {
+            if let Some(a) = &r.area {
+                area(a, &mut problems);
+            }
+            if r.area.is_some() == r.unused {
+                problems.push(format!(
+                    "shop rows {}..{}: give an area or mark them unused",
+                    r.first, r.last
+                ));
+            }
+        }
+        let rows_of = |l: &Location| {
+            let row = l.shop_row()?;
+            graph
+                .shop_rows
+                .iter()
+                .find(|r| (r.first..=r.last).contains(&row) && l.map.is_none())
+        };
         let location_unused = model
             .locations
             .iter()
-            .map(|l| graph.unused.iter().any(|u| u.matches(l)))
+            .map(|l| {
+                graph.unused.iter().any(|u| u.matches(l)) || rows_of(l).is_some_and(|r| r.unused)
+            })
             .collect();
         let enemy_at: HashMap<u32, [f32; 3]> = model
             .enemies
@@ -341,6 +381,7 @@ impl<'a> Bound<'a> {
             .filter_map(|e| Some((e.entity?, e.position)))
             .collect();
         let mut location_area = Vec::with_capacity(model.locations.len());
+        let mut location_also = Vec::with_capacity(model.locations.len());
         let mut location_need = Vec::with_capacity(model.locations.len());
         for l in &model.locations {
             let pos = l.position.or_else(|| enemy_at.get(&l.entity?).copied());
@@ -349,8 +390,21 @@ impl<'a> Bound<'a> {
             location_area.push(
                 placed
                     .and_then(|p| area_index.get(p.area.as_str()).copied())
+                    .or_else(|| {
+                        rows_of(l)
+                            .and_then(|r| r.area.as_deref())
+                            .and_then(|a| area_index.get(a).copied())
+                    })
                     .or_else(|| by_map(l.map))
                     .or_else(|| by_grace(l.map, pos)),
+            );
+            location_also.push(
+                l.also
+                    .iter()
+                    .filter_map(|s| {
+                        by_map(Some(s.map)).or_else(|| by_grace(Some(s.map), s.position))
+                    })
+                    .collect(),
             );
         }
         let boss_area = model
@@ -365,6 +419,7 @@ impl<'a> Bound<'a> {
             graph,
             model,
             location_area,
+            location_also,
             location_need,
             location_unused,
             boss_area,
@@ -398,7 +453,8 @@ impl<'a> Bound<'a> {
                 if taken[i] || self.location_unused[i] {
                     continue;
                 }
-                let here = self.location_area[i].is_none_or(|a| reached[a]);
+                let here = self.location_area[i].is_none_or(|a| reached[a])
+                    || self.location_also[i].iter().any(|&a| reached[a]);
                 let ok = self.location_need[i].is_none_or(|need| self.met(need, &items, &reached));
                 if here && ok {
                     taken[i] = true;
@@ -518,6 +574,7 @@ mod tests {
             lot: None,
             items: items.iter().map(|n| item(n)).collect(),
             flag: None,
+            also: vec![],
         }
     }
 
@@ -627,6 +684,21 @@ mod tests {
             !b.walk(&b.vanilla()).reached[2],
             "the cave opens on an unused key"
         );
+    }
+
+    #[test]
+    fn a_location_offered_in_two_places_is_got_at_either() {
+        let (g, mut m) = (graph(), model());
+        // The key is in the cave, but also offered in the first area.
+        m.locations[0].map = Some(MapId([31, 0, 0, 0]));
+        m.locations[0].also.push(gamedata::model::Spot {
+            map: MapId([60, 40, 37, 0]),
+            position: Some([0.0; 3]),
+        });
+        let b = Bound::new(&g, &m);
+        assert_eq!(b.location_area[0], Some(2));
+        assert_eq!(b.location_also[0], vec![0]);
+        assert!(b.walk(&b.vanilla()).goal);
     }
 
     #[test]

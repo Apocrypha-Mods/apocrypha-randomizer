@@ -93,6 +93,20 @@ evidence = "A row of NpcParam in 99% of 3,314 distinct values (type 2): which en
 [[field]]
 table = "PARTS_PARAM_ST"
 types = [2, 10]
+name = "talk_id"
+section = 0x68
+offset = 0x10
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+The talk script the character runs: 318 of its 347 distinct non-zero values
+are ids of talk scripts (t101006000 is 101006000), and the other 29 name no
+script there is; checked by the real-file test. That is how a merchant is
+found from the script that opens their shop."""
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [2, 10]
 name = "chara_init"
 section = 0x68
 offset = 0x18

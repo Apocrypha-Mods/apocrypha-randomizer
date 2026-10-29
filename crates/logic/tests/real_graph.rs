@@ -80,3 +80,48 @@ fn a_gate_holds_without_its_key() {
     assert!(!w.reached[academy], "the academy opens with no key");
     assert!(w.goal, "the academy is not needed to finish");
 }
+
+#[test]
+fn every_shop_row_has_a_merchant_or_is_ruled_out() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let loose = m
+        .locations
+        .iter()
+        .enumerate()
+        .filter(|(i, l)| {
+            l.kind == gamedata::model::Kind::Shop
+                && !b.location_unused[*i]
+                && b.location_area[*i].is_none()
+        })
+        .count();
+    assert_eq!(loose, 0, "shop rows with no area");
+}
+
+#[test]
+fn kale_sells_the_crafting_kit_in_limgrave() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let limgrave = graph()
+        .areas
+        .iter()
+        .position(|a| a.id == "limgrave")
+        .unwrap();
+    let (i, _) = m
+        .locations
+        .iter()
+        .enumerate()
+        .find(|(_, l)| {
+            l.kind == gamedata::model::Kind::Shop
+                && l.items
+                    .iter()
+                    .any(|it| it.name.as_deref() == Some("Crafting Kit"))
+                && l.also.len() + 1 > 1
+        })
+        .expect("a Crafting Kit sold in more than one place");
+    assert_eq!(
+        b.location_area[i],
+        Some(limgrave),
+        "first place: where Kalé stands"
+    );
+}

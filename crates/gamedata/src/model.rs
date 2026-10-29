@@ -111,6 +111,29 @@ pub struct Location {
     /// The event flag that records it as got, when there is one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flag: Option<u32>,
+    /// Other places the same location is offered: a merchant who moves, or
+    /// a stock two merchants share. Got at whichever is reached first.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<Spot>,
+}
+
+/// A place in a map.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Spot {
+    pub map: MapId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<[f32; 3]>,
+}
+
+impl Location {
+    /// For a shop location, its ShopLineupParam row.
+    pub fn shop_row(&self) -> Option<i32> {
+        if self.kind != Kind::Shop {
+            return None;
+        }
+        let rest = self.source.strip_prefix("ShopLineupParam ")?;
+        rest.split(' ').next()?.parse().ok()
+    }
 }
 
 /// One enemy placed in a map.
@@ -224,6 +247,7 @@ mod tests {
             lot: None,
             items: vec![],
             flag: None,
+            also: vec![],
         }
     }
 

@@ -665,10 +665,50 @@ been put behind Loretta, which kept the Three Sisters and the Divine Tower of
 Liurnia shut. `crates/logic/tests/real_graph.rs` holds the binding and the
 walk, and checks that a gate holds when its key is taken out of the game.
 
-1,219 locations have no area ("anywhere"): 1,195 shop rows sold from several
-maps, 10 classes, and 14 script awards. The walk treats them as reachable from
-the start; shops will need their merchants placed before the item randomizer
-relies on them.
+#### Merchants
+
+A shop row is sold wherever the characters stand whose talk scripts open a
+range holding it:
+
+- **Who runs a script.** An enemy part's `talk_id` (MSB, enemy section
+  +0x10) is the talk script it runs. 318 of its 347 distinct values are
+  scripts; `fs-tool/tests/real_maps.rs` checks it.
+- **What opens a range.** Four talk commands open ranges of ShopLineupParam
+  rows (`fs-esd/src/commands.rs`):
+  - `OPEN_SHOP` 1[22], the merchants;
+  - `OPEN_DRAGON_COMMUNION` 1[135], both churches and the Grand Altar;
+  - `OPEN_PUPPET_SHOP` 1[144], Seluvis;
+  - `OPEN_EXCHANGE` 1[146], Enia's and the Walking Mausoleum's remembrance
+    lists (kind 1) and Seluvis again (kind 0).
+- **Merchants who move** (Patches, D, the Blackguard, Corhyn, Moore, Ymir):
+  the row gets every place they stand, as `also`, and the walk counts it as
+  got at whichever is reached first.
+- **The Twin Maiden Husks** resell merchants' stock once a bell bearing is
+  handed over. Their copy of a row is dropped whenever someone else sells it,
+  so that stock does not look buyable at the Roundtable from the start.
+- **A script found standing nowhere** counts at its binder's map, after the
+  places where its characters do stand.
+
+That places 619 of the 1,293 rows. The area map's `shop_rows` entries deal
+with the rest:
+
+- 101500–101999 are Finger Reader Enia's (boss armour, and what remembrances
+  trade for), so they go to the Roundtable Hold;
+- 110000–112199 are altered garments and Ash of War duplication, which change
+  items already held, so they are unused;
+- a few lists no script opens (starter weapons, staves, dragon incantations
+  at 600000, 900000, 1600100, 1600400, 9000000) are taken to be leftovers,
+  marked for checking.
+
+`crates/logic/tests/real_graph.rs` holds three things:
+
+- every shop row has an area or is ruled out;
+- the Crafting Kit is first placed where Kalé stands, in Limgrave;
+- a location offered in two places is got at either.
+
+After this, 560 locations are unused (559 shop rows and the Leyndell
+medallion half). Only 24 are left "anywhere": 10 classes, 5 script awards
+and 9 boss rewards.
 
 #### To check in play
 
@@ -722,7 +762,10 @@ expansion is drafted with less confidence than the base game.
 ### Still to do for the gate
 
 - [ ] **Review the area map** (the list above) and correct the data file.
-- [ ] **Place the merchants**, so that shop rows have areas.
+- [x] **Place the merchants** (above).
+- [ ] **Shop requirements.** Enia's stock needs the boss beaten or the
+      remembrance held, bell-bearing stock needs the bell bearing, and
+      Dragon Communion needs Dragon Hearts. None of these is modelled yet.
 - [ ] **The play-through review** of the coverage report.
 - [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
       play, above). Naming the 99 maps would account for 20 of them.

@@ -35,13 +35,24 @@ pub fn run(game: PathBuf) -> Result<()> {
     }
 
     // Locations per area.
-    let mut per: BTreeMap<Option<usize>, BTreeMap<Kind, usize>> = BTreeMap::new();
-    for (l, a) in model.locations.iter().zip(&b.location_area) {
-        *per.entry(*a).or_default().entry(l.kind).or_default() += 1;
+    // Some(None) is anywhere, None unused.
+    let mut per: BTreeMap<Option<Option<usize>>, BTreeMap<Kind, usize>> = BTreeMap::new();
+    for ((l, a), unused) in model
+        .locations
+        .iter()
+        .zip(&b.location_area)
+        .zip(&b.location_unused)
+    {
+        let key = (!unused).then_some(*a);
+        *per.entry(key).or_default().entry(l.kind).or_default() += 1;
     }
     println!("\nlocations by area:");
     for (a, kinds) in &per {
-        let name = a.map_or("(anywhere)", |i| graph.areas[i].id.as_str());
+        let name = match a {
+            None => "(unused)",
+            Some(None) => "(anywhere)",
+            Some(Some(i)) => graph.areas[*i].id.as_str(),
+        };
         let all: usize = kinds.values().sum();
         let detail: Vec<String> = kinds
             .iter()

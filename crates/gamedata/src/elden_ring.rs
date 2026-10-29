@@ -16,8 +16,11 @@
 //!   in from the call that starts it.
 //! - **Gifts:** the lots the talk scripts award (`AWARD_ITEM_LOT`), with
 //!   every call between a script's state machines followed.
-//! - **Shops:** every ShopLineupParam row, placed by the talk scripts that
-//!   open a range holding it (`OPEN_SHOP`).
+//! - **Shops:** every ShopLineupParam row, placed where the characters stand
+//!   whose talk scripts open a range holding it (`SHOP_RANGES`: shops,
+//!   dragon communion, puppets and exchanges). A row the Twin Maiden Husks
+//!   resell (bell-bearing stock) is placed with its merchant, and at the
+//!   Roundtable only when nobody else sells it.
 //! - **Starting:** the ten classes' CharaInitParam rows (3000–3009).
 //!
 //! A lot may run on into the rows after it: rows that follow a lot directly
@@ -29,7 +32,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use fs_bytes::Result;
 use fs_emevd::catalogue;
-use fs_esd::commands::{AWARD_ITEM_LOT, OPEN_SHOP};
+use fs_esd::commands::{AWARD_ITEM_LOT, SHOP_RANGES};
 use fs_msb::layout::{entry_name, field};
 use fs_param::layout::{Layout, for_table};
 use fs_param::param::Row;
@@ -42,6 +45,8 @@ const LOT_MAP: &str = "ItemLotParam_map";
 const LOT_ENEMY: &str = "ItemLotParam_enemy";
 const ENEMY_TYPES: [i64; 2] = [2, 10];
 const TREASURE: i64 = 4;
+/// The Roundtable Hold, where the Twin Maiden Husks resell merchants' stock.
+const ROUNDTABLE: MapId = MapId([11, 10, 0, 0]);
 /// Assets: the part type of every map object (573,966 of them).
 const ASSET: i64 = 13;
 /// The ten classes' starting equipment in CharaInitParam.
@@ -241,21 +246,61 @@ pub fn extract(s: &Sources) -> Result<Model> {
     let mut sold_by: HashMap<i32, BTreeSet<(MapId, &str)>> = HashMap::new();
     for (map, name, esd) in &s.talk {
         for r in fs_esd::calls::resolve(esd) {
-            match ((r.bank, r.id), &r.args[..]) {
-                (AWARD_ITEM_LOT, [Some(lot), ..]) if *lot > 0 => {
-                    gifts.push(((*map != EVERYWHERE).then_some(*map), name, *lot))
-                }
-                (OPEN_SHOP, [Some(first), Some(last), ..])
-                    if (0..1000).contains(&(last - first)) =>
-                {
+            let command = (r.bank, r.id);
+            if let (AWARD_ITEM_LOT, [Some(lot), ..]) = (command, &r.args[..])
+                && *lot > 0
+            {
+                gifts.push(((*map != EVERYWHERE).then_some(*map), name, *lot));
+            }
+            for (_, a, b) in SHOP_RANGES.iter().filter(|s| s.0 == command) {
+                let (Some(Some(first)), Some(Some(last))) = (r.args.get(*a), r.args.get(*b)) else {
+                    continue;
+                };
+                if (0..1000).contains(&(last - first)) {
                     for id in *first..=*last {
                         sold_by.entry(id).or_default().insert((*map, name));
                     }
                 }
-                _ => {}
             }
         }
     }
+    // Where each talk script's characters stand.
+    let mut speakers: HashMap<i32, Vec<Spot>> = HashMap::new();
+    for (map, msb) in &s.maps {
+        for e in &msb.table("PARTS_PARAM_ST").entries {
+            if !part("type")
+                .get(e, 0)
+                .is_some_and(|t| ENEMY_TYPES.contains(&t))
+            {
+                continue;
+            }
+            if let Some(talk) = part("talk_id").get(e, 0).filter(|&v| v > 0) {
+                speakers.entry(talk as i32).or_default().push(Spot {
+                    map: *map,
+                    position: Some(position(e)),
+                });
+            }
+        }
+    }
+    // A script's places: where its characters stand, or else its binder's
+    // map when that is a real one.
+    let spots_of = |map: MapId, name: &str| -> Vec<Spot> {
+        let placed = name
+            .trim_start_matches('t')
+            .parse::<i32>()
+            .ok()
+            .and_then(|t| speakers.get(&t).cloned());
+        match placed {
+            Some(p) => p,
+            None if map != EVERYWHERE && !(map.is_open_world() && map.0[1..] == [0, 0, 0]) => {
+                vec![Spot {
+                    map,
+                    position: None,
+                }]
+            }
+            None => Vec::new(),
+        }
+    };
 
     // Bosses.
     let area = layout("GameAreaParam");
@@ -381,6 +426,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 .flat_map(|&i| lot_items(lots.row(table, i).unwrap(), &names))
                 .collect(),
             flag: lots.flag(table, id),
+            also: Vec::new(),
             lot: Some(Lot {
                 table: table.into(),
                 ids,
@@ -530,20 +576,31 @@ pub fn extract(s: &Sources) -> Result<Model> {
             continue;
         }
         let stock = shop.field("sell_quantity").get(&r.data, 0);
-        // Placed when every talk script that opens it is in one map.
         let openers = sold_by.get(&r.id);
-        let maps: BTreeSet<MapId> = openers.into_iter().flatten().map(|o| o.0).collect();
+        let mut spots: Vec<Spot> = openers
+            .into_iter()
+            .flatten()
+            .flat_map(|&(map, name)| spots_of(map, name))
+            .collect();
+        // The Husks' copy only when nobody else sells it.
+        if spots.iter().any(|p| p.map != ROUNDTABLE) {
+            spots.retain(|p| p.map != ROUNDTABLE);
+        }
+        // Merchants found standing somewhere first, then binders' maps.
+        spots.sort_by_key(|p| p.position.is_none());
+        spots.dedup_by_key(|p| p.map);
         let mut source = format!("ShopLineupParam {}", r.id);
         if let Some(o) = openers {
             let talk: Vec<&str> = o.iter().map(|o| o.1).collect();
             source += &format!(" (talk {})", talk.join(", "));
         }
+        let first = spots.first().copied();
         model.locations.push(Location {
             kind: Kind::Shop,
-            map: (maps.len() == 1).then(|| *maps.first().unwrap()),
+            map: first.map(|p| p.map),
             source,
             entity: None,
-            position: None,
+            position: first.and_then(|p| p.position),
             lot: None,
             items: vec![Item {
                 kind,
@@ -553,6 +610,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 name: names.of(kind, id),
             }],
             flag: None,
+            also: spots.into_iter().skip(1).collect(),
         });
     }
 
@@ -597,6 +655,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             lot: None,
             items,
             flag: None,
+            also: Vec::new(),
         });
     }
 

@@ -278,3 +278,48 @@ fn boss_bars_name_enemies_placed_in_the_maps() {
     );
     assert!(pct(hit, bosses.len()) >= 90.0);
 }
+
+/// An enemy part's talk id is the id of a talk script: how a merchant is
+/// found from the script that opens their shop.
+#[test]
+fn characters_name_the_talk_scripts_they_run() {
+    let g = game_or_skip!();
+    let dvd = Dvd::open_elden_ring(&g.dir).unwrap();
+    let mut scripts = HashSet::new();
+    let mut binders = vec!["/script/talk/m00_00_00_00.talkesdbnd.dcx".to_string()];
+    for (p, _) in &g.maps {
+        binders.push(
+            p.replace("/map/mapstudio/", "/script/talk/")
+                .replace(".msb.dcx", ".talkesdbnd.dcx"),
+        );
+    }
+    binders.push("/script/talk/m60_00_00_00.talkesdbnd.dcx".into());
+    binders.push("/script/talk/m61_00_00_00.talkesdbnd.dcx".into());
+    for p in binders.iter().filter(|p| dvd.find(p).is_some()) {
+        let bnd = fs_bnd4::Bnd4::read(&fs_dcx::decompress(&dvd.read_path(p).unwrap()).unwrap().1)
+            .unwrap();
+        for f in &bnd.files {
+            let name = f
+                .short_name()
+                .unwrap()
+                .trim_start_matches('t')
+                .trim_end_matches(".esd");
+            scripts.insert(name.parse::<i64>().unwrap());
+        }
+    }
+    let f = field("PARTS_PARAM_ST", "talk_id");
+    let vals: HashSet<i64> = g
+        .maps
+        .iter()
+        .flat_map(|(_, m)| of_type(m, "PARTS_PARAM_ST", &[2, 10]))
+        .filter_map(|e| f.get(e, 0))
+        .filter(|&v| v > 0)
+        .collect();
+    let hit = vals.iter().filter(|v| scripts.contains(v)).count();
+    eprintln!(
+        "talk ids: {hit}/{} distinct values are talk scripts, of {} scripts",
+        vals.len(),
+        scripts.len()
+    );
+    assert!(hit >= 300 && pct(hit, vals.len()) >= 90.0);
+}
