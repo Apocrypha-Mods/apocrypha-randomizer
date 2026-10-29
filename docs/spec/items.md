@@ -2,8 +2,8 @@
 
 Written 2026-10-29 from Nova's own design decisions (route C in the spec
 plan, item half). No upstream material was read to write it, so it needs no
-contamination review. Where it says *proposed*, the wording is ours and waits
-for Nova's confirmation.
+contamination review. Where a detail is still open it says so; nothing here
+is our own suggestion.
 
 ## 1. The principle
 
@@ -19,45 +19,22 @@ the same options always gives the same game.
 
 - **Everything can move**: one-off pick-ups (treasure, one-time enemy drops,
   event and boss rewards, NPC gifts), merchants' stock, and starting gear.
-- The player chooses, **per category of item**, whether it moves. Categories
-  (*proposed*):
-  - key items;
-  - weapons;
-  - armour;
-  - talismans;
-  - sorceries and incantations;
-  - Ashes of War;
-  - spirit ashes;
-  - upgrade materials (Smithing and Somber stones, Golden Seeds, Sacred
-    Tears);
-  - consumables and crafting materials;
-  - quest items (§2.4).
-- A category that does not move keeps every one of its items where the
-  unmodded game has them.
+- What exactly moves in a seed is the player's choice, not ours. How that
+  choice is offered is open: it waits on the bias research (§2.3).
 
 ### 2.2 Merchants
 
-- Shop stock can be shuffled with everything else, as its own choice.
-- *Proposed:* an item placed in a shop is priced by its kind, and a shop's
-  limited stock stays limited.
-- Whether key items may be sold in shops falls under §2.3: a shop is one more
-  kind of place, with its own weight.
+- Shop stock can be shuffled with everything else.
+- How random the shops are is the player's choice, as in §2.1. Pricing is
+  open.
 
 ### 2.3 Where things land: the player's bias
 
 - Key items may go **anywhere the logic can reach in time**. Nothing is ruled
   out by us.
-- The player can weight **kinds of place** up or down, from "never" through
-  "even" to "strongly preferred". This applies to key items, and *proposed*
-  to every category. Kinds of place (*proposed*):
-  - open-world pick-ups;
-  - dungeons (catacombs, caves, tunnels, castles);
-  - boss rewards;
-  - NPC gifts and quest rewards;
-  - shops;
-  - the DLC (Shadow of the Erdtree).
-- "Never" removes a kind of place for that category; any other setting only
-  changes how likely it is.
+- The player sets the level of bias with a slider. What the slider weighs and
+  how is being worked out (a dirty-room study of the slider players already
+  know; its reviewed write-up will land in this folder).
 
 ### 2.4 Quest items
 
@@ -81,14 +58,12 @@ The DLC weight of §2.3 applies to the mixed setting.
 - The ten classes' starting equipment can be randomized.
 - Nova's choice is **fully random**: any weapon, armour, talisman or spell,
   usable or not.
-- *Proposed:* offer it as an option, with "unchanged" and "random but usable
-  by the class's stats" beside it.
 
 ### 2.7 Weapon levels and auto-upgrade
 
 - A weapon keeps the upgrade level it has in the unmodded game, wherever it
   lands.
-- **Auto-upgrade** (an option, off by default): a weapon the player picks up
+- **Auto-upgrade** (an option the player can turn on): a weapon the player picks up
   arrives at the highest level they have reached on that upgrade path.
   - *Regular path* (Smithing Stones, +0 to +25): once any regular weapon has
     been raised to +N, every regular weapon picked up after that arrives at
@@ -110,15 +85,13 @@ To be filled in as they are found (our own testing and play). Known so far:
 - A location the game never actually gives (cut content) receiving an item
   (prevented: such locations are ruled out in the area map).
 - **Auto-upgrade depends on what the player has done during play.** A seed
-  written before play cannot know the levels, so it needs something that acts
-  at pick-up time (event scripts or a native module). Feasibility to be
-  worked out before it is promised.
+  written before play cannot know the levels, so it is done by a native
+  module of ours that me3 loads with the mod and that acts at pick-up time.
 
 ## 4. Required outcomes
 
 - Every seed, under every combination of options, can be finished: the
-  checker proves the Elden Beast reachable before the seed is written. In
-  separate mode, the DLC's final boss must be reachable too (*proposed*).
+  checker proves the Elden Beast reachable before the seed is written.
 - A quest whose items are shuffled can still be finished (§2.4).
 - The same seed and options always give the same result, on every platform.
 - No item is lost: every item that moves lands somewhere the game gives it.
