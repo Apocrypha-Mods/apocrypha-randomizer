@@ -1,0 +1,21 @@
+[package]
+name = "fs-tool"
+description = "Developer tool: survey, extract and check the game's archives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "apoc-fs"
+path = "src/main.rs"
+
+[dependencies]
+fs-bytes.workspace = true
+fs-dvdbnd.workspace = true
+fs-dcx = { workspace = true, features = ["kraken"] }
+fs-bnd4.workspace = true
+clap.workspace = true
+rayon.workspace = true

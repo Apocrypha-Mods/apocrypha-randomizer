@@ -1,0 +1,19 @@
+[package]
+name = "fs-dcx"
+description = "The DCX compression container: zstd, deflate, and Kraken decoding behind a feature"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+fs-bytes.workspace = true
+fs-kraken = { workspace = true, optional = true }
+flate2.workspace = true
+zstd.workspace = true
+
+[features]
+# Decode Kraken through fs-kraken. Off by default: see that crate on why.
+kraken = ["dep:fs-kraken"]

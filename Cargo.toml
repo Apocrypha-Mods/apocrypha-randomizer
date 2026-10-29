@@ -1,0 +1,37 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+license = "LicenseRef-Proprietary"
+publish = false
+authors = ["Apocrypha"]
+repository = "https://github.com/Apocrypha-Mods/apocrypha-randomizer"
+
+[workspace.dependencies]
+fs-bytes = { path = "crates/fs-bytes" }
+fs-dvdbnd = { path = "crates/fs-dvdbnd" }
+fs-dcx = { path = "crates/fs-dcx" }
+fs-kraken = { path = "crates/fs-kraken" }
+fs-bnd4 = { path = "crates/fs-bnd4" }
+
+aes = "0.8"
+base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+flate2 = "1"
+num-bigint = "0.4"
+oozextract = { version = "0.5.7", default-features = false }
+rayon = "1"
+thiserror = "2"
+zstd = "0.13"
+
+[profile.release]
+debug = 1
+
+# The tests that walk the real archives decompress gigabytes; unoptimised they
+# take hours.
+[profile.test]
+opt-level = 3

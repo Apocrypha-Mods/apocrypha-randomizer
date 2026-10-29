@@ -1,0 +1,12 @@
+[package]
+name = "fs-bytes"
+description = "Bounds-checked reads and the error type shared by the format crates"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+thiserror.workspace = true

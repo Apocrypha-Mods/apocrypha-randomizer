@@ -1,0 +1,19 @@
+[package]
+name = "fs-dvdbnd"
+description = "Reading the game's Data*.bhd/.bdt archives: keys, headers, name hashes and entries"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+fs-bytes.workspace = true
+aes.workspace = true
+base64.workspace = true
+num-bigint.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

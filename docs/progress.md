@@ -5,6 +5,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | Phase | State | Evidence |
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
+| 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
 
 ## Phase 0: setup
 
@@ -71,3 +72,101 @@ Two things that cost a failed launch each, worth knowing when we script this:
 - The console file (`ME3_TELEMETRY_MONITOR_PIPE_PATH`) is opened without being
   created, so create it first. If it is missing, the launcher exits with code 1
   and writes no log at all.
+
+## Phase 1: reading the game's files
+
+### What was built
+
+| Crate | Does |
+| --- | --- |
+| `fs-bytes` | Bounds-checked reads and the shared error type (from `apoc-fsparams`). |
+| `fs-dvdbnd` | Reads the archive keys from `eldenring.exe`, decrypts and parses each `.bhd`, hashes paths, reads and decrypts entries from the `.bdt`. |
+| `fs-dcx` | DCX read and write: zstd and deflate both ways, Kraken decode behind the `kraken` feature (off by default). Widened from `apoc-fsparams`. |
+| `fs-kraken` | Kraken decoding through `oozextract`, kept on its own because that crate's licence is disputed. |
+| `fs-bnd4` | BND4 read and write. The writer rebuilds names, the hash table and offsets rather than copying the original index. |
+| `fs-tool` | `apoc-fs`, the developer tool: `survey`, `check` (the gate), `extract`, `rewrite`. |
+
+Every parser has unit tests on synthetic files, including every truncation
+and a repeatable mutation fuzz test (random byte damage must give an error,
+never a panic). `crates/fs-tool/tests/real_files.rs` runs quick checks on
+the real game when `APOC_ER_STOCK` names the stock copy, and skips otherwise.
+
+### What the game's files showed
+
+Everything below was checked against build 25080141 (App Ver. 1.17.2).
+
+- **Archive keys:** `eldenring.exe` holds five 2048-bit RSA public keys as
+  PEM text, one for each of `Data0`–`Data3` and `DLC`. Each `.bhd` decrypts
+  with raw RSA, 256-byte blocks giving 255 bytes each.
+- **Header salts:** `GR_other`, `GR_asset`, `GR_map`, `GR_chr` and `GR_sound`.
+  The DLC archive's salt says "sound", and its byte at 0x05 is 0 rather than 1.
+- **Encryption:** DLC entries are not encrypted at all. In `Data0`–`Data3` the
+  encrypted ranges are AES-128-ECB, either the whole file or the first few
+  kilobytes.
+- **Entry counts:** 120,408 entries: `Data0` 5,878, `Data1` 39,419, `Data2`
+  39,684, `Data3` 1,672, `DLC` 33,755. Every archive's last entry ends exactly
+  where its `.bdt` ends.
+- **Duplicate hashes:** 5 hashes are filed in more than one archive. The
+  reader keeps the first archive's copy and lists the rest. Which copy the
+  game prefers is not known.
+- **DCX:** 103,286 files are Kraken (DCX version 0x11000, level 6) and 20 are
+  deflate (version 0x10000, level 9). 19 of the deflate files store 0x24/0x2C
+  in the header where the others store 0x44/0x4C, with the same physical
+  layout. There is no zstd in the archives.
+- **BND4:** every binder is little-endian with a hash table. Two format bytes
+  are in use: `0x74` (ids, UTF-16 names, two size fields) and `0x70` (ids and
+  single-byte ASCII names, two AutoInvadePoint lists in `Data0`). The name hash,
+  bucket count and record order are in `crates/fs-bnd4/src/lib.rs`. Before the
+  fix, 570 binders failed to round-trip for one reason: an empty file sits
+  unaligned where the previous file ended.
+- **Other formats:** the archives also hold 2,886 split binders (a BHF4 header
+  file and a BDF4 data file in each pair), plus TPF, FLVER, MSB, EMEVD, FMG and
+  others. BXF4 is not covered by this gate.
+
+### Gate run, 2026-10-29
+
+`apoc-fs check --jobs 14 ~/Drive/GameStock/elden-ring/2.7.1.0-build25080141`:
+
+```
+archives: 5  entries: 120408
+entries extracted: 120408/120408
+DCX decompressed: 103306  by compression: {"Deflate": 20, "Kraken": 103286}
+DCX rewritten and round-tripped byte for byte: 103306/103306
+deflate originals reproduced exactly by our encoder (informational): 0
+BND4 round-tripped byte for byte: 74417 top-level, 3465 nested, holding 691738 files
+failures: 0
+time: 610.9s
+```
+
+- **Time:** 611 s on 16 cores from NVMe. Most of it is zstd level 9
+  recompressing 110 GB.
+- **Without recompression:** `--no-recompress` (extract, decompress and the
+  BND4 round trip only) takes about 84 s.
+- **Reading alone:** `apoc-fs survey`, which reads and decompresses every entry
+  of 65 GB stored and 110 GB uncompressed, takes 78 s.
+
+How "round-trip byte for byte" is checked:
+
+- **DCX:** we cannot write Kraken, so each payload is rewritten as zstd (and
+  as deflate when the original is deflate). The result must decompress to the
+  same payload, and rewriting it again must give identical bytes.
+- **Deflate originals:** our deflate encoder does not reproduce the game's 20
+  deflate files exactly. That is expected, since the game's encoder settings
+  are unknown, and the gate doesn't require it.
+- **BND4:** each binder is parsed and written back, and the output must equal
+  the original bytes, for every top-level and nested binder.
+
+### Still to do
+
+- [ ] **The name-list count.** The gate wants the extracted count to match a
+      name list. No list has been chosen, because its origin and licence are
+      open (PLAN.md §6). `apoc-fs check --names <file>` reports the coverage
+      of any list it is given. One clean option is to build our own list from
+      the game: names inside binders, path strings in the exe, and patterns
+      such as map and character ids.
+- [ ] **Step 3: the game accepts files we write.** Rewrite one map file and
+      one event script as zstd or deflate and boot through me3. Saved for later
+      on request; the code it needs (`Header::with_algorithm`, `compress`) is in
+      place.
+- [ ] **Legal opinion on `oozextract`** before anything that ships enables
+      `fs-dcx/kraken`.

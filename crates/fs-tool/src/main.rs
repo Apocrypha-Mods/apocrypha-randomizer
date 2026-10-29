@@ -1,0 +1,275 @@
+//! `apoc-fs`: the developer tool for the game's archives.
+//!
+//! It reads from a stock copy of the game (PLAN.md §5, Phase 0), never the live
+//! install, and writes only where it is told to.
+
+use std::collections::BTreeMap;
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::Instant;
+
+use clap::{Parser, Subcommand};
+use fs_dvdbnd::Dvd;
+use rayon::prelude::*;
+
+mod check;
+
+#[derive(Parser)]
+#[command(
+    name = "apoc-fs",
+    about = "Survey, extract and check the game's archives"
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Command,
+}
+
+#[derive(Subcommand)]
+enum Command {
+    /// Read every entry of every archive and report what is in them.
+    Survey {
+        /// The folder holding the archives and eldenring.exe.
+        game: PathBuf,
+        /// How many files to read at once. Each holds a whole file in memory.
+        #[arg(long, default_value_t = 8)]
+        jobs: usize,
+    },
+    /// The Phase 1 gate: every entry extracts, and every DCX and BND4 we write
+    /// round-trips byte for byte.
+    Check {
+        game: PathBuf,
+        /// A list of archive paths, one per line, to count names against.
+        #[arg(long)]
+        names: Option<PathBuf>,
+        /// Skip recompressing every DCX, which is most of the time taken.
+        #[arg(long)]
+        no_recompress: bool,
+        #[arg(long, default_value_t = 8)]
+        jobs: usize,
+    },
+    /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
+    Rewrite { file: PathBuf },
+    /// Write one file out of the archives, by path or by hash.
+    Extract {
+        game: PathBuf,
+        /// An archive path such as `/event/common.emevd.dcx`, or a hash as
+        /// 16 hex digits.
+        file: String,
+        /// Where to write it.
+        out: PathBuf,
+        /// Decompress a DCX instead of writing it as stored.
+        #[arg(long)]
+        decompress: bool,
+    },
+}
+
+fn main() {
+    let cli = Cli::parse();
+    let result = match cli.command {
+        Command::Survey { game, jobs } => survey(game, jobs),
+        Command::Check {
+            game,
+            names,
+            no_recompress,
+            jobs,
+        } => check::run(game, names, !no_recompress, jobs),
+        Command::Rewrite { file } => rewrite(file),
+        Command::Extract {
+            game,
+            file,
+            out,
+            decompress,
+        } => extract(game, &file, out, decompress),
+    };
+    if let Err(e) = result {
+        eprintln!("error: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn extract(game: PathBuf, file: &str, out: PathBuf, decompress: bool) -> fs_bytes::Result<()> {
+    let dvd = Dvd::open_elden_ring(&game)?;
+    let hash = match u64::from_str_radix(file, 16) {
+        Ok(h) if file.len() == 16 => h,
+        _ => fs_dvdbnd::hash_path(file),
+    };
+    let r = dvd
+        .find_hash(hash)
+        .ok_or_else(|| fs_bytes::format_err(format!("{file} ({hash:016x}) is in no archive")))?;
+    let mut data = dvd.read(r)?;
+    if decompress && fs_dcx::is_dcx(&data) {
+        data = fs_dcx::decompress(&data)?.1;
+    }
+    std::fs::write(&out, &data)?;
+    eprintln!(
+        "{} bytes from {} to {}",
+        data.len(),
+        dvd.archives[r.archive].name,
+        out.display()
+    );
+    Ok(())
+}
+
+fn rewrite(file: PathBuf) -> fs_bytes::Result<()> {
+    let bytes = std::fs::read(&file)?;
+    let written = fs_bnd4::Bnd4::read(&bytes)?.write()?;
+    let mut out = file.into_os_string();
+    out.push(".rewritten");
+    std::fs::write(&out, &written)?;
+    eprintln!(
+        "{} bytes in, {} out, identical: {}",
+        bytes.len(),
+        written.len(),
+        bytes == written
+    );
+    Ok(())
+}
+
+/// What one entry turned out to be.
+#[derive(Default)]
+struct Tally {
+    files: u64,
+    stored_bytes: u64,
+    plain_bytes: u64,
+    /// The outer format: a DCX compression, or the file's own magic.
+    outer: BTreeMap<String, u64>,
+    /// The format inside a DCX.
+    inner: BTreeMap<String, u64>,
+    /// Distinct DCX headers, with the size fields blanked, and how many share
+    /// each.
+    dcx_headers: BTreeMap<String, u64>,
+    largest: (u64, String),
+    errors: Vec<String>,
+}
+
+fn magic(b: &[u8]) -> String {
+    let m = &b[..b.len().min(4)];
+    if m.iter().all(|c| c.is_ascii_graphic() || *c == b' ') && !m.is_empty() {
+        String::from_utf8_lossy(m).into_owned()
+    } else {
+        format!(
+            "0x{}",
+            m.iter().map(|c| format!("{c:02x}")).collect::<String>()
+        )
+    }
+}
+
+fn survey(game: PathBuf, jobs: usize) -> fs_bytes::Result<()> {
+    let start = Instant::now();
+    let dvd = Dvd::open_elden_ring(&game)?;
+    eprintln!(
+        "opened {} archives, {} entries, in {:.1?}",
+        dvd.archives.len(),
+        dvd.len(),
+        start.elapsed()
+    );
+    for a in &dvd.archives {
+        eprintln!(
+            "  {:6} {:6} entries  salt {:?}  flag {}",
+            a.name,
+            a.bhd.entries.len(),
+            a.bhd.salt,
+            a.bhd.flag
+        );
+    }
+    eprintln!(
+        "  duplicate hashes across archives: {}",
+        dvd.duplicates.len()
+    );
+
+    let tally = Mutex::new(Tally::default());
+    let refs: Vec<_> = dvd.entries().map(|(r, _)| r).collect();
+    let done = std::sync::atomic::AtomicUsize::new(0);
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(jobs)
+        .build()
+        .unwrap();
+    pool.install(|| {
+        refs.par_iter().for_each(|&r| {
+            let entry = dvd.entry(r);
+            let name = format!("{}:{:016x}", dvd.archives[r.archive].name, entry.hash);
+            let outcome = dvd.read(r).and_then(|data| {
+                if fs_dcx::is_dcx(&data) {
+                    let (h, plain) = fs_dcx::decompress(&data)?;
+                    let mut fp = *h.raw();
+                    fp[0x1C..0x24].fill(0);
+                    let fp: String = fp.iter().map(|c| format!("{c:02x}")).collect();
+                    Ok((
+                        data.len(),
+                        Some((
+                            format!("DCX/{:?}", h.algorithm),
+                            fp,
+                            magic(&plain),
+                            plain.len(),
+                        )),
+                    ))
+                } else {
+                    Ok((data.len(), None))
+                }
+            });
+            let mut t = tally.lock().unwrap();
+            t.files += 1;
+            match outcome {
+                Ok((stored, dcx)) => {
+                    t.stored_bytes += stored as u64;
+                    let plain_len = match dcx {
+                        Some((outer, fp, inner, len)) => {
+                            *t.outer.entry(outer).or_default() += 1;
+                            *t.dcx_headers.entry(fp).or_default() += 1;
+                            *t.inner.entry(inner).or_default() += 1;
+                            len as u64
+                        }
+                        None => {
+                            // Read again only for the magic; cheap next to the rest.
+                            let m = dvd.read(r).map(|d| magic(&d)).unwrap_or_default();
+                            *t.outer.entry(m).or_default() += 1;
+                            stored as u64
+                        }
+                    };
+                    t.plain_bytes += plain_len;
+                    if plain_len > t.largest.0 {
+                        t.largest = (plain_len, name);
+                    }
+                }
+                Err(e) => t.errors.push(format!("{name}: {e}")),
+            }
+            drop(t);
+            let n = done.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+            if n.is_multiple_of(5000) {
+                eprintln!("  {n}/{} read, {:.0?}", refs.len(), start.elapsed());
+            }
+        })
+    });
+
+    let t = tally.into_inner().unwrap();
+    println!(
+        "files read: {}  errors: {}  in {:.1?}",
+        t.files,
+        t.errors.len(),
+        start.elapsed()
+    );
+    println!(
+        "stored bytes: {}  uncompressed bytes: {}",
+        t.stored_bytes, t.plain_bytes
+    );
+    println!(
+        "largest uncompressed: {} bytes ({})",
+        t.largest.0, t.largest.1
+    );
+    println!("\nouter formats:");
+    for (k, v) in &t.outer {
+        println!("  {v:7}  {k}");
+    }
+    println!("\nformats inside DCX:");
+    for (k, v) in &t.inner {
+        println!("  {v:7}  {k}");
+    }
+    println!("\nDCX headers (sizes blanked):");
+    for (k, v) in &t.dcx_headers {
+        println!("  {v:7}  {k}");
+    }
+    for e in t.errors.iter().take(50) {
+        println!("ERROR {e}");
+    }
+    Ok(())
+}
