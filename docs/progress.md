@@ -700,9 +700,28 @@ native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
   into process 376`.
 - me3's `Native` entry takes `path`, `optional`, `load_before`, `load_after`
   and `load_early`. Its initializer and finalizer can be left out.
-- The upgrading itself is still to do: finding, in the running game, where
-  an item is added to the inventory and where weapon levels are held. That
-  is our own reverse engineering of the game, done in the lab.
+- The upgrading itself is still to do. It rests on our own reverse
+  engineering of the game, done in the lab. What is known so far:
+  - **Vtables are found at run time**, from the loaded game's RTTI, by
+    decorated class name (`.?AVCSWepGaitemIns@CS@@`), not fixed addresses.
+    The game updated to 2.7.2.0 on 2026-10-29, which moved every vtable
+    (CSWepGaitemIns went from 0x142a81bb8 to 0x142a83cb8).
+  - **Item instances**, as found by the probe (`ER_PROBE=1`) in the
+    2026-10-29 lab, with Moonveil in hand:
+    - a weapon (CSWepGaitemIns, 0x30 bytes) holds its vtable, a gaitem
+      handle at +8 (`0x808…`), the item id at +0xC (Moonveil, 9060000 =
+      0x8A3EA0) and the handle of its fitted Ash of War at +0x28;
+    - a gem (CSGemGaitemIns) holds its handle at +8 (`0xC08…`), its id at
+      +0xC and the handle of its weapon at +0x10;
+    - armour (CSProGaitemIns) holds its handle at +8 (`0x908…`) and its id
+      at +0xC.
+  - The inventory also keeps each weapon's handle beside its id
+    (`80800035 008a3ea0 00000001 00000048`: handle, id, quantity and,
+    likely, an index). So a level change must keep the instance and the
+    inventory agreeing, or must happen before the item is made.
+  - Still to find: where a new item is made (to set its level as it
+    arrives), and whether the level is the id's last two digits for every
+    weapon.
 
 ## Phase 3: game model
 

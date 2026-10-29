@@ -52,5 +52,6 @@ exec systemd-run --user --scope --unit=apoc-er-lab \
     ME3_TELEMETRY_ENABLED=false ME3_FILE_LOG_LEVEL='"info"' \
     ME3_TELEMETRY_LOG_FILE_PATH="$(win "$L/me3.log")" \
     ME3_TELEMETRY_MONITOR_PIPE_PATH="$(win "$L/console.txt")" \
+    ${ER_PROBE:+APOC_NATIVE_PROBE=1} \
     APOC_NATIVE_LOG="Z:$(printf '%s' "$L/native.log" | sed 's#/#\\#g')" \
   "$PROTON" waitforexitandrun "$RT/me3-launcher.exe"
