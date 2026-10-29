@@ -461,3 +461,65 @@ fn graces_and_npcs_are_named_from_the_game_text() {
         );
     }
 }
+
+/// Boss defeat flags are event flags: the scripts test and set them.
+#[test]
+fn boss_defeat_flags_are_used_by_the_event_scripts() {
+    let reg = regulation_or_skip!();
+    let dir = PathBuf::from(std::env::var_os("APOC_ER_STOCK").unwrap());
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(dir).unwrap();
+    let f = layout::for_table("GameAreaParam")
+        .unwrap()
+        .field("defeat_flag");
+    let flags: HashSet<u32> = reg
+        .table("GameAreaParam")
+        .unwrap()
+        .rows
+        .iter()
+        .map(|r| f.get(&r.data, 0) as u32)
+        .filter(|&v| v != 0)
+        .collect();
+    // The flag words: 2003[66], 3[0], 1003[1], 1003[2] and 1003[101], word 1.
+    let flag_words = [(2003, 66), (3, 0), (1003, 1), (1003, 2), (1003, 101)];
+    let (mut anywhere, mut as_flag) = (HashSet::new(), HashSet::new());
+    let mut names = vec![
+        "/event/common.emevd.dcx".to_string(),
+        "/event/common_func.emevd.dcx".to_string(),
+    ];
+    for a in 10..62 {
+        for b in 0..100 {
+            for c in 0..100 {
+                for d in 0..4 {
+                    names.push(format!("/event/m{a:02}_{b:02}_{c:02}_{d:02}.emevd.dcx"));
+                }
+            }
+        }
+    }
+    for p in names.iter().filter(|p| dvd.find(p).is_some()) {
+        let plain = fs_dcx::decompress(&dvd.read_path(p).unwrap()).unwrap().1;
+        for ins in fs_emevd::Emevd::read(&plain)
+            .unwrap()
+            .events
+            .iter()
+            .flat_map(|e| &e.instructions)
+        {
+            for (w, word) in ins.args.chunks_exact(4).enumerate() {
+                let v = u32::from_le_bytes(word.try_into().unwrap());
+                if flags.contains(&v) {
+                    anywhere.insert(v);
+                    if w == 1 && flag_words.contains(&(ins.bank, ins.id)) {
+                        as_flag.insert(v);
+                    }
+                }
+            }
+        }
+    }
+    eprintln!(
+        "defeat flags: {}/{} in the scripts, {} as a flag word",
+        anywhere.len(),
+        flags.len(),
+        as_flag.len()
+    );
+    assert!(pct(anywhere.len(), flags.len()) >= 95.0);
+    assert!(pct(as_flag.len(), flags.len()) >= 70.0);
+}

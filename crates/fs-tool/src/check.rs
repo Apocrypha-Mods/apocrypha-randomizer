@@ -31,6 +31,7 @@ struct Totals {
     bnd4_nested: u64,
     bnd4_files: u64,
     fmg: u64,
+    emevd: u64,
     failures: Vec<String>,
 }
 
@@ -72,6 +73,7 @@ pub fn run(game: PathBuf, names: Option<PathBuf>, recompress: bool, jobs: usize)
             t.bnd4_nested += local.bnd4_nested;
             t.bnd4_files += local.bnd4_files;
             t.fmg += local.fmg;
+            t.emevd += local.emevd;
             t.failures.extend(local.failures);
             drop(t);
             let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -106,6 +108,7 @@ pub fn run(game: PathBuf, names: Option<PathBuf>, recompress: bool, jobs: usize)
         t.bnd4_top, t.bnd4_nested, t.bnd4_files
     );
     println!("FMG round-tripped byte for byte: {}", t.fmg);
+    println!("EMEVD round-tripped byte for byte: {}", t.emevd);
     println!("failures: {}", t.failures.len());
     for f in &t.failures {
         println!("FAIL {f}");
@@ -140,6 +143,14 @@ fn check_entry(dvd: &Dvd, r: fs_dvdbnd::EntryRef, recompress: bool, t: &mut Tota
     } else {
         stored
     };
+    if fs_emevd::is_emevd(&plain) {
+        let e =
+            fs_emevd::Emevd::read(&plain).map_err(|e| format_err(format!("EMEVD read: {e}")))?;
+        if e.write()? != plain {
+            return Err(format_err("EMEVD differs when rewritten"));
+        }
+        t.emevd += 1;
+    }
     if fs_bnd4::is_bnd4(&plain) {
         t.bnd4_top += 1;
         bnd4_round_trip(&plain, recompress, t, 0)?;

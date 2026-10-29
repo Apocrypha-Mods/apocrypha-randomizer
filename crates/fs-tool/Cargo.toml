@@ -19,5 +19,6 @@ fs-dcx = { workspace = true, features = ["kraken"] }
 fs-bnd4.workspace = true
 fs-param.workspace = true
 fs-fmg.workspace = true
+fs-emevd.workspace = true
 clap.workspace = true
 rayon.workspace = true

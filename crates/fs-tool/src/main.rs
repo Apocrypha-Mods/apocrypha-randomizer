@@ -14,6 +14,7 @@ use rayon::prelude::*;
 
 mod check;
 mod columns;
+mod flags;
 mod labels;
 mod names;
 
@@ -93,6 +94,8 @@ enum Command {
         #[arg(long, default_value_t = 6)]
         samples: usize,
     },
+    /// How the param fields named as flags show up in the event scripts.
+    Flags { game: PathBuf },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -120,6 +123,7 @@ fn main() {
             jobs,
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
+        Command::Flags { game } => flags::run(game),
         Command::Labels {
             game,
             table,

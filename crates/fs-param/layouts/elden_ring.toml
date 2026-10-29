@@ -65,7 +65,10 @@ confidence = "probable"
 evidence = """
 4,546 distinct values over 5,592 map lots, clustered like event flag ranges
 (e.g. 400348). Mostly zero for enemy lots (4,891 of 5,135), as repeatable drops
-would be. To be confirmed against EMEVD and MSB."""
+would be. An event flag: 190 of its values are tested or set directly by the
+event scripts. Only 12% occur in the scripts at all, as expected if picking an
+item up sets it without a script; that it is set on pick-up is to be confirmed
+against the MSB treasure records."""
 
 [[layout.field]]
 name = "count"
@@ -121,7 +124,8 @@ kind = "u32"
 confidence = "probable"
 evidence = """
 785 distinct values, clustered (190010, 190030, …) like event flags; 0 in 463
-rows. Likely tracks how many were bought. To be confirmed against EMEVD."""
+rows. 21 are tested or set directly by the event scripts, so these are event
+flags. Likely tracks how many were bought; to be confirmed in play."""
 
 [[layout.field]]
 name = "event_flag_b"
@@ -129,8 +133,9 @@ offset = 0x10
 kind = "u32"
 confidence = "probable"
 evidence = """
-237 distinct values in event-flag-like ranges, 0 in 816 rows. Likely gates
-whether the item is on sale. To be confirmed against EMEVD."""
+237 distinct values in event-flag-like ranges, 0 in 816 rows. 61% occur in the
+event scripts, 48 tested or set directly, so these are event flags. Likely
+gates whether the item is on sale; to be confirmed in play."""
 
 [[layout.field]]
 name = "sell_quantity"
@@ -354,10 +359,14 @@ alone and with help. To be confirmed in play."""
 name = "defeat_flag"
 offset = 0x44
 kind = "u32"
-confidence = "probable"
+confidence = "confirmed"
 evidence = """
-208 distinct values in event flag ranges, 95% of them equal to some row's own
-id. To be confirmed against EMEVD."""
+An event flag: 206 of its 207 distinct values occur in the event scripts, 163
+of them directly as the flag an instruction tests or sets (2003[66], 3[0],
+1003[1], 1003[2], 1003[101] word 1; see `apoc-fs flags`), the rest passed to
+events as parameters. 95% equal some row's own id. That it is set by the
+boss's defeat is read from where the scripts use it, not yet from a decoded
+instruction."""
 
 [[layout.field]]
 name = "position"
@@ -380,8 +389,9 @@ offset = 0x04
 kind = "u32"
 confidence = "probable"
 evidence = """
-A different value in each of the 422 rows, nearly all 71000..76960: the flag
-that records the grace as found. To be confirmed against EMEVD."""
+A different value in each of the 422 rows, nearly all 71000..76960. 37% occur
+in the event scripts, 32 tested or set directly, so these are event flags.
+That each records the grace as found is to be confirmed in play."""
 
 [[layout.field]]
 name = "entity_id"

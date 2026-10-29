@@ -5,7 +5,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | Phase | State | Evidence |
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
-| 2. Formats | in progress | PARAM: all 194 tables round-trip, field layouts for 9 table types. FMG: all 3,968 round-trip. EMEVD and MSB not started. |
+| 2. Formats | in progress | PARAM: all 194 tables round-trip, field layouts for 9 table types. FMG: all 3,968 round-trip. EMEVD: all 589 round-trip. MSB not started. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
 
 ## Phase 0: setup
@@ -222,7 +222,7 @@ EMEVD, MSB or play), and the evidence either way.
 | `CharaInitParam` | 4 × weapon, 4 × armor, 4 × ammo, 4 × talisman, 7 × spell, 19 goods slots in three runs | 2 × extra weapon | Every slot of the ten class rows (3000–3009) resolves. Armor slot i holds ids with hundreds digit i in all but 11 of 11,880 values. |
 | `EquipParamGoods` | goods type | — | Read off the item names: 0 is other items, 1 crafting materials, 2 upgrade materials, 3 Great Runes, quest items and sorceries, 4 incantations, 6 letters and notes, 7 tutorials. |
 | `EquipParamWeapon` | reinforce type | — | 32 of 33 values are rows of ReinforceParamWeapon, the start of an upgrade path. A path ending at +10 is somber (Moonveil: 2200); one ending at +25 is regular. |
-| `GameAreaParam` | — | runes ×2, defeat flag, position | Round rune values on boss-like ids; the flags look like event flags; three floats. |
+| `GameAreaParam` | defeat flag | runes ×2, position | Round rune values on boss-like ids; the flags look like event flags; three floats. |
 | `BonfireWarpParam` | grace name, sub category | found flag, entity id, position | 419 of 422 names are PlaceName ids. The flags are unique per grace, in 71000–76960. |
 
 Two developer commands support this:
@@ -261,9 +261,10 @@ reports App Ver. 1.17.2.
       read them by. About a dozen `NpcParam` columns and five `EquipParamWeapon`
       columns point at it, and what each one means needs the enemy work, so it
       waits until then.
-- [ ] **Promoting the probable fields to confirmed.** Item-lot, shop,
-      boss-defeat and grace flags wait on EMEVD and MSB. Prices, stock and rune
-      rewards wait on play.
+- [ ] **Promoting the probable fields to confirmed.** EMEVD showed that the
+      item-lot, shop and grace flags are event flags, but not what each one
+      records. Item-lot flags wait on MSB; shop and grace flags, prices, stock
+      and rune rewards wait on play.
 - [ ] **No field is needed from `EquipParamProtector` or `EquipParamAccessory`
       yet.** An armor piece's slot is the hundreds digit of its id.
 
@@ -293,3 +294,64 @@ FMG round-tripped byte for byte: 3968
 failures: 0
 time: 95.2s
 ```
+
+### EMEVD
+
+`fs-emevd` reads and writes the event scripts. All 589 EMEVDs in the
+archives round-trip byte for byte. `apoc-fs check` now covers them.
+
+**Totals:** 4,908 events, 107,639 instructions, 34,483 parameters, 25
+instruction banks.
+
+The format matches the public description:
+
+- **Layout:** a 0x90 header, then events (0x30 bytes each), instructions
+  (0x20), layers, an argument blob padded to 16, parameters (0x20), linked
+  files, and strings.
+- **Arguments for an instruction with none.** The offset is 0 in 264 files and
+  -1 in the other 325, and each file uses one or the other throughout, so it
+  is kept per file.
+- **Layers.** None of Elden Ring's 589 scripts uses them. They are handled and
+  unit-tested, but nothing real exercises that code.
+- **The string area** (names of linked files such as `common_func.emevd`) is
+  kept as raw bytes, with linked-file offsets into it.
+
+How the files are named: 544 of the 589 match the pattern
+`/event/mAA_BB_CC_DD.emevd.dcx` or are one of the common scripts, which the
+real-file test checks. The other 45 are named some other way, still unknown.
+
+#### What the scripts confirm about the param flags
+
+`apoc-fs flags <game>` looks for every flag-named layout field's values in
+every argument word of every script:
+
+| Field | In the scripts | Directly as a flag | Reading |
+| --- | --- | --- | --- |
+| `GameAreaParam.defeat_flag` | 206/207 | 163 | **Confirmed** as an event flag; the rest are passed to events as parameters. |
+| `ShopLineupParam.event_flag_b` | 208/340 | 48 | Event flags; what each records waits on play. |
+| `BonfireWarpParam.event_flag` | 155/422 | 32 | Event flags; what each records waits on play. |
+| `ItemLotParam.get_item_flag` | 559/4,715 | 190 | Event flags. The low share fits pick-ups being set without a script; to be checked against MSB treasure. |
+| `ShopLineupParam.event_flag_a` | 64/784 | 21 | Event flags; what each records waits on play. |
+
+Where the boss-defeat flags fall points to the instructions that take a flag.
+Their argument shapes across all 589 scripts back this up:
+
+- **2003[66]** always takes 12 bytes: a small value (0 or 2), the flag, then 0
+  or 1. That's the shape of setting a flag off or on.
+- **3[0]** takes 8 bytes: packed condition bytes, then the flag.
+- **1003[1], 1003[2] and 1003[101]** take 8 bytes: likewise, then the flag.
+- **4[0] isn't a flag instruction**, even though defeat flags show up in it.
+  Its word 1 holds character ids (10000 is the player), and boss area ids
+  equal those character ids.
+
+These readings come from the data alone. They are recorded as observed shapes,
+not as decoded instruction meanings.
+
+### Still to do in EMEVD
+
+- [ ] **An instruction catalogue** (what each bank and id does, and its
+      argument types), worked out the same way: from argument shapes and from
+      values we already know, such as flags, entity ids and item ids. No
+      third-party definitions (DarkScript3's are not usable). Phase 3 needs it
+      for item awards; Phase 5 needs it for boss and enemy events.
+- [ ] **Names for the other 45 scripts.**
