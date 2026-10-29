@@ -13,6 +13,7 @@ use fs_dvdbnd::Dvd;
 use rayon::prelude::*;
 
 mod check;
+mod columns;
 
 #[derive(Parser)]
 #[command(
@@ -47,6 +48,31 @@ enum Command {
         #[arg(long, default_value_t = 8)]
         jobs: usize,
     },
+    /// Describe every table in regulation.bin: sizes, layout, and whether it
+    /// rewrites byte for byte.
+    Params {
+        game: PathBuf,
+        /// Write each table that differs, and our version, here.
+        #[arg(long)]
+        dump: Option<PathBuf>,
+    },
+    /// Column statistics for one param table, for working out its layout.
+    Columns {
+        game: PathBuf,
+        /// The table, e.g. `ItemLotParam_map`.
+        table: String,
+        /// Which widths to show: any of 4, 2 and 1 (bytes).
+        #[arg(long, default_value = "4")]
+        widths: String,
+        #[arg(long, default_value_t = 0)]
+        from: usize,
+        #[arg(long)]
+        to: Option<usize>,
+        /// Keep only rows whose i32 at a hex offset has a value, e.g.
+        /// `--where 20=1`. Repeatable.
+        #[arg(long = "where")]
+        filter: Vec<columns::Filter>,
+    },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -74,6 +100,15 @@ fn main() {
             jobs,
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
+        Command::Params { game, dump } => params(game, dump),
+        Command::Columns {
+            game,
+            table,
+            widths,
+            from,
+            to,
+            filter,
+        } => columns::run(game, &table, &widths, from, to, &filter),
         Command::Extract {
             game,
             file,
@@ -122,6 +157,67 @@ fn rewrite(file: PathBuf) -> fs_bytes::Result<()> {
         written.len(),
         bytes == written
     );
+    Ok(())
+}
+
+fn params(game: PathBuf, dump: Option<PathBuf>) -> fs_bytes::Result<()> {
+    let t = Instant::now();
+    let reg = fs_param::Regulation::open(&game)?;
+    println!(
+        "regulation {} opened in {:.1?}, {} tables",
+        reg.version(),
+        t.elapsed(),
+        reg.bnd.files.len()
+    );
+    let mut same = 0;
+    for f in &reg.bnd.files {
+        let name = f.short_name().unwrap_or("?");
+        let p = match fs_param::Param::read(&f.data) {
+            Ok(p) => p,
+            Err(e) => {
+                println!("{name}: READ ERROR {e}");
+                continue;
+            }
+        };
+        let w = p.write()?;
+        let identical = w == f.data;
+        if let (Some(dir), false) = (&dump, identical) {
+            std::fs::write(dir.join(name), &f.data)?;
+            std::fs::write(dir.join(format!("{name}.ours")), &w)?;
+        }
+        same += usize::from(identical);
+        let b = &f.data;
+        let u32at = |o: usize| u32::from_le_bytes(b[o..o + 4].try_into().unwrap());
+        let i64at = |o: usize| i64::from_le_bytes(b[o..o + 8].try_into().unwrap());
+        let named = p
+            .rows
+            .iter()
+            .filter(|r| r.name.as_ref().is_some_and(|n| !n.is_empty()))
+            .count();
+        println!(
+            "{name:40} {:28} rows {:6} size {:5} named {:6} strings@{:#x} type@{:#x} len {:#x} hdr04 {:02x?} 2c..30 {:02x?} {}",
+            String::from_utf8_lossy(&p.type_name),
+            p.rows.len(),
+            p.row_size,
+            named,
+            u32at(0),
+            i64at(0x10),
+            b.len(),
+            &b[4..0x0A],
+            &b[0x2C..0x30],
+            if identical {
+                "SAME".to_string()
+            } else {
+                let at = w
+                    .iter()
+                    .zip(b.iter())
+                    .position(|(x, y)| x != y)
+                    .unwrap_or(w.len().min(b.len()));
+                format!("DIFF at {at:#x} (ours {:#x} long)", w.len())
+            }
+        );
+    }
+    println!("{same}/{} rewrite byte for byte", reg.bnd.files.len());
     Ok(())
 }
 

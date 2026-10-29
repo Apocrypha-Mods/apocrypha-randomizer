@@ -5,6 +5,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | Phase | State | Evidence |
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
+| 2. Formats | in progress | PARAM: all 194 tables round-trip; field layouts for item lots, shops and part of NpcParam (below). FMG, EMEVD, MSB not started. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
 
 ## Phase 0: setup
@@ -170,3 +171,80 @@ How "round-trip byte for byte" is checked:
       place.
 - [ ] **Legal opinion on `oozextract`** before anything that ships enables
       `fs-dcx/kraken`.
+
+## Phase 2: formats
+
+### PARAM
+
+`fs-param` reads `regulation.bin` and writes it back:
+
+- **The key** is found in the player's `eldenring.exe` (see
+  `docs/dependencies.md`), so no key is stored here.
+- **Each table** reads and writes back byte for byte.
+
+The table code is lifted from `apoc-fsparams`. Its writer reproduced 138 of
+the game's 194 tables; three changes, each found by comparing against the
+game's file, bring that to 194:
+
+- **The strings offset.** 56 tables store a strings offset that matches
+  nothing, sometimes pointing past the end of the file. It is kept as read
+  while the table's data is the same size.
+- **Rows with no name.** A row whose name offset is 0 has no name, which is
+  different from an empty name. When no row has a name, there is no names
+  section at all.
+- **Trailing bytes.** Five single-row tables have 8 zero bytes after their type
+  name. These are kept under the same rule as the strings offset.
+
+`apoc-fs params <game>` reports this; on 2026-10-29 it printed
+`194/194 rewrite byte for byte`. The real-file test
+`every_table_rewrites_byte_for_byte` holds it.
+
+#### Field layouts
+
+Paramdex has no licence, so every layout is worked out from the data with
+`apoc-fs columns <game> <table> [--widths 421] [--where OFF=VALUE]`. For each
+offset, read as i32, u16, u8 and f32, the command reports:
+
+- how many distinct values there are, and how many rows are zero;
+- the value range and the commonest values;
+- which other tables' row ids the values fall in.
+
+The layouts live in `crates/fs-param/layouts/elden_ring.toml`. Each field
+records whether it is *confirmed* (the data settles it, and
+`crates/fs-tool/tests/real_params.rs` re-checks it) or *probable* (it waits on
+EMEVD, MSB or play), and the evidence either way.
+
+| Table | Fields so far | How they were settled |
+| --- | --- | --- |
+| `ItemLotParam_map`, `_enemy` | 8 × item id, 8 × category, 8 × weight, 8 × count (confirmed); get-item flag (probable) | Item ids fall in the table their category names (Goods 92–99%, Weapon 100% with upgrade levels, Protector, Accessory, Gem and CustomWeapon 99–100%). Slots 1–7 are empty together in all but 2 of 75,089 slots. Weights sum to exactly 1000 in 97% of map lots and 98% of enemy lots. |
+| `ShopLineupParam`, `_Recipe` | equip id, equip type, material set (confirmed); price, two flags, stock (probable) | Equip ids fall in the table their type names, 97–100% for each type. Material sets resolve in 583 of 588 rows. |
+| `NpcParam` | enemy item lot, map item lot (confirmed) | 98% and 100% of the values are rows of those tables. |
+
+The two layout tables encode an item's kind differently:
+
+| Value | `ItemLotParam` category | `ShopLineupParam` type |
+| --- | --- | --- |
+| 0 | none | weapon |
+| 1 | goods | protector |
+| 2 | weapon | accessory |
+| 3 | protector | goods |
+| 4 | accessory | gem |
+| 5 | gem | (one row) |
+| 6 | custom weapon | |
+
+`regulation.bin`'s own version stamp is `11711000` (1.17.1), while the game
+reports App Ver. 1.17.2.
+
+### Still to do in PARAM
+
+- [ ] **The rest of `NpcParam`:** HP, runes, team, and the spEffect columns,
+      which point at SpEffectParam in about a dozen places, each meaning
+      something different.
+- [ ] **`CharaInitParam`:** starting classes and starting items.
+- [ ] **The key-item and type fields of `EquipParamGoods`, `EquipParamWeapon`
+      and `EquipParamProtector`.**
+- [ ] **`GameAreaParam`:** boss areas and their flags.
+- [ ] **`SpEffectParam`:** the effects used to scale enemies.
+- [ ] **`BonfireWarpParam`:** graces and their flags.
+- [ ] **Promoting the probable flag fields to confirmed** once EMEVD and MSB
+      can be read.

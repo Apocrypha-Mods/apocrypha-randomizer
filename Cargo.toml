@@ -17,6 +17,7 @@ fs-dvdbnd = { path = "crates/fs-dvdbnd" }
 fs-dcx = { path = "crates/fs-dcx" }
 fs-kraken = { path = "crates/fs-kraken" }
 fs-bnd4 = { path = "crates/fs-bnd4" }
+fs-param = { path = "crates/fs-param" }
 
 aes = "0.8"
 base64 = "0.22"
@@ -25,7 +26,9 @@ flate2 = "1"
 num-bigint = "0.4"
 oozextract = { version = "0.5.7", default-features = false }
 rayon = "1"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"
+toml = "1"
 zstd = "0.13"
 
 [profile.release]

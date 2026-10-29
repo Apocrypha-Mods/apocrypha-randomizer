@@ -1,0 +1,176 @@
+# Field layouts for the Elden Ring param tables the randomizer touches.
+#
+# Worked out from the game's own regulation.bin (build 25080141, regulation
+# 11711000) with `apoc-fs columns`, never from Paramdex or any other tool's
+# definitions. See crates/fs-param/src/layout.rs for the rules:
+#
+# - confirmed: the data settles it, and fs-tool/tests/real_files.rs checks it;
+# - probable:  suggestive, to be settled by EMEVD, MSB or play.
+#
+# Offsets are bytes into a row. A repeated field has `count` values `stride`
+# bytes apart. Bytes nobody uses yet are not listed.
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "ITEMLOT_PARAM_ST"
+row_size = 152
+tables = ["ItemLotParam_map", "ItemLotParam_enemy"]
+
+[[layout.field]]
+name = "item_id"
+offset = 0x00
+kind = "i32"
+count = 8
+stride = 4
+confidence = "confirmed"
+evidence = """
+Eight slots, later ones ever sparser (map: 185 empty in slot 0, 5,549 in slot
+1, 5,590 in slot 7). Grouped by the matching item_category, slot 0's values are
+row ids of one table each: category 1 in EquipParamGoods (94%), 2 in
+EquipParamWeapon (93%), 3 in EquipParamProtector (99%), 4 in
+EquipParamAccessory (100%), 5 in EquipParamGem (100%), 6 in
+EquipParamCustomWeapon (100%). The weapon ids that miss are base ids plus an
+upgrade level (checked by the real-file test)."""
+
+[[layout.field]]
+name = "item_category"
+offset = 0x20
+kind = "i32"
+count = 8
+stride = 4
+confidence = "confirmed"
+evidence = """
+Values 0..6, zero in exactly the slots where item_id is zero from slot 1 on.
+Each value picks the table item_id refers to (see item_id)."""
+values = { "0" = "none", "1" = "goods", "2" = "weapon", "3" = "protector", "4" = "accessory", "5" = "gem", "6" = "custom weapon" }
+
+[[layout.field]]
+name = "weight"
+offset = 0x40
+kind = "u16"
+count = 8
+stride = 2
+confidence = "confirmed"
+evidence = """
+Eight u16 values, one per slot. Map lots: slot 0 is 1000 in 5,385 rows. Enemy
+lots: slot 0 is the chance of nothing (e.g. 985) and slot 1 the drop (15). A
+row's weights add up to 1000 in almost every row (checked by the real-file
+test): a chance per slot in tenths of a percent."""
+
+[[layout.field]]
+name = "get_item_flag"
+offset = 0x80
+kind = "u32"
+confidence = "probable"
+evidence = """
+4,546 distinct values over 5,592 map lots, clustered like event flag ranges
+(e.g. 400348). Mostly zero for enemy lots (4,891 of 5,135), as repeatable drops
+would be. To be confirmed against EMEVD and MSB."""
+
+[[layout.field]]
+name = "count"
+offset = 0x8A
+kind = "u8"
+count = 8
+stride = 1
+confidence = "confirmed"
+evidence = """
+Eight bytes, one per slot, zero in exactly the rows where that slot's item_id
+is zero for slots 1..7 (5,549, 5,560, 5,578, 5,588, 5,590, 5,590, 5,590 in the
+map lots). Mostly 1, then 3, 2, 5: how many of the item."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "SHOP_LINEUP_PARAM"
+row_size = 52
+tables = ["ShopLineupParam", "ShopLineupParam_Recipe"]
+
+[[layout.field]]
+name = "equip_id"
+offset = 0x00
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+Grouped by equip_type, the values are row ids of one table each: 0 in
+EquipParamWeapon (99%), 1 in EquipParamProtector (99%), 2 in
+EquipParamAccessory (100%), 3 in EquipParamGoods (97%), 4 in EquipParamGem
+(100%)."""
+
+[[layout.field]]
+name = "value"
+offset = 0x04
+kind = "i32"
+confidence = "probable"
+evidence = """
+Round numbers (500×193, 1000×78, 1500×50, 800×39), 0 in 286 rows and up to
+100000: a price in runes. To be confirmed in play."""
+
+[[layout.field]]
+name = "mtrl_set_id"
+offset = 0x08
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+-1 in 895 rows; every other value is a row id of EquipMtrlSetParam (97%), the
+table of material sets: what the item costs besides runes."""
+
+[[layout.field]]
+name = "event_flag_a"
+offset = 0x0C
+kind = "u32"
+confidence = "probable"
+evidence = """
+785 distinct values, clustered (190010, 190030, …) like event flags; 0 in 463
+rows. Likely tracks how many were bought. To be confirmed against EMEVD."""
+
+[[layout.field]]
+name = "event_flag_b"
+offset = 0x10
+kind = "u32"
+confidence = "probable"
+evidence = """
+237 distinct values in event-flag-like ranges, 0 in 816 rows. Likely gates
+whether the item is on sale. To be confirmed against EMEVD."""
+
+[[layout.field]]
+name = "sell_quantity"
+offset = 0x14
+kind = "u8"
+confidence = "probable"
+evidence = """
+255 in 606 rows, then 1 (580), 3, 5, 10, 2: 255 reads as unlimited stock and
+the rest as a limited count. To be confirmed in play."""
+
+[[layout.field]]
+name = "equip_type"
+offset = 0x17
+kind = "u8"
+confidence = "confirmed"
+evidence = "Values 0..5; each picks the table equip_id refers to (see equip_id). 5 appears once."
+values = { "0" = "weapon", "1" = "protector", "2" = "accessory", "3" = "goods", "4" = "gem" }
+
+# ---------------------------------------------------------------------------
+# Only the fields settled so far; the rest of NpcParam (HP, runes, which
+# spEffect does what) needs its own pass.
+[[layout]]
+type = "NPC_PARAM_ST"
+row_size = 736
+tables = ["NpcParam"]
+
+[[layout.field]]
+name = "item_lot_enemy_id"
+offset = 0x30
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+-1 in 2,549 rows; 98% of the other 1,376 distinct values are row ids of
+ItemLotParam_enemy: the drop an enemy gives."""
+
+[[layout.field]]
+name = "item_lot_map_id"
+offset = 0x34
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+-1 in 6,903 rows; every one of the other 59 distinct values is a row id of
+ItemLotParam_map: a lot handed out once, such as a boss's reward."""
