@@ -88,11 +88,14 @@ length = 8
 confidence = "confirmed"
 evidence = """
 6,834 uses, always 8 bytes: packed condition bytes (257, 511, …), then a flag
-(4,831 distinct values, boss defeat flags among them)."""
+(4,831 distinct values, boss defeat flags among them). Byte 0 is a condition
+group; byte 1 the state asked for, 0 (off) or 1 (on), or 2 in 393 uses, not
+settled; byte 2 the flag's kind, 0 in all but 58 uses."""
 [[instruction.arg]]
 word = 0
 name = "condition"
 kind = "packed"
+bytes = ["group", "state", "flag_kind"]
 [[instruction.arg]]
 word = 1
 name = "flag"
@@ -101,17 +104,19 @@ kind = "flag"
 [[instruction]]
 bank = 1003
 id = 2
-name = "branch_on_flag"
+name = "end_if_flag"
 length = 8
 confidence = "probable"
 evidence = """
-2,313 uses, always 8 bytes: packed bytes (256, 131328, …), then 1,701
-distinct values among them boss defeat flags. A control-flow instruction
-(bank 1003) that tests a flag; what it branches to is not settled."""
+2,313 uses, always 8 bytes: packed bytes, then 1,701 distinct values among
+them boss defeat flags. Byte 0 is only 0 or 1, like end's; byte 1 a state (0
+or 1); byte 2 the flag's kind (0, or 2 in a few uses). Read as: end the event
+when the flag is in that state. First catalogued as branch_on_flag."""
 [[instruction.arg]]
 word = 0
 name = "condition"
 kind = "packed"
+bytes = ["end", "state", "flag_kind"]
 [[instruction.arg]]
 word = 1
 name = "flag"
@@ -120,21 +125,375 @@ kind = "flag"
 [[instruction]]
 bank = 1003
 id = 101
-name = "branch_on_flag_b"
+name = "goto_if_flag"
 length = 8
-confidence = "probable"
+confidence = "confirmed"
 evidence = """
-2,235 uses, always 8 bytes: packed bytes (257, 256, 258, …), then 2,752
-distinct values among them boss defeat flags. Like branch_on_flag; how the two
-differ is not settled."""
+2,235 uses, always 8 bytes: packed bytes, then 2,752 distinct values among
+them boss defeat flags. Byte 0 names a label (a bank 1014 instruction of that
+id) later in the same event in 2,112 of 2,128 unfilled uses; byte 1 a state
+(0 or 1); byte 2 the flag's kind. First catalogued as branch_on_flag_b."""
 [[instruction.arg]]
 word = 0
 name = "condition"
 kind = "packed"
+bytes = ["label", "state", "flag_kind"]
 [[instruction.arg]]
 word = 1
 name = "flag"
 kind = "flag"
+
+[[instruction]]
+bank = 1003
+id = 1
+name = "skip_if_flag"
+length = 8
+confidence = "confirmed"
+evidence = """
+2,497 uses, always 8 bytes: packed bytes, then a flag. Byte 0 (1 to 60) never
+counts past the end of its event (2,429 of 2,429 unfilled uses); byte 1 a
+state (0 or 1); byte 2 the flag's kind (0 or 2)."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["lines", "state", "flag_kind"]
+[[instruction.arg]]
+word = 1
+name = "flag"
+kind = "flag"
+
+[[instruction]]
+bank = 1003
+id = 3
+name = "skip_if_flag_range"
+length = 12
+confidence = "probable"
+evidence = """
+174 uses, always 12 bytes: packed bytes, then two flags a short way apart
+(4982 and 4983, 3100 and 3104). Byte 0 (1 to 5) never counts past the end of
+its event; byte 1 is 2 in 146 unfilled uses, 1 in 26. State 2 is read as "any
+of the range on": NPC quest scripts use it to set a first stage only when no
+stage of the range is set yet (Patches' event 3119 skips clearing 3100 to
+3104 and setting 3100 on it), which no other reading of 2 makes work. What 1
+asks is not settled."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["lines", "state"]
+[[instruction.arg]]
+word = 1
+name = "first"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "last"
+kind = "flag"
+
+[[instruction]]
+bank = 3
+id = 1
+name = "if_flag_range"
+length = 12
+confidence = "probable"
+evidence = """
+147 uses, always 12 bytes: packed bytes, then two flags a short way apart
+(3386 and 3397, 4125 and 4126). Byte 0 a condition group, byte 1 a state: 2
+in 105 uses, 1 in 23, 0 in 10, 3 in 7. Shaped like skip_if_flag_range, and
+read the same way: state 2 is any of the range on. The other states are not
+settled."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group", "state"]
+[[instruction.arg]]
+word = 1
+name = "first"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "last"
+kind = "flag"
+
+[[instruction]]
+bank = 1003
+id = 12
+name = "skip_if"
+length = 4
+confidence = "probable"
+evidence = """
+402 uses, always 4 bytes, testing nothing else the scripts name. Byte 0 (1 to
+9) never counts past the end of its event (396 of 396); byte 1 a state."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["lines", "state"]
+
+[[instruction]]
+bank = 1003
+id = 13
+name = "goto_if"
+length = 4
+confidence = "probable"
+evidence = """
+341 uses, always 4 bytes. Byte 0 names a label later in the event in 323 of
+324 unfilled uses; byte 1 a state. Tests the same unnamed thing as skip_if."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["label", "state"]
+
+[[instruction]]
+bank = 1003
+id = 14
+name = "end_if"
+length = 4
+confidence = "probable"
+evidence = """
+1,108 uses, always 4 bytes, often an event's first instruction. Byte 0 only 0
+or 1, like end's; byte 1 a state, 1 in 1,048 of 1,065 unfilled uses. 780
+events start with it asking for 1 and go on to do their work, so what it tests
+is 0 in ordinary play; it is taken to be 0 in a world of one's own, where the
+randomizer's logic is played. skip_if and goto_if test the same thing."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["end", "state"]
+
+# --- Control flow -------------------------------------------------------------
+#
+# Conditions (banks 0 to 999) put what they test in a condition group: byte 0
+# of their first word, always between -15 and 15 (21,000 uses). Group 0 is
+# the event itself: it waits there until the condition holds. Other groups
+# collect conditions until an instruction below evaluates them; a negative
+# group holds when any of its conditions does, a positive one when all do. The
+# evidence: quest stages are cleared as a range (set_flag_range) and then one
+# is set, so two stages of one range are never on together; 98 of 597
+# negative groups ask for two such stages, against 10 of 1,144 positive ones.
+# Labels are bank 1014: the instruction's id is the label.
+
+[[instruction]]
+bank = 0
+id = 0
+name = "combine_group"
+length = 4
+confidence = "probable"
+evidence = """
+6,852 uses, always 4 bytes: byte 0 a group (-15 to 15, 0 most often), byte 1
+a state (0 or 1), byte 2 another group. Puts whether the second group is in
+that state into the first; into group 0, the event waits for it."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group", "state", "source"]
+
+[[instruction]]
+bank = 1000
+id = 1
+name = "skip_if_group"
+length = 4
+confidence = "confirmed"
+evidence = """
+976 uses, always 4 bytes. Byte 0 (1 to 8) never counts past the end of its
+event (937 of 937 unfilled uses); byte 1 a state (0 or 1); byte 2 a group."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["lines", "state", "group"]
+
+[[instruction]]
+bank = 1000
+id = 2
+name = "end_if_group"
+length = 4
+confidence = "probable"
+evidence = """
+311 uses, always 4 bytes. Byte 0 only 0 or 1, like end's; byte 1 a state;
+byte 2 a group."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["end", "state", "group"]
+
+[[instruction]]
+bank = 1000
+id = 3
+name = "skip"
+length = 4
+confidence = "confirmed"
+evidence = """
+602 uses, always 4 bytes, one byte set: 1 to 19, never past the end of its
+event (597 of 597)."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["lines"]
+
+[[instruction]]
+bank = 1000
+id = 4
+name = "end"
+length = 4
+confidence = "probable"
+evidence = """
+3,751 uses, always 4 bytes, one byte set: 0 or 1. Most events finish with it.
+What 0 and 1 mean (ending, or starting over) is not settled."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["end"]
+
+[[instruction]]
+bank = 1000
+id = 101
+name = "goto_if_group"
+length = 4
+confidence = "confirmed"
+evidence = """
+695 uses, always 4 bytes. Byte 0 names a label later in the event in 665 of
+672 unfilled uses; byte 1 a state; byte 2 a group."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["label", "state", "group"]
+
+[[instruction]]
+bank = 1000
+id = 103
+name = "goto"
+length = 4
+confidence = "confirmed"
+evidence = """
+2,400 uses, always 4 bytes, one byte set: a label later in the event in 2,257
+of 2,262 unfilled uses."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["label"]
+
+[[instruction]]
+bank = 1000
+id = 107
+name = "goto_if_group_b"
+length = 4
+confidence = "probable"
+evidence = """
+215 uses, always 4 bytes, shaped like goto_if_group: a label later in the
+event in 200 of 201 unfilled uses, a state, a group. How the two differ is
+not settled."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["label", "state", "group"]
+
+[[instruction]]
+bank = 1001
+id = 0
+name = "wait_seconds"
+length = 4
+confidence = "probable"
+evidence = """
+2,256 uses, always 4 bytes: a float (1.0 878 times, 0.5, 0.1, 2.0). A pause."""
+[[instruction.arg]]
+word = 0
+name = "seconds"
+kind = "number"
+
+[[instruction]]
+bank = 1001
+id = 1
+name = "wait_frames"
+length = 4
+confidence = "probable"
+evidence = """
+871 uses, always 4 bytes: a small count (1 838 times, 2, 5, 10, 30). A
+pause."""
+[[instruction.arg]]
+word = 0
+name = "frames"
+kind = "number"
+
+[[instruction]]
+bank = 1001
+id = 2
+name = "wait_random_seconds"
+length = 8
+confidence = "probable"
+evidence = """
+41 uses, always 8 bytes: two floats, the second the larger (1.0 and 10.0 16
+times). A pause of a length between them."""
+
+[[instruction]]
+bank = 1001
+id = 6
+name = "wait_frames_b"
+length = 4
+confidence = "probable"
+evidence = """
+407 uses, always 4 bytes: a small count (1 368 times, 2, 10, 45, 60). A pause
+like wait_frames."""
+[[instruction.arg]]
+word = 0
+name = "frames"
+kind = "number"
+
+[[instruction]]
+bank = 2003
+id = 69
+name = "set_flag_b"
+length = 12
+confidence = "probable"
+evidence = """
+Shaped like set_flag: a kind, a flag, a state. It sets quest stages (Patches'
+3105) and Godrick's defeat flag. How the two differ is not settled."""
+[[instruction.arg]]
+word = 0
+name = "kind"
+kind = "number"
+[[instruction.arg]]
+word = 1
+name = "flag"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2003
+id = 63
+name = "set_flag_range"
+length = 12
+confidence = "probable"
+evidence = """
+Three words: a first flag, a last flag no more than a few dozen after it, and
+a state, nearly always 0. How quest stages are cleared before one is set
+(4120 to 4137, 3660 to 3663)."""
+[[instruction.arg]]
+word = 0
+name = "first"
+kind = "flag"
+[[instruction.arg]]
+word = 1
+name = "last"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
 
 # --- Items ------------------------------------------------------------------
 

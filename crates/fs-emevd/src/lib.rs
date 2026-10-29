@@ -29,6 +29,7 @@
 //! holds every EMEVD in the game to coming back byte for byte.
 
 pub mod catalogue;
+pub mod flow;
 
 use fs_bytes::{self as rd, Error, Result, format_err};
 

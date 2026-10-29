@@ -59,12 +59,17 @@ pub fn run(game: PathBuf) -> Result<()> {
         };
         if let Some(f) = ways.iter().map(never).collect::<Option<Vec<u32>>>() {
             let name = l.items.first().and_then(|i| i.name.as_deref());
-            blocked.entry(f[0]).or_default().push(name.unwrap_or("?"));
+            let first = f.first().copied().unwrap_or(0);
+            blocked.entry(first).or_default().push(name.unwrap_or("?"));
         }
     }
     println!(
         "gifts whose talk asks something: {gifts}; never counted, every way waiting on a flag nothing explains: {}",
         blocked.values().map(Vec::len).sum::<usize>()
+    );
+    println!(
+        "gifts that wait on a quest stage an event can move past, so no key item goes there: {}",
+        model.locations.iter().filter(|l| l.missable).count()
     );
     for (f, names) in &blocked {
         println!("  {f}: {}", names.join(", "));

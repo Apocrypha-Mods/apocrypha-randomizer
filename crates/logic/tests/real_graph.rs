@@ -221,3 +221,33 @@ fn gifts_wait_for_what_their_talk_asks() {
             .all(|w| w.contains(&logic::Req::Holds("Rya's Necklace")))
     );
 }
+
+#[test]
+fn quest_gifts_open_on_the_stages_events_set() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let w = b.walk(&b.vanilla());
+    // Gifts that wait on an NPC's quest stage: the stage flags are explained
+    // by the events that set them, and such a gift may be missed.
+    let missable: Vec<usize> = (0..m.locations.len())
+        .filter(|&i| m.locations[i].missable)
+        .collect();
+    assert!(missable.len() > 60, "{} missable gifts", missable.len());
+    assert!(
+        missable
+            .iter()
+            .all(|&i| m.locations[i].kind == gamedata::model::Kind::Gift)
+    );
+    let got = missable.iter().filter(|&&i| w.taken[i]).count();
+    assert!(got >= 25, "only {got} quest gifts got in the vanilla walk");
+    // Melina's gifts do not wait on a stage that moves on.
+    for item in ["Spectral Steed Whistle", "Rold Medallion"] {
+        assert!(
+            m.locations
+                .iter()
+                .filter(|l| l.items.iter().any(|it| it.name.as_deref() == Some(item)))
+                .all(|l| !l.missable),
+            "{item}"
+        );
+    }
+}

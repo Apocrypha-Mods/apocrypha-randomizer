@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks; 86 wait on NPC quest phases not yet read and are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 
 ## Phase 0: setup
@@ -415,7 +415,23 @@ How the evidence was gathered:
 | 2000[6] | `start_common_event` | confirmed | word 1 is an event id, 99%, mostly common_func's |
 | 2003[66] | `set_flag` | confirmed | 12 bytes: kind, flag, 0 or 1 |
 | 3[0] | `if_flag` | confirmed | 8 bytes: packed condition, flag |
-| 1003[2], 1003[101] | `branch_on_flag`, `_b` | probable | 8 bytes: packed bytes, flag; what they branch to is open |
+| 1003[2] | `end_if_flag` | probable | 8 bytes: end, state, flag kind; then a flag. First catalogued as `branch_on_flag` |
+| 1003[101] | `goto_if_flag` | confirmed | a label later in the event in 2,112 of 2,128 uses. First `branch_on_flag_b` |
+| 1003[1], 1003[3] | `skip_if_flag`, `skip_if_flag_range` | confirmed, probable | never skip past the event's end |
+| 1003[12–14] | `skip_if`, `goto_if`, `end_if` | probable | test one unnamed thing, 0 in a world of one's own |
+| 0[0] | `combine_group` | probable | puts one group's state into another, or waits on it |
+| 1000[1–4], 1000[101], [103], [107] | skips, ends, gotos on condition groups | confirmed, probable | skip counts fit, labels lie ahead |
+| 1001[0], [1], [2], [6] | waits | probable | a float in seconds, or a small count |
+| 3[1] | `if_flag_range` | probable | state 2 is any of the range on |
+| 2003[63], 2003[69] | `set_flag_range`, `set_flag_b` | probable | clear a stage range; set like `set_flag` |
+
+**Control flow.** Every condition instruction (banks 0 to 999) puts its test
+in a condition group, byte 0 of its first word, always -15 to 15. Group 0 is
+the event waiting. A negative group holds when any of its conditions does, a
+positive one when all do: quest stages are cleared as a range and one is then
+set, so two stages of one range are never on together, and 98 of 597
+negative groups ask for two such stages against 10 of 1,144 positive ones.
+`every_packed_byte_claim_holds` re-checks each byte the catalogue names.
 | 2003[4] | `award_item_lot` | confirmed | ItemLotParam_map 100% |
 | 2003[36] | `award_item_lot_b` | confirmed | ItemLotParam_map 95% of 619; how it differs is open |
 | 1000[6] | `uses_item_lot` | probable | ItemLotParam_map 96% |
@@ -444,6 +460,8 @@ scripts:
 - [ ] **Entity arguments:** boss ids are now checked against MSB (244 of the
       254 `boss_health_bar` bosses are enemy entity ids). spEffect targets are
       not checked yet.
+- [ ] **The conditions quest events wait on** (3[3], 3[12], 4[0], 4[5] and
+      others): read, they would open more of the 57 gifts still shut.
 - [ ] **The other 300 or so instructions** are uncatalogued. The ones Phase 5
       needs (enabling and disabling characters, warps, cutscenes) take
       entity ids, so they also come after MSB.
@@ -1031,12 +1049,54 @@ instructions not yet catalogued:
 - `2003[69]` sets a flag (it also sets Godrick's defeat flag);
 - `2003[63]` clears a range.
 
-So those 86 gifts are not counted as got. The randomizer will not put key
-items there, and the vanilla walk still reaches every area, as the key-item
-gifts it relies on have `place` entries. Reading the quest-phase events
-would open them; `apoc-fs logic` lists each blocking flag.
+#### Quest stages, read from the events
 
-`crates/logic/tests/real_graph.rs` holds five things:
+The events that move quest stages are now read (2026-10-30), so a stage flag
+is explained like a talk flag: by what holds on the way to the instruction
+that sets it.
+
+- **`fs_emevd::catalogue::runs`** lists every run of an event a script makes:
+  the events nothing starts, and each event a run starts, with its call's
+  arguments copied in.
+- **`fs_emevd::flow`** follows every path through a run and collects, at
+  each `set_flag`, the ways to reach it. It works from the control-flow
+  entries now in the catalogue (skips, gotos, ends, waits and condition
+  groups; see the EMEVD section).
+- **What a way may ask:** flags on, explained again in turn (talk, events,
+  bosses, handovers, pick-ups); flags off, taken to be off, as in talk; and
+  the map, when the event is in a map's own script, which only runs while the
+  map is loaded. The logic reads that as reaching the map's area.
+- **Conditions not read** (a position, a character's state, a counter, an
+  equipped piece) shut the way. Some are surely harmless, but a counter could
+  be a count of Great Runes; taking them as met could make a seed impossible.
+  Reading them one at a time opens more gifts.
+- **What it could not follow** (an uncatalogued control instruction, a jump
+  back, a missing label) ends the path. It only ever loses ways.
+
+Of the 86 gifts that waited on quest stages, 29 are now counted: 21 ask for
+nothing beyond reaching the NPC, and 8 for a boss, an item or an area. 57
+still wait on a stage nothing explains, nearly all because an unread
+condition stands on every way to it. `apoc-fs logic` lists each blocking
+flag.
+
+The gate was run again with this in place: `apoc-rando check` placed and
+proved seeds 0 to 9,999 in 998 s on four threads, none failing (526 s before;
+the walk has more gifts to visit, and two lab games of another project shared
+the machine).
+
+**Missed gifts.** A quest stage can move on before its gift is taken. 87
+gifts wait on a flag some event turns off again (by `set_flag` or by clearing
+a range), and are marked `missable`. They are shuffled like any other slot,
+but never take a key item, since a key there could be lost for good. Flags
+talk scripts turn off are not counted: talk turns its own flags on and off as
+a conversation goes. Of the slots that could take a key item before, only two
+are lost: a Jar from Alexander and Gurranq's Ashes of War. Melina's Spectral
+Steed Whistle and Rold Medallion stay open.
+
+`crates/logic/tests/real_graph.rs` holds these, and that more than 60
+gifts are missable, at least 25 of them got in the vanilla walk, and that
+Melina's two gifts are not. `real_items.rs` checks that no key item moves
+onto a missable gift:
 
 - every shop row has an area or is ruled out;
 - the Crafting Kit is first placed where Kalé stands, in Limgrave;

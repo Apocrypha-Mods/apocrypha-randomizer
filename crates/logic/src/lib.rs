@@ -21,7 +21,8 @@
 //!
 //! A gift asks what its talk scripts' conditions do
 //! ([`gamedata::model::Location::given_if`]): any one of its ways, each a
-//! list of bosses beaten, items held and other locations got. A way that
+//! list of bosses beaten, items held, other locations got and areas reached
+//! (a flag an event sets in a map's own script). A way that
 //! waits on a flag nothing explains (an NPC's quest phase, mostly) is never
 //! open. A `place` entry for the gift is checked by hand and takes the
 //! talk's place.
@@ -215,6 +216,8 @@ pub enum Req<'a> {
     Holds(&'a str),
     /// Any of these locations got (the ones whose pick-up sets one flag).
     Got(Vec<usize>),
+    /// An area reached, by index.
+    Area(usize),
     /// A flag nothing explains: never.
     Never(u32),
 }
@@ -497,7 +500,11 @@ impl<'a> Bound<'a> {
                     ways.iter()
                         .map(|w| {
                             w.iter()
-                                .map(|c| Self::req(c, &boss_index, &flag_locations))
+                                .map(|c| {
+                                    Self::req(c, &boss_index, &flag_locations, &|m| {
+                                        by_map(Some(m)).or_else(|| by_grace(Some(m), None))
+                                    })
+                                })
                                 .collect()
                         })
                         .collect(),
@@ -562,12 +569,14 @@ impl<'a> Bound<'a> {
         c: &'a gamedata::model::Cond,
         boss_index: &HashMap<i32, usize>,
         flag_locations: &HashMap<u32, Vec<usize>>,
+        map_area: &dyn Fn(MapId) -> Option<usize>,
     ) -> Req<'a> {
         use gamedata::model::Cond;
         match c {
             Cond::Boss(a) => boss_index.get(a).map_or(Req::Never(0), |&b| Req::Boss(b)),
             Cond::Holds(i) => i.name.as_deref().map_or(Req::Never(0), Req::Holds),
             Cond::Got(f) => Req::Got(flag_locations.get(f).cloned().unwrap_or_default()),
+            Cond::Map(m) => map_area(*m).map_or(Req::Never(0), Req::Area),
             Cond::Flag(f) => Req::Never(*f),
         }
     }
@@ -749,6 +758,7 @@ impl<'a> Bound<'a> {
             Req::Boss(b) => boss(*b),
             Req::Holds(i) => items.contains(i),
             Req::Got(ls) => ls.iter().any(|&l| taken[l]),
+            Req::Area(a) => reached[*a],
             Req::Never(_) => false,
         };
         t.unexplained.is_none()
@@ -836,6 +846,7 @@ mod tests {
             also: vec![],
             terms: None,
             given_if: None,
+            missable: false,
         }
     }
 
@@ -1079,6 +1090,12 @@ mod tests {
         // A flag nothing explains shuts its way.
         m.locations[0].given_if = Some(vec![vec![Cond::Boss(2), Cond::Flag(9)]]);
         assert!(!walk(&g, &m));
+        // Being in a map: the cave's, which needs the key, or the first
+        // area's.
+        m.locations[0].given_if = Some(vec![vec![Cond::Map(MapId([31, 0, 0, 0]))]]);
+        assert!(!walk(&g, &m));
+        m.locations[0].given_if = Some(vec![vec![Cond::Map(MapId([60, 40, 37, 0]))]]);
+        assert!(walk(&g, &m));
         // Another location got: the prize's pick-up flag.
         let prize = m.locations.len();
         m.locations.push(at(MapId([60, 40, 37, 0]), [0.0; 3], &[]));

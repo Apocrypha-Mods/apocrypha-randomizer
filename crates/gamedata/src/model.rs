@@ -122,6 +122,11 @@ pub struct Location {
     /// enough; `None` when nothing is asked.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub given_if: Option<Vec<Way>>,
+    /// A gift that waits on a flag an event can turn off again: an NPC's
+    /// quest stage, which the game can move past before the gift is taken. It
+    /// may be missed, so no key item is put there.
+    #[serde(skip_serializing_if = "is_false")]
+    pub missable: bool,
 }
 
 /// One way something is given: all of it must hold.
@@ -137,6 +142,9 @@ pub enum Cond {
     Holds(Item),
     /// Another location got: the flag that picking it up sets.
     Got(u32),
+    /// Being in a map: what an event in that map's own script does, it does
+    /// while the map is loaded.
+    Map(MapId),
     /// An event flag on, which nothing in the model explains.
     Flag(u32),
 }
@@ -164,6 +172,10 @@ pub struct Terms {
     /// Sellen puts Glintstone Cometshard on sale for the Conspectus Scroll.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub handed: Vec<Item>,
+}
+
+fn is_false(v: &bool) -> bool {
+    !v
 }
 
 fn is_zero(v: &u8) -> bool {
@@ -303,6 +315,7 @@ mod tests {
             also: vec![],
             terms: None,
             given_if: None,
+            missable: false,
         }
     }
 

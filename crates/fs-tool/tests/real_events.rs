@@ -168,3 +168,55 @@ fn every_catalogue_claim_holds() {
         }
     }
 }
+
+/// What each byte of a packed word is said to hold, on every use the scripts
+/// write whole (placeholders are filled only when an event starts).
+#[test]
+fn every_packed_byte_claim_holds() {
+    let Some(g) = game() else {
+        eprintln!("APOC_ER_STOCK is not set; skipping");
+        return;
+    };
+    let events = || g.scripts.iter().flat_map(|s| &s.events);
+    for e in catalogue::elden_ring() {
+        for a in e.args.iter().filter(|a| !a.bytes.is_empty()) {
+            for (k, name) in a.bytes.iter().enumerate() {
+                let at = a.word * 4 + k;
+                let (mut n, mut good) = (0, 0);
+                for ev in events() {
+                    for (j, ins) in ev.instructions.iter().enumerate() {
+                        let filled = ev.parameters.iter().any(|p| {
+                            p.instruction == j as i64
+                                && (p.target..p.target + p.size as i64).contains(&(at as i64))
+                        });
+                        if (ins.bank, ins.id) != (e.bank, e.id) || filled {
+                            continue;
+                        }
+                        let b = ins.args[at];
+                        n += 1;
+                        good += match name.as_str() {
+                            "lines" => j + 1 + b as usize <= ev.instructions.len(),
+                            "label" => ev.instructions[j + 1..]
+                                .iter()
+                                .any(|l| l.bank == 1014 && l.id == b as u32),
+                            "group" | "source" => (-15..=15).contains(&(b as i8)),
+                            "state" | "flag_kind" => b <= 3,
+                            "end" => b <= 1,
+                            other => panic!("{}: no such byte as {other}", e.name),
+                        } as usize;
+                    }
+                }
+                let share = 100.0 * good as f64 / n.max(1) as f64;
+                eprintln!("{}.{name}: {share:.1}% of {n}", e.name);
+                let floor = if name == "label" { 98.0 } else { 100.0 };
+                assert!(share >= floor, "{}.{name}: {share:.1}% of {n}", e.name);
+            }
+        }
+    }
+    // Every condition keeps its group in byte 0.
+    for ins in events().flat_map(|ev| &ev.instructions) {
+        if ins.bank < 1000 {
+            assert!((-15..=15).contains(&(ins.args[0] as i8)), "{ins:?}");
+        }
+    }
+}

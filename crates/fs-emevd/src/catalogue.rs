@@ -59,6 +59,12 @@ pub struct Arg {
     pub word: usize,
     pub name: String,
     pub kind: ArgKind,
+    /// For a packed word, what each byte holds, from byte 0: `lines` (how
+    /// many instructions to skip), `label` (a bank 1014 label later in the
+    /// event), `end`, `state`, `group` and `source` (condition groups), or
+    /// `flag_kind`.
+    #[serde(default)]
+    pub bytes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -82,6 +88,14 @@ impl Entry {
         ins.args
             .get(word * 4..word * 4 + 4)
             .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+    }
+
+    /// The byte of an instruction's arguments that a packed word names.
+    pub fn byte(&self, ins: &Instruction, name: &str) -> Option<u8> {
+        self.args.iter().find_map(|a| {
+            let k = a.bytes.iter().position(|b| b == name)?;
+            ins.args.get(a.word * 4 + k).copied()
+        })
     }
 
     pub fn arg(&self, name: &str) -> &Arg {
@@ -180,6 +194,102 @@ pub fn resolve_calls<'a>(
                     });
                 }
             }
+        }
+    }
+    out
+}
+
+/// One run of an event: the event, the call that started it, and its
+/// instructions with every placeholder filled in from that call.
+pub struct Run<'a> {
+    pub event: &'a Event,
+    /// The event whose instruction started this one.
+    pub caller: Option<i64>,
+    /// The arguments it was started with, after the slot and the event id.
+    pub call: Option<Vec<u8>>,
+    pub instructions: Vec<Instruction>,
+}
+
+/// Every run of an event that `script` makes: each event nothing in the
+/// script starts (event 0 and the like), as written, and each event that a
+/// run starts, in `script` or in `common`, with the call's arguments copied
+/// in, as deep as calls go. A run with the same event and call is listed
+/// once.
+pub fn runs<'a>(script: &'a Emevd, common: Option<&'a Emevd>) -> Vec<Run<'a>> {
+    let local: HashMap<u32, &Event> = script.events.iter().map(|e| (e.id as u32, e)).collect();
+    let shared: HashMap<u32, &Event> = common
+        .map(|c| c.events.iter().map(|e| (e.id as u32, e)).collect())
+        .unwrap_or_default();
+    let started: std::collections::HashSet<u32> = script
+        .events
+        .iter()
+        .flat_map(|e| &e.instructions)
+        .filter(|i| EVENT_STARTS.contains(&(i.bank, i.id)))
+        .filter_map(|i| Entry::word(i, 1))
+        .collect();
+    let mut out: Vec<Run<'a>> = Vec::new();
+    let mut seen: std::collections::HashSet<(i64, Option<Vec<u8>>)> = Default::default();
+    let mut todo: Vec<Pending<'a>> = script
+        .events
+        .iter()
+        .filter(|e| !started.contains(&(e.id as u32)))
+        .map(|e| (e, true, None, 0))
+        .collect();
+    while let Some((ev, in_script, call, depth)) = todo.pop() {
+        if !seen.insert((ev.id, call.as_ref().map(|c| c.1.clone()))) {
+            continue;
+        }
+        let instructions = fill(ev, call.as_ref().map(|c| c.1.as_slice()));
+        if depth < MAX_CALL_DEPTH {
+            for ins in &instructions {
+                if !EVENT_STARTS.contains(&(ins.bank, ins.id)) || ins.args.len() < 8 {
+                    continue;
+                }
+                let target = u32::from_le_bytes(ins.args[4..8].try_into().unwrap());
+                // A shared event can only start shared events.
+                let found = in_script
+                    .then(|| local.get(&target))
+                    .flatten()
+                    .map(|e| (*e, true))
+                    .or_else(|| shared.get(&target).map(|e| (*e, false)));
+                if let Some((called, local)) = found {
+                    todo.push((
+                        called,
+                        local,
+                        Some((ev.id, ins.args[8..].to_vec())),
+                        depth + 1,
+                    ));
+                }
+            }
+        }
+        out.push(Run {
+            event: ev,
+            caller: call.as_ref().map(|c| c.0),
+            call: call.map(|c| c.1),
+            instructions,
+        });
+    }
+    out
+}
+
+/// An event to run: whether it is the script's own, its caller and call, and
+/// how deep calls have gone.
+type Pending<'a> = (&'a Event, bool, Option<(i64, Vec<u8>)>, usize);
+
+/// An event's instructions with its parameters copied in from a call's
+/// arguments; with no call, as written.
+fn fill(ev: &Event, call: Option<&[u8]>) -> Vec<Instruction> {
+    let mut out = ev.instructions.clone();
+    let Some(from) = call else {
+        return out;
+    };
+    for p in &ev.parameters {
+        let Some(ins) = out.get_mut(p.instruction as usize) else {
+            continue;
+        };
+        let (src, dst, n) = (p.source as usize, p.target as usize, p.size.max(0) as usize);
+        if let (Some(v), true) = (from.get(src..src + n), dst + n <= ins.args.len()) {
+            ins.args[dst..dst + n].copy_from_slice(v);
         }
     }
     out

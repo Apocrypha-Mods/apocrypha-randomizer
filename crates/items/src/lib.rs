@@ -555,8 +555,12 @@ fn attempt(
 
     // Key items, by assumed fill, leaning deep.
     let lean = KEY_LEAN * strength(options.bias(Category::Key));
-    let open_for_key =
-        |u: usize| units[u].sure() && bound.location_area[units[u].location].is_some();
+    // Not a gift that may be missed: a key there could be lost for good.
+    let open_for_key = |u: usize| {
+        units[u].sure()
+            && bound.location_area[units[u].location].is_some()
+            && !bound.model.locations[units[u].location].missable
+    };
     for i in 0..key_units.len() {
         let k = key_units[i];
         let held: Vec<&str> = key_units[i + 1..]
@@ -838,6 +842,7 @@ mod tests {
             also: vec![],
             terms: None,
             given_if: None,
+            missable: false,
         }
     }
 

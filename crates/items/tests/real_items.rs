@@ -42,6 +42,21 @@ fn seeds_place_every_item_and_can_be_finished() {
     for seed in 0..20 {
         let plan = items::shuffle(&b, &units, seed, &items::Options::default()).unwrap();
         items::check(&b, &units, &plan).unwrap();
+        // A gift that may be missed never holds a key item that moved there.
+        for (u, unit) in units.iter().enumerate() {
+            let from = &units[plan.placed[u]];
+            assert!(
+                !m.locations[unit.location].missable
+                    || from.category != items::Category::Key
+                    || plan.placed[u] == u,
+                "seed {seed}: {:?} ({:?}, from {:?}) on a missable gift {:?} {:?}",
+                from.item.name,
+                from.category,
+                m.locations[from.location].source,
+                m.locations[unit.location].source,
+                unit.place
+            );
+        }
     }
 }
 

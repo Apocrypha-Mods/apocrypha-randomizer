@@ -268,6 +268,56 @@ pub fn extract(s: &Sources) -> Result<Model> {
         }
     }
 
+    // The ways each flag is turned on by an event: what the run asks on the
+    // way to the instruction that sets it (`fs_emevd::flow`), and the map
+    // whose script runs it.
+    let mut event_sets: HashMap<u32, Vec<EventWay>> = HashMap::new();
+    let setters = [catalogue::named("set_flag"), catalogue::named("set_flag_b")];
+    let sets = |i: &fs_emevd::Instruction| -> Option<u32> {
+        let e = setters.iter().find(|e| (e.bank, e.id) == (i.bank, i.id))?;
+        let word = |name| catalogue::Entry::word(i, e.arg(name).word);
+        (word("kind")? == 0 && word("state")? == 1)
+            .then(|| word("flag"))
+            .flatten()
+            .filter(|&f| f != 0)
+    };
+    // Every flag an event can turn off, on any path: a gift that waits on one
+    // may be missed. Talk scripts turn their own flags off and on as a
+    // conversation goes, which says nothing of a quest moving on, so they are
+    // left out.
+    let mut cleared: HashSet<u32> = HashSet::new();
+    let range = catalogue::named("set_flag_range");
+    for &(_, script, common) in &scripts[..scripts.len() - 1] {
+        for run in catalogue::runs(script, common) {
+            for i in &run.instructions {
+                let word = |e: &catalogue::Entry, name| catalogue::Entry::word(i, e.arg(name).word);
+                if let Some(e) = setters.iter().find(|e| (e.bank, e.id) == (i.bank, i.id))
+                    && word(e, "state") == Some(0)
+                    && let Some(f) = word(e, "flag")
+                {
+                    cleared.insert(f);
+                }
+                if (i.bank, i.id) == (range.bank, range.id)
+                    && word(range, "state") == Some(0)
+                    && let (Some(a), Some(b)) = (word(range, "first"), word(range, "last"))
+                    && a <= b
+                    && b - a < 1000
+                {
+                    cleared.extend(a..=b);
+                }
+            }
+        }
+    }
+    for &(map, script, common) in &scripts[..scripts.len() - 1] {
+        for run in catalogue::runs(script, common) {
+            for (at, ways) in fs_emevd::flow::ways_to(&run.instructions, |i| sets(i).is_some()) {
+                let flag = sets(&run.instructions[at]).unwrap();
+                let all = event_sets.entry(flag).or_default();
+                all.extend(ways.into_iter().map(|way| EventWay { map, way }));
+            }
+        }
+    }
+
     // What the talk scripts give, and which shop rows they open.
     let mut gifts: Vec<(Option<MapId>, &str, i32)> = Vec::new();
     let mut sold_by: HashMap<i32, BTreeSet<(MapId, &str)>> = HashMap::new();
@@ -295,6 +345,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             {
                 talk_sets.entry(flag).or_default().insert(r.needs.clone());
             }
+
             for (_, a, b) in SHOP_RANGES.iter().filter(|s| s.0 == command) {
                 let (Some(Some(first)), Some(Some(last))) = (r.args.get(*a), r.args.get(*b)) else {
                     continue;
@@ -472,6 +523,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             also: Vec::new(),
             terms: None,
             given_if: None,
+            missable: false,
             lot: Some(Lot {
                 table: table.into(),
                 ids,
@@ -754,6 +806,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
                     .collect(),
             }),
             given_if: None,
+            missable: false,
         });
     }
 
@@ -801,6 +854,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             also: Vec::new(),
             terms: None,
             given_if: None,
+            missable: false,
         });
     }
 
@@ -830,7 +884,11 @@ pub fn extract(s: &Sources) -> Result<Model> {
         handed: &handed,
         got: model.locations.iter().filter_map(|l| l.flag).collect(),
         talk_sets: &talk_sets,
+        event_sets: &event_sets,
+        cleared: &cleared,
         names: &names,
+        memo: Default::default(),
+        fleeting: Default::default(),
     };
     for l in model.locations.iter_mut().filter(|l| l.kind == Kind::Gift) {
         let Some(ways) = l
@@ -841,14 +899,16 @@ pub fn extract(s: &Sources) -> Result<Model> {
             continue;
         };
         let mut out: Vec<Way> = Vec::new();
+        explain.fleeting.set(false);
         for atoms in ways {
             out.extend(explain.ways(atoms, 0));
         }
+        l.missable = explain.fleeting.get();
         out.sort_by_key(Vec::len);
         out.dedup();
         out.truncate(MAX_WAYS);
-        // A way that asks nothing makes the rest moot.
-        l.given_if = (!out.first().is_none_or(Vec::is_empty)).then_some(out);
+        // A way that asks nothing makes the rest moot; no way at all is never.
+        l.given_if = (out.first() != Some(&Vec::new())).then_some(out);
     }
 
     Ok(model)
@@ -906,7 +966,26 @@ struct Explain<'a> {
     /// Flags that picking up a location sets.
     got: HashSet<u32>,
     talk_sets: &'a HashMap<u32, BTreeSet<BTreeSet<Atom>>>,
+    event_sets: &'a HashMap<u32, Vec<EventWay>>,
+    /// Flags an event can turn off again.
+    cleared: &'a HashSet<u32>,
     names: &'a Names<'a>,
+    /// Each flag's ways at a depth, and whether any flag on the way can be
+    /// turned off again.
+    memo: std::cell::RefCell<HashMap<(u32, usize), Explained>>,
+    /// Whether what was explained since this was reset used a flag that can
+    /// be turned off again.
+    fleeting: std::cell::Cell<bool>,
+}
+
+/// A flag's ways, and whether any flag on the way can be turned off again.
+type Explained = (Vec<Way>, bool);
+
+/// One way an event turns a flag on: what its run asks, in the script of
+/// `map` (none for the common script, which always runs).
+struct EventWay {
+    map: Option<MapId>,
+    way: fs_emevd::flow::Way,
 }
 
 impl Explain<'_> {
@@ -954,25 +1033,71 @@ impl Explain<'_> {
         if self.got.contains(&f) {
             return vec![vec![Cond::Got(f)]];
         }
-        if let Some(setters) = self.talk_sets.get(&f).filter(|_| depth < MAX_DEPTH) {
-            let mut out: Vec<Way> = setters
-                .iter()
-                .flat_map(|atoms| {
-                    // The flag itself is not a reason for itself.
-                    let rest: BTreeSet<Atom> = atoms
-                        .iter()
-                        .filter(|a| **a != Atom::Flag(f, true))
-                        .copied()
-                        .collect();
-                    self.ways(&rest, depth + 1)
-                })
-                .collect();
-            out.sort_by_key(Vec::len);
-            out.dedup();
-            out.truncate(MAX_WAYS);
-            return out;
+        let talk = self.talk_sets.get(&f);
+        let events = self.event_sets.get(&f);
+        if (talk.is_none() && events.is_none()) || depth >= MAX_DEPTH {
+            return vec![vec![Cond::Flag(f)]];
         }
-        vec![vec![Cond::Flag(f)]]
+        if let Some((known, fleeting)) = self.memo.borrow().get(&(f, depth)) {
+            self.fleeting.set(self.fleeting.get() || *fleeting);
+            return known.clone();
+        }
+        let outer = self.fleeting.replace(self.cleared.contains(&f));
+        let mut out: Vec<Way> = Vec::new();
+        for atoms in talk.into_iter().flatten() {
+            // The flag itself is not a reason for itself.
+            let rest: BTreeSet<Atom> = atoms
+                .iter()
+                .filter(|a| **a != Atom::Flag(f, true))
+                .copied()
+                .collect();
+            out.extend(self.ways(&rest, depth + 1));
+        }
+        for e in events.into_iter().flatten() {
+            out.extend(self.event_way(e, f, depth + 1));
+        }
+        out.sort_by_key(Vec::len);
+        out.dedup();
+        out.truncate(MAX_WAYS);
+        if out.is_empty() {
+            // Named, so that what blocks is reported.
+            out.push(vec![Cond::Flag(f)]);
+        }
+        let fleeting = self.fleeting.get();
+        self.memo
+            .borrow_mut()
+            .insert((f, depth), (out.clone(), fleeting));
+        self.fleeting.set(outer || fleeting);
+        out
+    }
+
+    /// The ways to have what an event run asks before it sets `f`. Flags that
+    /// must be off are taken to be off, as in talk.
+    fn event_way(&self, e: &EventWay, f: u32, depth: usize) -> Vec<Way> {
+        use fs_emevd::flow::Test;
+        let mut ways: Vec<Way> = vec![e.map.map(Cond::Map).into_iter().collect()];
+        for lit in &e.way {
+            let options = match (&lit.test, lit.holds) {
+                (Test::Flag(g), true) if *g != f => self.flag(*g, depth),
+                (Test::Flag(_), _) => continue,
+                // A test not read (a position, a character's state, a count)
+                // shuts the way: it may ask what the logic cannot see.
+                (Test::Other { .. }, _) => return Vec::new(),
+            };
+            let mut next: Vec<Way> = Vec::new();
+            for w in &ways {
+                for o in &options {
+                    let mut both = w.clone();
+                    both.extend(o.iter().filter(|c| !w.contains(c)).cloned());
+                    next.push(both);
+                }
+            }
+            next.sort_by_key(Vec::len);
+            next.dedup();
+            next.truncate(MAX_WAYS);
+            ways = next;
+        }
+        ways
     }
 
     fn item(&self, kind: ItemKind, id: i32) -> Item {
