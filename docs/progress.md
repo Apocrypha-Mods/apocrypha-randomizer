@@ -8,7 +8,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks; 86 wait on NPC quest phases not yet read and are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
-| 4. Item randomizer | seeds proven; boot check waiting | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. `apoc-rando gen` writes regulation.bin and a spoiler log. Open: one seed booted in the lab, and the options the spec will define. |
+| 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 
 ## Phase 0: setup
 
@@ -630,6 +630,15 @@ Two things to know when reading a spoiler log:
 - Some key items exist twice in the game's lots, such as Godrick's Great
   Rune and the Academy Glintstone Key, and both copies are placed.
 - Dragon Hearts count as key items, as Dragon Communion is paid in them.
+
+**Gate run, 2026-10-29.**
+- `apoc-rando check <stock> --seeds 10000` (nice 19, four threads) placed and
+  proved seeds 0 to 9,999 in 526 s, with none failing.
+- Seed 1 then ran in the headless lab (`ER_MOD=scratch/seed1
+  tools/er-lab/run.sh`, the first run of the repo copy of the scripts). me3
+  served its `regulation.bin`, the save loaded in the Chapel of Anticipation,
+  and the body by the start, which gives the Tarnished's Wizened Finger in the
+  unmodded game, gave the Twinned Helm, as the spoiler log says.
 
 `crates/items/tests/real_items.rs` places 20 seeds on the real game and checks
 that a plan is written into ItemLotParam_map slot by slot; the unit tests
