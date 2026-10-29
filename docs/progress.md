@@ -6,7 +6,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
-| 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
+| 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks; 86 wait on NPC quest phases not yet read and are not counted. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 
 ## Phase 0: setup
@@ -158,6 +158,51 @@ How "round-trip byte for byte" is checked:
 - **BND4:** each binder is parsed and written back, and the output must equal
   the original bytes, for every top-level and nested binder.
 
+### Step 3: the game runs on files we write
+
+`apoc-fs boot-test <game> <out>` builds a me3 mod folder, every file written
+by our own code and compressed with zstd:
+- `regulation.bin`, with the Vagabond starting with Moonveil;
+- `msg/engus/item_dlc02.msgbnd.dcx`, with Moonveil renamed "Moonveil
+  (Apocrypha boot test)";
+- the maps and event scripts of the Chapel of Anticipation (`m10_01_00_00`)
+  and the Stranded Graveyard (`m18_00_00_00`), rewritten unchanged.
+
+Run on 2026-10-29 in the headless lab (`tools/er-lab`, below):
+- me3 served all four of the files the run reached (the regulation, the item
+  text, and the chapel's map and events);
+- the class screen showed the Vagabond holding a katana;
+- the equipment screen read "Moonveil (Apocrypha boot test)";
+- the chapel loaded from our map and event script, and the character walked
+  through it with the HUD showing Moonveil.
+
+### The headless lab
+
+`tools/er-lab` runs the game where it cannot disturb the desktop, for checks
+like this one and Phase 4's "one seed boots":
+- **Display:** headless gamescope at 640x360 and 10 fps.
+- **Its own prefix** (`scratch/lab`), with low graphics and a copy of the save.
+- **Limits:** nice 19, idle I/O, a 400% CPU quota and a 9 GB memory cap, in
+  the `apoc-er-lab` scope.
+- **Audio:** a null sink, also muted.
+- **Input:** keys go to gamescope's own X display (`keys.sh`), and
+  `gamescopectl screenshot` takes the pictures.
+
+Getting it to run took four findings:
+- **Steam must be running.** Without it `SteamAPI_Init` fails with "create
+  pipe failed", and the game quits.
+- **Pin no cores.** With `taskset`, Wwise cannot pin its threads and sound
+  fails to start, which stops the game (`MOWwiseMan.cpp(883)`), so the CPU is
+  limited by quota instead.
+- **me3's launcher check.** Its Steam check fails inside gamescope, so the
+  attach config sets `skip_steam_init`.
+- **`ME3_GAME_LAUNCHED`.** me3's host panics without it ("ME3_GAME not set"),
+  alongside the `ME3_LAUNCHER_*` variables, `ME3_LAUNCHER_ARGV` among them.
+
+A first attempt ran the game full screen beside other games and the PC
+froze. The lab exists so that does not happen again. Check the machine's
+load before a run.
+
 ### Still to do
 
 - [ ] **The name-list count.** The gate wants the extracted count to match a
@@ -166,16 +211,7 @@ How "round-trip byte for byte" is checked:
       of any list it is given. One clean option is to build our own list from
       the game: names inside binders, path strings in the exe, and patterns
       such as map and character ids.
-- [ ] **Step 3: the game accepts files we write.** `apoc-fs boot-test <game>
-      <out>` builds the mod folder, every file written by our code and
-      compressed with zstd:
-      - `regulation.bin`, with the Vagabond starting with Moonveil;
-      - `item_dlc02.msgbnd.dcx`, with Moonveil renamed "Moonveil (Apocrypha
-        boot test)";
-      - the Stranded Graveyard's map and event script, rewritten unchanged.
-
-      Built on 2026-10-29 (`scratch/boot-test-mod`). It waits on a launch
-      through me3: check the class screen, then the first area.
+- [x] **Step 3: the game accepts files we write** (below).
 - [ ] **Legal opinion on `oozextract`** before anything that ships enables
       `fs-dcx/kraken`.
 

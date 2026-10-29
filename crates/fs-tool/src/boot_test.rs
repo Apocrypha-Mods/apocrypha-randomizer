@@ -6,8 +6,10 @@
 //!   Moonveil in the right hand, shown at character creation;
 //! - `msg/engus/item_dlc02.msgbnd.dcx`: Moonveil is renamed, so the class
 //!   screen shows our text;
-//! - the Stranded Graveyard's map and event script (`m18_00_00_00`), parsed
-//!   and written back unchanged, so the first area loads from our files.
+//! - the maps and event scripts of the Chapel of Anticipation
+//!   (`m10_01_00_00`, where a new game starts) and the Stranded Graveyard
+//!   (`m18_00_00_00`), parsed and written back unchanged, so the first areas
+//!   load from our files.
 
 use std::path::{Path, PathBuf};
 
@@ -22,8 +24,7 @@ const VAGABOND: i32 = 3000;
 const MOONVEIL: i64 = 9_060_000;
 pub const NAME: &str = "Moonveil (Apocrypha boot test)";
 const ITEM_TEXT: &str = "/msg/engus/item_dlc02.msgbnd.dcx";
-const MAP: &str = "/map/mapstudio/m18_00_00_00.msb.dcx";
-const EVENT: &str = "/event/m18_00_00_00.emevd.dcx";
+const MAPS: [&str; 2] = ["m10_01_00_00", "m18_00_00_00"];
 
 pub fn run(game: PathBuf, out: PathBuf) -> Result<()> {
     let dvd = Dvd::open_elden_ring(&game)?;
@@ -69,11 +70,18 @@ pub fn run(game: PathBuf, out: PathBuf) -> Result<()> {
     put(&out, ITEM_TEXT, &item_text)?;
     eprintln!("Moonveil renamed in {renamed} table(s)");
 
-    // The first area's map and event script, through our parsers.
-    for (path, rewrite) in [
-        (MAP, rewrite_msb as fn(&[u8]) -> Result<Vec<u8>>),
-        (EVENT, rewrite_emevd),
-    ] {
+    // The first areas' maps and event scripts, through our parsers.
+    let files = MAPS.iter().flat_map(|m| {
+        [
+            (
+                format!("/map/mapstudio/{m}.msb.dcx"),
+                rewrite_msb as fn(&[u8]) -> Result<Vec<u8>>,
+            ),
+            (format!("/event/{m}.emevd.dcx"), rewrite_emevd),
+        ]
+    });
+    for (path, rewrite) in files {
+        let path = path.as_str();
         let (header, plain) = fs_dcx::decompress(&dvd.read_path(path)?)?;
         let again = rewrite(&plain)?;
         if again != plain {
