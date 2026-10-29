@@ -621,6 +621,27 @@ the seed.
   into a me3 mod folder and the spoiler log beside it: where each key item
   went, then every slot by area, with what it held before.
 
+**The player's sliders** (docs/spec/items.md §2.1, §2.3), from
+`apoc-rando --shuffle <category>=<percent>,… --bias <category>=<percent>,…`:
+- **Two sliders per category.** Each of the ten categories (key items,
+  weapons, armour, talismans, spells, Ashes of War, spirit ashes, upgrades,
+  quest items, consumables) has a shuffle slider, how much of it moves, and
+  a bias slider, how strongly what moves leans deep.
+- **Categories on the real game:** 165 key items, 439 weapons, 396 armour,
+  153 talismans, 122 spells, 86 Ashes of War, 102 spirit ashes, 769
+  upgrades, 449 quest items and 2,041 consumables.
+- **Depth** (`crates/items/src/depth.rs`) is our own: three quarters how late
+  the vanilla walk opens the slot's area, a quarter how hard the slot is.
+- **The effect of bias:** at full key bias, key items sit at a mean depth of
+  0.72, against 0.47 with none (10 seeds each).
+- **Weights are whole numbers** from our own `exp`, built from plain
+  arithmetic, so every platform draws the same.
+- **Every option goes into the spoiler log.**
+- **Gate rerun, 2026-10-29** (nice 19, four threads), none failing:
+  - 10,000 seeds with the default sliders, in 567 s;
+  - 2,000 with every bias at 100%, in 113 s;
+  - 2,000 with half of everything moving and keys at 60% bias, in 64 s.
+
 Making the walk fast enough mattered: rounds now visit only the locations
 that give something or that another waits on, and the rest are taken in one
 pass at the end. Taking a location now also counts as a change, since a gift

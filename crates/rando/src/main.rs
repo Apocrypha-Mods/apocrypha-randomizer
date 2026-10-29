@@ -29,6 +29,8 @@ enum Command {
         /// The mod folder to write.
         #[arg(long)]
         out: PathBuf,
+        #[command(flatten)]
+        sliders: Sliders,
     },
     /// Place items for many seeds and prove each can be finished.
     Check {
@@ -38,14 +40,52 @@ enum Command {
         seeds: u64,
         #[arg(long, default_value_t = 0)]
         from: u64,
+        #[command(flatten)]
+        sliders: Sliders,
     },
+}
+
+/// The player's sliders, per category of item (docs/spec/items.md). A
+/// category is one of keys, weapons, armour, talismans, spells,
+/// ashes-of-war, spirit-ashes, upgrades, quest, consumables, or all.
+#[derive(clap::Args)]
+struct Sliders {
+    /// How much of a category moves, 0 to 100 (default 100):
+    /// `--shuffle all=50,keys=100`.
+    #[arg(long, default_value = "")]
+    shuffle: String,
+    /// How strongly moved items lean towards deep slots, 0 to 100
+    /// (default 0): `--bias keys=60,weapons=30`.
+    #[arg(long, default_value = "")]
+    bias: String,
+}
+
+impl Sliders {
+    fn options(&self) -> Result<items::Options> {
+        let mut o = items::Options::default();
+        o.set(false, &self.shuffle).map_err(format_err)?;
+        o.set(true, &self.bias).map_err(format_err)?;
+        Ok(o)
+    }
 }
 
 fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
-        Command::Gen { game, seed, out } => gen_seed(game, seed, out),
-        Command::Check { game, seeds, from } => check(game, from, seeds),
+        Command::Gen {
+            game,
+            seed,
+            out,
+            sliders,
+        } => sliders
+            .options()
+            .and_then(|o| gen_seed(game, seed, out, &o)),
+        Command::Check {
+            game,
+            seeds,
+            from,
+            sliders,
+        } => sliders.options().and_then(|o| check(game, from, seeds, &o)),
     };
     if let Err(e) = result {
         eprintln!("error: {e}");
@@ -53,7 +93,7 @@ fn main() {
     }
 }
 
-fn gen_seed(game: PathBuf, seed: u64, out: PathBuf) -> Result<()> {
+fn gen_seed(game: PathBuf, seed: u64, out: PathBuf, options: &items::Options) -> Result<()> {
     let sources = Sources::open(&game)?;
     let model = elden_ring::extract(&sources)?;
     let graph = logic::elden_ring();
@@ -65,7 +105,7 @@ fn gen_seed(game: PathBuf, seed: u64, out: PathBuf) -> Result<()> {
         )));
     }
     let units = items::units(&model, &bound, &sources.reg)?;
-    let plan = items::shuffle(&bound, &units, seed).map_err(format_err)?;
+    let plan = items::shuffle(&bound, &units, seed, options).map_err(format_err)?;
     let mut reg = fs_param::Regulation::open(&game)?;
     items::apply(&mut reg, &units, &plan)?;
     std::fs::create_dir_all(&out)?;
@@ -81,7 +121,7 @@ fn gen_seed(game: PathBuf, seed: u64, out: PathBuf) -> Result<()> {
     Ok(())
 }
 
-fn check(game: PathBuf, from: u64, seeds: u64) -> Result<()> {
+fn check(game: PathBuf, from: u64, seeds: u64, options: &items::Options) -> Result<()> {
     let t = Instant::now();
     let sources = Sources::open(&game)?;
     let model = elden_ring::extract(&sources)?;
@@ -105,7 +145,7 @@ fn check(game: PathBuf, from: u64, seeds: u64) -> Result<()> {
     let failures: Vec<String> = (from..from + seeds)
         .into_par_iter()
         .filter_map(|seed| {
-            let r = items::shuffle(&bound, &units, seed).err();
+            let r = items::shuffle(&bound, &units, seed, options).err();
             let n = done.fetch_add(1, Ordering::Relaxed) + 1;
             if n.is_multiple_of(1000) {
                 eprintln!("  {n} seeds");

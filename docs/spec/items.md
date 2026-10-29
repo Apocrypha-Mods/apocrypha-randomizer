@@ -19,8 +19,25 @@ the same options always gives the same game.
 
 - **Everything can move**: one-off pick-ups (treasure, one-time enemy drops,
   event and boss rewards, NPC gifts), merchants' stock, and starting gear.
-- What exactly moves in a seed is the player's choice, not ours. How that
-  choice is offered is open: it waits on the bias research (§2.3).
+- What exactly moves in a seed is the player's choice, not ours. Every
+  category of item has its own **shuffle slider**, 0–100%:
+  - at 0% the category stays exactly where the unmodded game has it;
+  - at 100% all of it moves;
+  - in between, each item of it moves with that chance, drawn from the seed.
+
+  Items that move trade places among the slots of the items that moved.
+- The categories, read from the game's own data:
+  - key items: what any requirement of the area map names;
+  - weapons;
+  - armour;
+  - talismans;
+  - spells (sorceries and incantations);
+  - Ashes of War;
+  - spirit ashes;
+  - upgrade materials;
+  - quest and tool items: other important goods such as keys, letters,
+    cookbooks and bell bearings;
+  - consumables and crafting materials.
 
 ### 2.2 Merchants
 
@@ -32,9 +49,25 @@ the same options always gives the same game.
 
 - Key items may go **anywhere the logic can reach in time**. Nothing is ruled
   out by us.
-- The player sets the level of bias with a slider. What the slider weighs and
-  how is being worked out (a dirty-room study of the slider players already
-  know; its reviewed write-up will land in this folder).
+- Every category also has a **bias slider**, 0–100%: how strongly what
+  moves leans. At 0% every free slot is equally likely.
+- **Depth.** Bias leans on how deep a slot is, from 0 to 1. It is our own
+  measure:
+  - mostly *lateness*: how far into the game its area opens, in the
+    unmodded game's order;
+  - partly *hardness*: boss rewards are hardest, then one-time drops from
+    notable enemies, then dungeon items, then NPC gifts and scripted awards,
+    then items lying in the open world.
+- **Key items** lean towards deep slots. The higher the bias, the more key
+  items sit behind other key items, forming chains.
+- **Other items** lean towards slots as deep as they are worth. An item's
+  worth is how deep the unmodded game hides it, so late-game items drift
+  late and early items early.
+- The slider's effect grows with its square: gentle at the low end, strong
+  at the top. At 100% no slot is ruled out, it is only much less likely.
+- How the sliders behave was informed by how players already know such a
+  slider to behave (`bias.md`, a reviewed behaviour-only study). The design
+  here is our own.
 
 ### 2.4 Quest items
 

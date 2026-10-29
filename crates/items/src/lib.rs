@@ -9,11 +9,17 @@
 //!   are treasure, one-time enemy drops, script awards, NPC gifts and boss
 //!   rewards ([`SHUFFLED`]). Shops, gathering, farmable drops and starting
 //!   equipment stay as they are.
-//! - **Key items** go first, by assumed fill: each is placed in a random
-//!   reachable slot of a walk that assumes every key item not yet placed is
-//!   already held. A key item only goes in a slot that always gives it
-//!   (chance 1000) at a location the area map puts in an area.
-//! - **Everything else** is shuffled into the slots left.
+//! - **The player's sliders** ([`options`]): for each category of item, how
+//!   much of it moves (the rest stays where the unmodded game has it) and
+//!   how strongly what moves leans towards deep slots ([`depth`]).
+//! - **Key items** go first, by assumed fill: each is placed in a reachable
+//!   slot of a walk that assumes every key item not yet placed is already
+//!   held, drawn with the key-item bias. A key item only goes in a slot that
+//!   always gives it (chance 1000) at a location the area map puts in an
+//!   area.
+//! - **Everything else** that moves fills the slots left, each item drawn
+//!   towards slots as deep as it is worth, as strongly as its category's
+//!   bias says.
 //! - **The check.** The finished placement is walked from the start with
 //!   nothing assumed, and the goal must be reached.
 //!
@@ -29,9 +35,22 @@ use gamedata::Model;
 use gamedata::model::{Item, ItemKind, Kind};
 use logic::Bound;
 
+pub mod depth;
+pub mod options;
 pub mod rng;
 
+pub use options::{Category, Options};
 use rng::Rng;
+
+/// How strongly a full bias leans: a key item's weight grows by e^KEY_LEAN
+/// from the shallowest slot to the deepest; another item's falls by
+/// e^REST_LEAN from a slot as deep as it is worth to the farthest. Our own
+/// choice, to be tuned by play. A slider's effect grows with its square, so
+/// the low end stays gentle.
+const KEY_LEAN: f64 = 6.0;
+const REST_LEAN: f64 = 10.0;
+/// Depth bands the other items are drawn through, for speed.
+const BANDS: usize = 20;
 
 /// The kinds of location whose items are shuffled.
 pub const SHUFFLED: [Kind; 5] = [
@@ -56,6 +75,8 @@ pub struct Unit {
     pub slot: usize,
     /// The item the game puts here, with the slot's chance (out of 1000).
     pub item: Item,
+    /// The category of that item, for the sliders.
+    pub category: Category,
 }
 
 impl Unit {
@@ -89,9 +110,47 @@ fn kind_of(category: i64) -> Option<ItemKind> {
     })
 }
 
+/// An item's category, from what the game says of it.
+fn category(item: &Item, goods_type: &HashMap<i32, i64>, keys: &BTreeSet<&str>) -> Category {
+    if item.name.as_deref().is_some_and(|n| keys.contains(n)) {
+        return Category::Key;
+    }
+    match item.kind {
+        ItemKind::Weapon | ItemKind::CustomWeapon => Category::Weapon,
+        ItemKind::Protector => Category::Armour,
+        ItemKind::Accessory => Category::Talisman,
+        ItemKind::Gem => Category::AshOfWar,
+        ItemKind::Goods => {
+            let t = goods_type.get(&item.id).copied().unwrap_or(0);
+            let id = item.id;
+            if matches!(t, 3 | 4)
+                && ((4000..8000).contains(&id) || (2_004_000..2_008_000).contains(&id))
+            {
+                Category::Spell
+            } else if (200_000..300_000).contains(&id) || (2_200_000..2_300_000).contains(&id) {
+                Category::SpiritAsh
+            } else if t == 2 {
+                Category::Upgrade
+            } else if matches!(t, 3 | 6) {
+                Category::Quest
+            } else {
+                Category::Consumable
+            }
+        }
+    }
+}
+
 /// Every item slot of the shuffled locations, in the order of the model's
 /// locations, each slot once.
 pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>> {
+    let keys = bound.key_items();
+    let goods = for_table("EquipParamGoods").ok_or_else(|| format_err("no goods layout"))?;
+    let goods_type: HashMap<i32, i64> = reg
+        .table("EquipParamGoods")?
+        .rows
+        .iter()
+        .map(|r| (r.id, goods.field("goods_type").get(&r.data, 0)))
+        .collect();
     let names: HashMap<(ItemKind, i32), &str> = model
         .locations
         .iter()
@@ -143,18 +202,20 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                 } else {
                     0
                 };
+                let item = Item {
+                    kind,
+                    id: item_id,
+                    count: count.get(data, slot).max(1) as u32,
+                    chance: chance as u32,
+                    name: names.get(&(kind, item_id)).map(|n| n.to_string()),
+                };
                 out.push(Unit {
                     location: i,
                     table: lot.table.clone(),
                     row,
                     slot,
-                    item: Item {
-                        kind,
-                        id: item_id,
-                        count: count.get(data, slot).max(1) as u32,
-                        chance: chance as u32,
-                        name: names.get(&(kind, item_id)).map(|n| n.to_string()),
-                    },
+                    category: category(&item, &goods_type, &keys),
+                    item,
                 });
             }
         }
@@ -167,6 +228,7 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Plan {
     pub seed: u64,
+    pub options: Options,
     pub placed: Vec<usize>,
 }
 
@@ -220,15 +282,26 @@ pub fn gives<'a>(
     out
 }
 
-/// Place every unit's item from `seed`, or say why it could not be done.
-pub fn shuffle(bound: &Bound, units: &[Unit], seed: u64) -> std::result::Result<Plan, String> {
+/// Place every unit's item from `seed` under the player's `options`, or say
+/// why it could not be done.
+pub fn shuffle(
+    bound: &Bound,
+    units: &[Unit],
+    seed: u64,
+    options: &Options,
+) -> std::result::Result<Plan, String> {
     let keys = bound.key_items();
+    let depth = depth::depths(bound);
     let mut rng = Rng::new(seed);
     let mut last = String::new();
     for _ in 0..ATTEMPTS {
-        match attempt(bound, units, &keys, &mut rng) {
+        match attempt(bound, units, &keys, options, &depth, &mut rng) {
             Ok(placed) => {
-                let plan = Plan { seed, placed };
+                let plan = Plan {
+                    seed,
+                    options: options.clone(),
+                    placed,
+                };
                 check(bound, units, &plan)?;
                 return Ok(plan);
             }
@@ -240,49 +313,88 @@ pub fn shuffle(bound: &Bound, units: &[Unit], seed: u64) -> std::result::Result<
     ))
 }
 
+/// A slider's strength: its square, so the low end stays gentle.
+fn strength(percent: u8) -> f64 {
+    let p = f64::from(percent) / 100.0;
+    p * p
+}
+
+/// A weight as a whole number, so draws are the same on every platform.
+fn weight(x: f64) -> u64 {
+    (rng::exp(x) * 1e6) as u64
+}
+
 fn attempt(
     bound: &Bound,
     units: &[Unit],
     keys: &BTreeSet<&str>,
+    options: &Options,
+    depth: &[f64],
     rng: &mut Rng,
 ) -> std::result::Result<Vec<usize>, String> {
-    let is_key = |u: usize| {
-        units[u]
-            .item
-            .name
-            .as_deref()
-            .is_some_and(|n| keys.contains(n))
-    };
-    let mut key_units: Vec<usize> = (0..units.len()).filter(|&u| is_key(u)).collect();
-    let mut rest: Vec<usize> = (0..units.len()).filter(|&u| !is_key(u)).collect();
+    let n = units.len();
+    // Which items move: each with its category's shuffle chance.
+    let moving: Vec<bool> = units
+        .iter()
+        .map(|u| rng.below(100) < usize::from(options.shuffle(u.category)))
+        .collect();
+    let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();
+    let mut key_units: Vec<usize> = (0..n)
+        .filter(|&u| moving[u] && units[u].category == Category::Key)
+        .collect();
+    let mut rest: Vec<usize> = (0..n)
+        .filter(|&u| moving[u] && units[u].category != Category::Key)
+        .collect();
     rng.shuffle(&mut key_units);
     rng.shuffle(&mut rest);
 
-    let mut placed: Vec<Option<usize>> = vec![None; units.len()];
-    // Slots a key item may go in.
+    // Key items, by assumed fill, leaning deep.
+    let lean = KEY_LEAN * strength(options.bias(Category::Key));
     let open_for_key =
         |u: usize| units[u].sure() && bound.location_area[units[u].location].is_some();
-    for n in 0..key_units.len() {
-        let k = key_units[n];
-        let held: Vec<&str> = key_units[n + 1..]
+    for i in 0..key_units.len() {
+        let k = key_units[i];
+        let held: Vec<&str> = key_units[i + 1..]
             .iter()
             .filter_map(|&u| units[u].item.name.as_deref())
             .collect();
         let walk = bound.walk_holding(&gives(bound, units, &placed, keys), &held);
-        let free: Vec<usize> = (0..units.len())
+        let free: Vec<usize> = (0..n)
             .filter(|&u| placed[u].is_none() && open_for_key(u) && walk.taken[units[u].location])
             .collect();
-        if free.is_empty() {
+        let weights: Vec<u64> = free
+            .iter()
+            .map(|&u| weight(lean * depth[units[u].location]))
+            .collect();
+        let Some(at) = rng.weighted(&weights) else {
             return Err(format!(
                 "nowhere reachable for {}",
                 units[k].item.name.as_deref().unwrap_or("?")
             ));
-        }
-        placed[free[rng.below(free.len())]] = Some(k);
+        };
+        placed[free[at]] = Some(k);
     }
-    let mut empty: Vec<usize> = (0..units.len()).filter(|&u| placed[u].is_none()).collect();
-    rng.shuffle(&mut empty);
-    for (u, from) in empty.into_iter().zip(rest) {
+
+    // Everything else, each item towards slots as deep as it is worth.
+    let band = |u: usize| ((depth[units[u].location] * BANDS as f64) as usize).min(BANDS - 1);
+    let mut bands: Vec<Vec<usize>> = vec![Vec::new(); BANDS];
+    for u in (0..n).filter(|&u| placed[u].is_none()) {
+        bands[band(u)].push(u);
+    }
+    for from in rest {
+        let lean = REST_LEAN * strength(options.bias(units[from].category));
+        let worth = depth[units[from].location];
+        let weights: Vec<u64> = bands
+            .iter()
+            .enumerate()
+            .map(|(b, slots)| {
+                let middle = (b as f64 + 0.5) / BANDS as f64;
+                slots.len() as u64 * weight(-lean * (middle - worth).abs())
+            })
+            .collect();
+        let b = rng.weighted(&weights).ok_or("more items than slots")?;
+        let slots = &mut bands[b];
+        let u = slots.swap_remove(rng.below(slots.len()));
         placed[u] = Some(from);
     }
     Ok(placed
@@ -370,7 +482,10 @@ pub fn spoiler(bound: &Bound, units: &[Unit], plan: &Plan) -> String {
             name(&unit.item),
         ) + &chance
     };
-    let mut out = format!("Apocrypha randomizer spoiler log\nseed {}\n\n", plan.seed);
+    let mut out = format!(
+        "Apocrypha randomizer spoiler log\nseed {}\n\nOptions\n{}\n",
+        plan.seed, plan.options
+    );
     out += "Key items\n";
     let mut key_lines: Vec<(String, String)> = (0..units.len())
         .filter_map(|u| {
@@ -501,6 +616,11 @@ mod tests {
                 row: i as i32,
                 slot: 0,
                 item: l.items[0].clone(),
+                category: if l.items[0].name.as_deref() == Some("Key") {
+                    Category::Key
+                } else {
+                    Category::Consumable
+                },
             })
             .collect()
     }
@@ -513,7 +633,7 @@ mod tests {
         let us = units(&m);
         let mut west_slots = BTreeSet::new();
         for seed in 0..200 {
-            let plan = shuffle(&b, &us, seed).unwrap();
+            let plan = shuffle(&b, &us, seed, &Options::default()).unwrap();
             let at = (0..us.len())
                 .find(|&u| item_at(&us, &plan, u).name.as_deref() == Some("Key"))
                 .unwrap();
@@ -530,12 +650,37 @@ mod tests {
         let (g, m) = (graph(), model());
         let b = Bound::new(&g, &m);
         let us = units(&m);
-        let a = shuffle(&b, &us, 7).unwrap();
-        assert_eq!(a, shuffle(&b, &us, 7).unwrap());
-        assert_ne!(a.placed, shuffle(&b, &us, 8).unwrap().placed);
+        let a = shuffle(&b, &us, 7, &Options::default()).unwrap();
+        assert_eq!(a, shuffle(&b, &us, 7, &Options::default()).unwrap());
+        assert_ne!(
+            a.placed,
+            shuffle(&b, &us, 8, &Options::default()).unwrap().placed
+        );
         let mut sorted = a.placed.clone();
         sorted.sort();
         assert_eq!(sorted, (0..us.len()).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn a_category_at_no_shuffle_stays_where_it_is() {
+        let (g, m) = (graph(), model());
+        let b = Bound::new(&g, &m);
+        let us = units(&m);
+        let mut none = Options::default();
+        none.set(false, "all=0").unwrap();
+        let plan = shuffle(&b, &us, 5, &none).unwrap();
+        assert_eq!(plan.placed, (0..us.len()).collect::<Vec<_>>());
+        // Keys held still, everything else moving: the key keeps its slot.
+        let mut keys_still = Options::default();
+        keys_still.set(false, "keys=0").unwrap();
+        for seed in 0..20 {
+            let plan = shuffle(&b, &us, seed, &keys_still).unwrap();
+            assert_eq!(plan.placed[0], 0, "seed {seed}");
+        }
+        assert!(
+            (0..20).any(|seed| shuffle(&b, &us, seed, &keys_still).unwrap().placed[1] != 1),
+            "the rest never moved"
+        );
     }
 
     #[test]
@@ -551,6 +696,6 @@ mod tests {
         }
         m.locations[0].items[0].chance = 500;
         let b = Bound::new(&g, &m);
-        assert!(shuffle(&b, &us, 1).is_err());
+        assert!(shuffle(&b, &us, 1, &Options::default()).is_err());
     }
 }
