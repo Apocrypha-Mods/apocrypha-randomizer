@@ -30,6 +30,7 @@ struct Totals {
     bnd4_top: u64,
     bnd4_nested: u64,
     bnd4_files: u64,
+    fmg: u64,
     failures: Vec<String>,
 }
 
@@ -70,6 +71,7 @@ pub fn run(game: PathBuf, names: Option<PathBuf>, recompress: bool, jobs: usize)
             t.bnd4_top += local.bnd4_top;
             t.bnd4_nested += local.bnd4_nested;
             t.bnd4_files += local.bnd4_files;
+            t.fmg += local.fmg;
             t.failures.extend(local.failures);
             drop(t);
             let n = done.fetch_add(1, Ordering::Relaxed) + 1;
@@ -103,6 +105,7 @@ pub fn run(game: PathBuf, names: Option<PathBuf>, recompress: bool, jobs: usize)
         "BND4 round-tripped byte for byte: {} top-level, {} nested, holding {} files",
         t.bnd4_top, t.bnd4_nested, t.bnd4_files
     );
+    println!("FMG round-tripped byte for byte: {}", t.fmg);
     println!("failures: {}", t.failures.len());
     for f in &t.failures {
         println!("FAIL {f}");
@@ -197,6 +200,21 @@ fn bnd4_round_trip(bytes: &[u8], recompress: bool, t: &mut Totals, depth: usize)
         return Ok(());
     }
     for f in &bnd.files {
+        if f.name
+            .as_deref()
+            .is_some_and(|n| n.to_ascii_lowercase().ends_with(".fmg"))
+        {
+            let fmg = fs_fmg::Fmg::read(&f.data)
+                .map_err(|e| format_err(format!("FMG {:?}: {e}", f.short_name())))?;
+            if fmg.write()? != f.data {
+                return Err(format_err(format!(
+                    "FMG {:?} differs when rewritten",
+                    f.short_name()
+                )));
+            }
+            t.fmg += 1;
+            continue;
+        }
         let decompressed;
         let inner: &[u8] = if fs_dcx::is_dcx(&f.data) {
             let (header, plain) = fs_dcx::decompress(&f.data)?;

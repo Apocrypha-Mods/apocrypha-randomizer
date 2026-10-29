@@ -18,6 +18,7 @@ fs-dcx = { path = "crates/fs-dcx" }
 fs-kraken = { path = "crates/fs-kraken" }
 fs-bnd4 = { path = "crates/fs-bnd4" }
 fs-param = { path = "crates/fs-param" }
+fs-fmg = { path = "crates/fs-fmg" }
 
 aes = "0.8"
 base64 = "0.22"

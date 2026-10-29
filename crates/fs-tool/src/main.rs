@@ -14,6 +14,8 @@ use rayon::prelude::*;
 
 mod check;
 mod columns;
+mod labels;
+mod names;
 
 #[derive(Parser)]
 #[command(
@@ -73,6 +75,24 @@ enum Command {
         #[arg(long = "where")]
         filter: Vec<columns::Filter>,
     },
+    /// For each small-valued column, every value with the names of rows that
+    /// have it.
+    Labels {
+        game: PathBuf,
+        table: String,
+        /// The name table rows are named from, e.g. `GoodsName`.
+        names: String,
+        #[arg(long, default_value_t = 0)]
+        from: usize,
+        #[arg(long)]
+        to: Option<usize>,
+        /// Skip columns with more distinct values than this.
+        #[arg(long, default_value_t = 12)]
+        max_distinct: usize,
+        /// How many row names to show for each value.
+        #[arg(long, default_value_t = 6)]
+        samples: usize,
+    },
     /// Read a local BND4 and write it back next to it as `<file>.rewritten`.
     Rewrite { file: PathBuf },
     /// Write one file out of the archives, by path or by hash.
@@ -100,6 +120,15 @@ fn main() {
             jobs,
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
+        Command::Labels {
+            game,
+            table,
+            names,
+            from,
+            to,
+            max_distinct,
+            samples,
+        } => labels::run(game, &table, &names, from, to, max_distinct, samples),
         Command::Params { game, dump } => params(game, dump),
         Command::Columns {
             game,

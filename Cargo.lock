@@ -339,6 +339,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fs-fmg"
+version = "0.1.0"
+dependencies = [
+ "fs-bytes",
+]
+
+[[package]]
 name = "fs-kraken"
 version = "0.1.0"
 dependencies = [
@@ -368,6 +375,7 @@ dependencies = [
  "fs-bytes",
  "fs-dcx",
  "fs-dvdbnd",
+ "fs-fmg",
  "fs-param",
  "rayon",
 ]

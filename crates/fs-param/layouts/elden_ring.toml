@@ -150,12 +150,23 @@ evidence = "Values 0..5; each picks the table equip_id refers to (see equip_id).
 values = { "0" = "weapon", "1" = "protector", "2" = "accessory", "3" = "goods", "4" = "gem" }
 
 # ---------------------------------------------------------------------------
-# Only the fields settled so far; the rest of NpcParam (HP, runes, which
-# spEffect does what) needs its own pass.
+# Only the fields settled so far. HP, runes and team are not: the obvious
+# candidates (0x24 for HP, 0x2C for runes) do not line up with bosses' known
+# values, and bosses such as Margit have no row carrying their name. They wait
+# for the enemy randomizer, where the spec and in-game checks can settle them.
 [[layout]]
 type = "NPC_PARAM_ST"
 row_size = 736
 tables = ["NpcParam"]
+
+[[layout.field]]
+name = "name_id"
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+0 in 6,325 rows; 213 of the other 223 distinct values are ids in the game's
+NpcName text (e.g. Rennala, Queen of the Full Moon on rows 20300000..20310124)."""
 
 [[layout.field]]
 name = "item_lot_enemy_id"
@@ -174,3 +185,232 @@ confidence = "confirmed"
 evidence = """
 -1 in 6,903 rows; every one of the other 59 distinct values is a row id of
 ItemLotParam_map: a lot handed out once, such as a boss's reward."""
+
+# ---------------------------------------------------------------------------
+# Starting equipment. Rows 3000..3009 are the ten starting classes; the other
+# 3,263 rows are NPCs, phantoms and rows that look unused, and some of those
+# carry values that are not items (small numbers like 100..137 in the weapon
+# slots of rows 7500 on). The classes' own starting goods are almost empty
+# (one item, 115), so flasks and other starting items come from elsewhere.
+[[layout]]
+type = "CHARACTER_INIT_PARAM"
+row_size = 320
+tables = ["CharaInitParam"]
+
+[[layout.field]]
+name = "weapon"
+offset = 0x10
+kind = "i32"
+count = 4
+stride = 4
+confidence = "confirmed"
+evidence = """
+In every class row (3000..3009) each value is an EquipParamWeapon row, or one
+once its affinity and level (the last four digits) are cleared; -1 is empty.
+Across all rows 76..93% match the same way, the misses being the NPC and
+unused rows described above. Which slot is which hand is not settled; in the
+class rows slots 2 and 3 hold the 30-34 million ids."""
+
+[[layout.field]]
+name = "weapon_extra"
+offset = 0x108
+kind = "i32"
+count = 2
+stride = 4
+confidence = "probable"
+evidence = """
+Values shaped like weapon ids (3000000, 33000000, 24000000, -1 for none);
+84..88% of rows match EquipParamWeapon by base id. Empty in every class row."""
+
+[[layout.field]]
+name = "protector"
+offset = 0x20
+kind = "i32"
+count = 4
+stride = 4
+confidence = "confirmed"
+evidence = """
+93..97% of values are EquipParamProtector rows, and slot i holds ids whose
+hundreds digit is i (x000, x100, x200, x300): one slot per armor piece, in the
+order the ids number them. Every class row keeps to this; across the table 11
+of 11,880 armor values do not, all of them other ids in the second slot of NPC
+rows (e.g. 702000 on row 6040)."""
+
+[[layout.field]]
+name = "ammo"
+offset = 0x30
+kind = "i32"
+count = 4
+stride = 4
+confidence = "confirmed"
+evidence = """
+90..100% of values are EquipParamWeapon rows, and the commonest are
+50000000/50010000 and 52000000/52020000 (arrows and bolts by their range)."""
+
+[[layout.field]]
+name = "accessory"
+offset = 0x40
+kind = "i32"
+count = 4
+stride = 4
+confidence = "confirmed"
+evidence = "Every value other than -1 is an EquipParamAccessory row (100% in all four slots)."
+
+[[layout.field]]
+name = "goods_a"
+offset = 0x54
+kind = "i32"
+count = 3
+stride = 4
+confidence = "confirmed"
+evidence = "Every value other than -1 is an EquipParamGoods row. What sets these three apart from the other goods slots is not known."
+
+[[layout.field]]
+name = "magic"
+offset = 0x60
+kind = "i32"
+count = 7
+stride = 4
+confidence = "confirmed"
+evidence = "93..100% of the values other than -1 are rows of Magic, in each of the seven slots."
+
+[[layout.field]]
+name = "goods"
+offset = 0x7C
+kind = "i32"
+count = 10
+stride = 4
+confidence = "confirmed"
+evidence = "93..98% of the values other than -1 are EquipParamGoods rows, in each of the ten slots."
+
+[[layout.field]]
+name = "goods_b"
+offset = 0x114
+kind = "i32"
+count = 6
+stride = 4
+confidence = "confirmed"
+evidence = """
+90..100% of the values other than -1 are EquipParamGoods rows. Every class
+row has 115 in the first slot and nothing else."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "EQUIP_PARAM_GOODS_ST"
+row_size = 176
+tables = ["EquipParamGoods"]
+
+[[layout.field]]
+name = "goods_type"
+offset = 0x22
+kind = "u8"
+confidence = "confirmed"
+evidence = """
+Read off the game's own item names (`apoc-fs labels … EquipParamGoods
+GoodsName`): every item with a given value is of one kind. 3 holds the Great
+Runes and quest items such as Deathroot and Shabriri Grape, but also every
+sorcery, so it is not a clean key-item marker: the logic graph lists its key
+items by id."""
+values = { "0" = "other: multiplayer items, consumables, pots, flasks", "1" = "crafting materials", "2" = "upgrade materials: Golden Seed, Sacred Tear, smithing stones, gloveworts", "3" = "Great Runes, quest items and sorceries", "4" = "incantations", "6" = "letters, maps, paintings and notes", "7" = "tutorials (About …)", "15" = "unnamed, unused" }
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "EQUIP_PARAM_WEAPON_ST"
+row_size = 664
+tables = ["EquipParamWeapon"]
+
+[[layout.field]]
+name = "reinforce_type"
+offset = 0xDA
+kind = "u16"
+confidence = "confirmed"
+evidence = """
+32 of its 33 values are rows of ReinforceParamWeapon: the first row of the
+upgrade path, whose level n is that id plus n. It separates weapons upgraded
+with somber stones (Moonveil, Rivers of Blood: 2200) from regular ones
+(Longsword, Dagger: 0, affinities 100..1200). Whether a path is somber is read
+from ReinforceParamWeapon itself (its last level is +10, not +25), not from a
+list of values."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "GAME_AREA_PARAM_ST"
+row_size = 96
+tables = ["GameAreaParam"]
+
+[[layout.field]]
+name = "rune_reward"
+offset = 0x04
+kind = "i32"
+count = 2
+stride = 4
+confidence = "probable"
+evidence = """
+Two near-identical round numbers per row (80000, 120000, 10000) on rows whose
+ids look like boss ids (10000800, 30020800): the runes for a defeat, likely
+alone and with help. To be confirmed in play."""
+
+[[layout.field]]
+name = "defeat_flag"
+offset = 0x44
+kind = "u32"
+confidence = "probable"
+evidence = """
+208 distinct values in event flag ranges, 95% of them equal to some row's own
+id. To be confirmed against EMEVD."""
+
+[[layout.field]]
+name = "position"
+offset = 0x48
+kind = "f32"
+count = 3
+stride = 4
+confidence = "probable"
+evidence = "Three floats per row within about ±2,000: a point in the world."
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "BONFIRE_WARP_PARAM_ST"
+row_size = 236
+tables = ["BonfireWarpParam"]
+
+[[layout.field]]
+name = "event_flag"
+offset = 0x04
+kind = "u32"
+confidence = "probable"
+evidence = """
+A different value in each of the 422 rows, nearly all 71000..76960: the flag
+that records the grace as found. To be confirmed against EMEVD."""
+
+[[layout.field]]
+name = "entity_id"
+offset = 0x08
+kind = "u32"
+confidence = "probable"
+evidence = """
+A different value in each row, shaped like map entity ids (10001950: map
+m10_00, entity 1950). To be confirmed against MSB."""
+
+[[layout.field]]
+name = "sub_category_id"
+offset = 0x14
+kind = "i32"
+confidence = "confirmed"
+evidence = "Every non-zero value is a row of BonfireWarpSubCategoryParam."
+
+[[layout.field]]
+name = "position"
+offset = 0x24
+kind = "f32"
+count = 3
+stride = 4
+confidence = "probable"
+evidence = "Three floats per row within about ±2,000: a point in the world."
+
+[[layout.field]]
+name = "text_id"
+offset = 0x30
+kind = "i32"
+confidence = "confirmed"
+evidence = "419 of the 422 distinct values are ids in the game's PlaceName text: the grace's name."

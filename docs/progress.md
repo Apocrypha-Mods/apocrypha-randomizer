@@ -5,7 +5,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | Phase | State | Evidence |
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
-| 2. Formats | in progress | PARAM: all 194 tables round-trip; field layouts for item lots, shops and part of NpcParam (below). FMG, EMEVD, MSB not started. |
+| 2. Formats | in progress | PARAM: all 194 tables round-trip, field layouts for 9 table types. FMG: all 3,968 round-trip. EMEVD and MSB not started. |
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below). Open: the name-list count, and the step-3 boot test, saved for later. |
 
 ## Phase 0: setup
@@ -214,11 +214,25 @@ records whether it is *confirmed* (the data settles it, and
 `crates/fs-tool/tests/real_params.rs` re-checks it) or *probable* (it waits on
 EMEVD, MSB or play), and the evidence either way.
 
-| Table | Fields so far | How they were settled |
-| --- | --- | --- |
-| `ItemLotParam_map`, `_enemy` | 8 × item id, 8 × category, 8 × weight, 8 × count (confirmed); get-item flag (probable) | Item ids fall in the table their category names (Goods 92–99%, Weapon 100% with upgrade levels, Protector, Accessory, Gem and CustomWeapon 99–100%). Slots 1–7 are empty together in all but 2 of 75,089 slots. Weights sum to exactly 1000 in 97% of map lots and 98% of enemy lots. |
-| `ShopLineupParam`, `_Recipe` | equip id, equip type, material set (confirmed); price, two flags, stock (probable) | Equip ids fall in the table their type names, 97–100% for each type. Material sets resolve in 583 of 588 rows. |
-| `NpcParam` | enemy item lot, map item lot (confirmed) | 98% and 100% of the values are rows of those tables. |
+| Table | Confirmed | Probable | How they were settled |
+| --- | --- | --- | --- |
+| `ItemLotParam_map`, `_enemy` | 8 × item id, category, weight, count | get-item flag | Item ids fall in the table their category names (92–100% per category). Slots 1–7 are empty together in all but 2 of 75,089 slots. Weights sum to exactly 1000 in 97–98% of rows. |
+| `ShopLineupParam`, `_Recipe` | equip id, equip type, material set | price, two flags, stock | Equip ids fall in the table their type names, 97–100% for each type. Material sets resolve in 583 of 588 rows. |
+| `NpcParam` | name, enemy item lot, map item lot | — | 213/223 names are NpcName ids; 98% and 100% of the lots are rows of those tables. |
+| `CharaInitParam` | 4 × weapon, 4 × armor, 4 × ammo, 4 × talisman, 7 × spell, 19 goods slots in three runs | 2 × extra weapon | Every slot of the ten class rows (3000–3009) resolves. Armor slot i holds ids with hundreds digit i in all but 11 of 11,880 values. |
+| `EquipParamGoods` | goods type | — | Read off the item names: 0 is other items, 1 crafting materials, 2 upgrade materials, 3 Great Runes, quest items and sorceries, 4 incantations, 6 letters and notes, 7 tutorials. |
+| `EquipParamWeapon` | reinforce type | — | 32 of 33 values are rows of ReinforceParamWeapon, the start of an upgrade path. A path ending at +10 is somber (Moonveil: 2200); one ending at +25 is regular. |
+| `GameAreaParam` | — | runes ×2, defeat flag, position | Round rune values on boss-like ids; the flags look like event flags; three floats. |
+| `BonfireWarpParam` | grace name, sub category | found flag, entity id, position | 419 of 422 names are PlaceName ids. The flags are unique per grace, in 71000–76960. |
+
+Two developer commands support this:
+
+- **`apoc-fs labels <game> <table> <names>`** lists, for each small-valued
+  column, every value with the names of rows that have it. It names rows from
+  the game's own English text, so a column's meaning can be read off directly.
+  This is how goods type and reinforce type were settled.
+- **`apoc-fs columns`** also tries base ids, the value with its last four
+  digits cleared, so weapon ids with an affinity and a level still match.
 
 The two layout tables encode an item's kind differently:
 
@@ -237,14 +251,45 @@ reports App Ver. 1.17.2.
 
 ### Still to do in PARAM
 
-- [ ] **The rest of `NpcParam`:** HP, runes, team, and the spEffect columns,
-      which point at SpEffectParam in about a dozen places, each meaning
-      something different.
-- [ ] **`CharaInitParam`:** starting classes and starting items.
-- [ ] **The key-item and type fields of `EquipParamGoods`, `EquipParamWeapon`
-      and `EquipParamProtector`.**
-- [ ] **`GameAreaParam`:** boss areas and their flags.
-- [ ] **`SpEffectParam`:** the effects used to scale enemies.
-- [ ] **`BonfireWarpParam`:** graces and their flags.
-- [ ] **Promoting the probable flag fields to confirmed** once EMEVD and MSB
-      can be read.
+- [ ] **`NpcParam` HP, runes and team.** The obvious candidates don't match
+      bosses' known values: 0x24 for HP gives Rennala 1452 and 1703, and 0x2C
+      for runes is mostly zero. Bosses such as Margit and Godrick have no row
+      carrying their name. These are left for the enemy randomizer, where the
+      spec and in-game checks can settle them, rather than recorded on weak
+      evidence.
+- [ ] **`SpEffectParam`.** The effects that scale enemies have no names to
+      read them by. About a dozen `NpcParam` columns and five `EquipParamWeapon`
+      columns point at it, and what each one means needs the enemy work, so it
+      waits until then.
+- [ ] **Promoting the probable fields to confirmed.** Item-lot, shop,
+      boss-defeat and grace flags wait on EMEVD and MSB. Prices, stock and rune
+      rewards wait on play.
+- [ ] **No field is needed from `EquipParamProtector` or `EquipParamAccessory`
+      yet.** An armor piece's slot is the hundreds digit of its id.
+
+### FMG
+
+`fs-fmg` reads and writes the game's text tables. All 3,968 FMGs in all 120,408
+archive entries, every language included, round-trip byte for byte. `apoc-fs
+check` now covers them.
+
+Three things were found along the way:
+
+- **Padding.** Each file is padded with zeros to a multiple of 4.
+- **Extra zeros.** Some files carry more zeros than that. They are kept as
+  read.
+- **Leftover bytes.** Three files (`GR_NGWord` in zhoCN and
+  `NetworkMessage_dlc01` in two languages) hold bytes between strings that no
+  id points at. The writer does not rebuild those: it returns them as read
+  while their entries are unchanged, and writes normally once an entry
+  changes.
+
+`apoc-fs check --no-recompress` on 2026-10-29:
+
+```
+entries extracted: 120408/120408
+BND4 round-tripped byte for byte: 74417 top-level, 3465 nested, holding 691738 files
+FMG round-tripped byte for byte: 3968
+failures: 0
+time: 95.2s
+```

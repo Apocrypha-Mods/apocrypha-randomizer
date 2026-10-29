@@ -245,3 +245,219 @@ fn npc_item_lots_point_at_item_lot_rows() {
         assert!(pct(hit, distinct.len()) >= min);
     }
 }
+
+/// The game's English text tables (`GoodsName`, `PlaceName`, …), each merged
+/// across its DLC parts.
+fn text() -> Option<&'static HashMap<String, HashMap<i32, String>>> {
+    static TEXT: OnceLock<Option<HashMap<String, HashMap<i32, String>>>> = OnceLock::new();
+    TEXT.get_or_init(|| {
+        let dir = PathBuf::from(std::env::var_os("APOC_ER_STOCK")?);
+        let dvd = fs_dvdbnd::Dvd::open_elden_ring(dir).unwrap();
+        let stored = dvd.read_path("/msg/engus/item_dlc02.msgbnd.dcx").unwrap();
+        let bnd = fs_bnd4::Bnd4::read(&fs_dcx::decompress(&stored).unwrap().1).unwrap();
+        let mut out: HashMap<String, HashMap<i32, String>> = HashMap::new();
+        for f in &bnd.files {
+            let Some(stem) = f.short_name().and_then(|n| n.strip_suffix(".fmg")) else {
+                continue;
+            };
+            let base = stem
+                .trim_end_matches("_dlc01")
+                .trim_end_matches("_dlc02")
+                .to_string();
+            for (id, t) in fs_fmg::Fmg::read(&f.data).unwrap().entries {
+                if let Some(t) = t.filter(|t| !t.is_empty()) {
+                    out.entry(base.clone()).or_default().insert(id, t);
+                }
+            }
+        }
+        Some(out)
+    })
+    .as_ref()
+}
+
+/// The first id a name table gives `name`.
+fn id_named(table: &str, name: &str) -> i64 {
+    let t = &text().unwrap()[table];
+    let mut ids: Vec<i32> = t
+        .iter()
+        .filter(|(_, n)| n.as_str() == name)
+        .map(|(&id, _)| id)
+        .collect();
+    ids.sort();
+    i64::from(
+        *ids.first()
+            .unwrap_or_else(|| panic!("no {table} named {name}")),
+    )
+}
+
+#[test]
+fn starting_classes_start_with_real_equipment() {
+    let reg = regulation_or_skip!();
+    let l = layout::for_table("CharaInitParam").unwrap();
+    let p = reg.table("CharaInitParam").unwrap();
+    let slots = [
+        ("weapon", "EquipParamWeapon"),
+        ("protector", "EquipParamProtector"),
+        ("ammo", "EquipParamWeapon"),
+        ("accessory", "EquipParamAccessory"),
+        ("magic", "Magic"),
+        ("goods_a", "EquipParamGoods"),
+        ("goods", "EquipParamGoods"),
+        ("goods_b", "EquipParamGoods"),
+    ];
+    let classes: Vec<_> = p
+        .rows
+        .iter()
+        .filter(|r| (3000..=3009).contains(&r.id))
+        .collect();
+    assert_eq!(classes.len(), 10);
+    for (field, table) in slots {
+        let f = l.field(field);
+        let rows = ids(reg, table);
+        for r in &classes {
+            for i in 0..f.count {
+                let v = f.get(&r.data, i);
+                if v > 0 {
+                    assert!(
+                        rows.contains(&v) || rows.contains(&(v - v % 10_000)),
+                        "class {} {field}[{i}] = {v}",
+                        r.id
+                    );
+                }
+            }
+        }
+    }
+    // Each armor slot holds ids whose hundreds digit is the slot: always in
+    // the class rows, and in nearly every other row.
+    let f = l.field("protector");
+    let armor = ids(reg, "EquipParamProtector");
+    let (mut odd, mut all) = (Vec::new(), 0);
+    for r in &p.rows {
+        for i in 0..4 {
+            let v = f.get(&r.data, i);
+            if armor.contains(&v) {
+                all += 1;
+                if v % 1000 / 100 != i as i64 {
+                    assert!(
+                        !(3000..=3009).contains(&r.id),
+                        "class {} protector[{i}] = {v}",
+                        r.id
+                    );
+                    odd.push((r.id, i, v));
+                }
+            }
+        }
+    }
+    eprintln!(
+        "protector slots off their hundreds digit: {}/{all}: {:?}",
+        odd.len(),
+        &odd[..odd.len().min(8)]
+    );
+    assert!(pct(odd.len(), all) < 1.0);
+}
+
+#[test]
+fn goods_types_group_items_as_their_names_show() {
+    let reg = regulation_or_skip!();
+    if text().is_none() {
+        return;
+    }
+    let f = layout::for_table("EquipParamGoods")
+        .unwrap()
+        .field("goods_type");
+    let p = reg.table("EquipParamGoods").unwrap();
+    let type_of = |name: &str| {
+        let id = id_named("GoodsName", name);
+        let row = p.rows.iter().find(|r| i64::from(r.id) == id).unwrap();
+        f.get(&row.data, 0)
+    };
+    for (name, want) in [
+        ("Tarnished's Furled Finger", 0),
+        ("Fire Pot", 0),
+        ("Sliver of Meat", 1),
+        ("Golden Seed", 2),
+        ("Smithing Stone [1]", 2),
+        ("Godrick's Great Rune", 3),
+        ("Deathroot", 3),
+        ("Glintstone Pebble", 3),
+        ("Catch Flame", 4),
+        ("Red Letter", 6),
+        ("About Sites of Grace", 7),
+    ] {
+        assert_eq!(type_of(name), want, "{name}");
+    }
+}
+
+#[test]
+fn weapon_reinforce_types_start_upgrade_paths() {
+    let reg = regulation_or_skip!();
+    let f = layout::for_table("EquipParamWeapon")
+        .unwrap()
+        .field("reinforce_type");
+    let p = reg.table("EquipParamWeapon").unwrap();
+    let paths = ids(reg, "ReinforceParamWeapon");
+    let distinct: HashSet<i64> = p.rows.iter().map(|r| f.get(&r.data, 0)).collect();
+    let hit = distinct.iter().filter(|v| paths.contains(v)).count();
+    eprintln!(
+        "reinforce_type: {hit}/{} values are ReinforceParamWeapon rows",
+        distinct.len()
+    );
+    assert!(pct(hit, distinct.len()) >= 90.0);
+    let last_level = |base: i64| {
+        (0..100)
+            .filter(|n| paths.contains(&(base + n)))
+            .max()
+            .unwrap()
+    };
+    assert_eq!(last_level(0), 25, "regular weapons go to +25");
+    assert_eq!(last_level(2200), 10, "somber weapons go to +10");
+    if text().is_some() {
+        let moonveil = id_named("WeaponName", "Moonveil");
+        let row = p.rows.iter().find(|r| i64::from(r.id) == moonveil).unwrap();
+        assert_eq!(f.get(&row.data, 0), 2200);
+    }
+}
+
+#[test]
+fn graces_and_npcs_are_named_from_the_game_text() {
+    let reg = regulation_or_skip!();
+    if text().is_none() {
+        return;
+    }
+    let t = text().unwrap();
+    for (table, field, names, min) in [
+        ("BonfireWarpParam", "text_id", "PlaceName", 99.0),
+        ("NpcParam", "name_id", "NpcName", 95.0),
+    ] {
+        let f = layout::for_table(table).unwrap().field(field);
+        let distinct: HashSet<i64> = reg
+            .table(table)
+            .unwrap()
+            .rows
+            .iter()
+            .map(|r| f.get(&r.data, 0))
+            .filter(|&v| v > 0)
+            .collect();
+        let hit = distinct
+            .iter()
+            .filter(|&&v| t[names].contains_key(&(v as i32)))
+            .count();
+        eprintln!(
+            "{table}.{field}: {hit}/{} distinct values are {names} ids",
+            distinct.len()
+        );
+        assert!(pct(hit, distinct.len()) >= min);
+    }
+    let sub = layout::for_table("BonfireWarpParam")
+        .unwrap()
+        .field("sub_category_id");
+    let cats = ids(reg, "BonfireWarpSubCategoryParam");
+    for r in &reg.table("BonfireWarpParam").unwrap().rows {
+        let v = sub.get(&r.data, 0);
+        assert!(
+            v == 0 || cats.contains(&v),
+            "grace {} sub category {v}",
+            r.id
+        );
+    }
+}

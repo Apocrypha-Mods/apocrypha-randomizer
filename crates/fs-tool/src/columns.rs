@@ -175,6 +175,22 @@ fn describe(p: &Param, off: usize, w: Width, ids: &[(String, HashSet<i32>)]) {
                     shown.join(","),
                     if names.len() > 5 { ",…" } else { "" }
                 ));
+            } else {
+                // Weapons are stored as a base id plus an affinity (hundreds)
+                // and an upgrade level (units), so try the base id.
+                let best = ids
+                    .iter()
+                    .map(|(name, set)| {
+                        let n = distinct
+                            .iter()
+                            .filter(|&&v| set.contains(&(v - v % 10_000)))
+                            .count();
+                        (n, name)
+                    })
+                    .max();
+                if let Some((n, name)) = best.filter(|(n, _)| n * 100 >= distinct.len() * 50) {
+                    extra.push_str(&format!(" REFS-BASE {}% {name}", n * 100 / distinct.len()));
+                }
             }
         }
     }
