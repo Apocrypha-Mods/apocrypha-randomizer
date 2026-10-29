@@ -646,6 +646,22 @@ check, on a small made-up map, that the key never lands behind its own door,
 that a seed always gives the same plan with every item placed once, and that
 a key with nowhere to go fails the seed.
 
+### The native module (auto-upgrade)
+
+The spec's auto-upgrade (`docs/spec/items.md` §2.7) depends on what the player
+does during play, so it lives in a module of ours inside the game:
+`crates/native` builds `apoc_native.dll` for Windows (`cargo build --release
+-p native --target x86_64-pc-windows-gnu`, mingw), and me3 loads it as a
+native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
+
+- On 2026-10-29 it loaded in the lab: its log read `apoc_native 0.1.0 loaded
+  into process 376`.
+- me3's `Native` entry takes `path`, `optional`, `load_before`, `load_after`
+  and `load_early`. Its initializer and finalizer can be left out.
+- The upgrading itself is still to do: finding, in the running game, where
+  an item is added to the inventory and where weapon levels are held. That
+  is our own reverse engineering of the game, done in the lab.
+
 ## Phase 3: game model
 
 `crates/gamedata` extracts the model from the player's own files, and
