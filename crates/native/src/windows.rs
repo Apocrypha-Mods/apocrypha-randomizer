@@ -351,6 +351,26 @@ fn held(inventories: &[usize]) -> Vec<i32> {
     out
 }
 
+/// Every record in the inventories as (handle's kind, item id, count), for
+/// checking pick-ups in the lab: `APOC_NATIVE_INVENTORY=1`.
+fn everything(inventories: &[usize]) -> Vec<(u32, u32, u32)> {
+    let mut out = Vec::new();
+    for &inv in inventories {
+        let Some((cap, at)) = read(inv, 0x18).and_then(|b| walk::inventory_list(&b)) else {
+            continue;
+        };
+        if let Some(records) = read(at, cap.min(0x2000) * walk::RECORD_LEN) {
+            out.extend(records.chunks_exact(walk::RECORD_LEN).filter_map(|r| {
+                let word = |i: usize| u32::from_le_bytes(r[i..i + 4].try_into().unwrap());
+                (word(0) != 0 && word(4) != u32::MAX).then(|| (word(0) >> 28, word(4), word(8)))
+            }));
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// Auto-upgrade: every two seconds, read the levels the player has raised
 /// and write them into the weapon pick-ups, so the next one is made at that
 /// level.
@@ -385,12 +405,21 @@ fn auto_upgrade() {
     let mut invs = Vec::new();
     let mut current = None;
     let mut last_held = Vec::new();
+    let dump = std::env::var_os("APOC_NATIVE_INVENTORY").is_some();
+    let mut last_all = Vec::new();
     for tick in 0u64..=u64::MAX {
         // Look for the inventories again every half minute, as loading a
         // character moves them.
         let started = std::time::Instant::now();
         if tick % 15 == 0 || invs.is_empty() {
             invs = inventories(&player, inventory, &regions());
+        }
+        if dump {
+            let all = everything(&invs);
+            if all != last_all {
+                note(&format!("inventory: {all:?}"));
+                last_all = all;
+            }
         }
         let mut ids = held(&invs);
         ids.sort();

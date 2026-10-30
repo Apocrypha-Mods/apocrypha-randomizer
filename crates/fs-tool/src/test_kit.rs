@@ -111,3 +111,38 @@ pub fn run(game: PathBuf, out: PathBuf) -> Result<()> {
     eprintln!("{} goods, {COUNT} each, from {SCRIPT}", GOODS.len());
     Ok(())
 }
+
+/// Add a warp to the chapel's script: 2003[14] takes the map's four bytes, then
+/// the entity to land on, as the game's own scripts do.
+pub fn warp(game: PathBuf, out: PathBuf, map: &str, entity: u32) -> Result<()> {
+    let bytes: Vec<u8> = map
+        .split(',')
+        .map(str::parse)
+        .collect::<std::result::Result<_, _>>()
+        .map_err(|_| format_err(format!("{map} is not four numbers")))?;
+    if bytes.len() != 4 {
+        return Err(format_err(format!("{map} is not four numbers")));
+    }
+    let dvd = Dvd::open_elden_ring(&game)?;
+    let (header, plain) = fs_dcx::decompress(&dvd.read_path(SCRIPT)?)?;
+    let mut script = Emevd::read(&plain)?;
+    let event = script
+        .events
+        .iter_mut()
+        .find(|e| e.id == 0)
+        .ok_or_else(|| format_err("the chapel's script has no event 0"))?;
+    let mut args = bytes;
+    args.extend(entity.to_le_bytes());
+    args.extend(0u32.to_le_bytes());
+    event
+        .instructions
+        .push(instruction(1001, 0, 3.0f32.to_le_bytes().to_vec()));
+    event.instructions.push(instruction(2003, 14, args));
+    let path = out.join(SCRIPT.trim_start_matches('/'));
+    std::fs::create_dir_all(path.parent().unwrap_or(&out))?;
+    std::fs::write(
+        path,
+        fs_dcx::compress(&header.with_algorithm(Algorithm::Zstd), &script.write()?)?,
+    )?;
+    Ok(())
+}

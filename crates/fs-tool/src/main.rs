@@ -160,6 +160,19 @@ enum Command {
         /// The mod folder to change.
         out: PathBuf,
     },
+    /// Warp the player on every load of the chapel, to look at a far place in
+    /// the lab. Never for a seed that is meant to be played as itself.
+    TestWarp {
+        game: PathBuf,
+        /// The mod folder to change.
+        out: PathBuf,
+        /// The map to land in, as `60,42,36,0`.
+        #[arg(long)]
+        map: String,
+        /// The entity to land on.
+        #[arg(long)]
+        entity: u32,
+    },
     /// Write one file out of the archives, by path or by hash.
     Extract {
         game: PathBuf,
@@ -238,6 +251,12 @@ fn main() {
             to,
             filter,
         } => columns::run(game, &table, &widths, from, to, &filter),
+        Command::TestWarp {
+            game,
+            out,
+            map,
+            entity,
+        } => test_kit::warp(game, out, &map, entity),
         Command::Extract {
             game,
             file,

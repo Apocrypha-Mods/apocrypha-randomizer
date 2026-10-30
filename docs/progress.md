@@ -756,7 +756,7 @@ may wait on another location being got.
     seed 1's nine. A chosen keepsake arriving, and its count, are not yet seen.
   - **Gathering**: 169 more slots, in a pool of their own.
   - **NPC equipment** (`dress_npcs`): 182 CharaInitParam rows placed in the
-    maps, 776 changes on seed 1. Not yet seen on an NPC in the game.
+    maps, 776 changes on seed 1. Seen on Varré in the lab (below).
   - Gate on 2.7.2, four threads, beside the lab: 10,000 seeds in 1,155 s, none
     failing.
 
@@ -768,6 +768,21 @@ Two things to know when reading a spoiler log:
 **Gate run, 2026-10-29.**
 - `apoc-rando check <stock> --seeds 10000` (nice 19, four threads) placed and
   proved seeds 0 to 9,999 in 526 s, with none failing.
+- **Seen in the lab, seed 1, a new character** (2026-10-30, game 2.7.2):
+  - The keepsake: choosing Smithing Stone [6] gave item 10105, count 1. Only
+    this one was tried, so no talisman keepsake and no count above 1.
+  - NPC equipment: Varré at The First Step wears the Glintstone Scarab and a
+    pale tabard over bare legs, not the white mask and robe.
+  - Gathering: a plant by The First Step gave Smithing Stone [5], one of the
+    seed's drops for the Rowa Fruit node, and the count in the inventory rose.
+  - Kalé's shop was not visited; the Crafting Kit rests on the spoiler log and
+    the tests.
+  - Lab tools from this: `apoc-fs test-warp` lands the player elsewhere on
+    loading the chapel (2003[14], the map's four bytes then an entity), and
+    `APOC_NATIVE_INVENTORY=1` logs every inventory record. In the lab's menus
+    Escape closes help panels; no key or click found changes inventory tab. A
+    brand-new save stops at the publisher's privacy policy, so use the
+    existing lab save.
 - Seed 1 then ran in the headless lab (`ER_MOD=scratch/seed1
   tools/er-lab/run.sh`, the first run of the repo copy of the scripts). me3
   served its `regulation.bin`, the save loaded in the Chapel of Anticipation,
