@@ -181,6 +181,10 @@ pub struct Graph {
     pub currency: BTreeMap<String, String>,
     #[serde(default)]
     pub on_sale: Vec<OnSale>,
+    /// Areas opened only by a step the game cannot take back, by id: a
+    /// quest's item is not put there, as the quest may be over by then.
+    #[serde(default)]
+    pub no_return: Vec<String>,
 }
 
 /// Elden Ring's graph.
@@ -279,6 +283,9 @@ impl<'a> Bound<'a> {
             found
         };
         area(&graph.start, &mut problems);
+        for a in &graph.no_return {
+            area(a, &mut problems);
+        }
         for e in &graph.edges {
             area(&e.from, &mut problems);
             area(&e.to, &mut problems);
@@ -735,6 +742,12 @@ impl<'a> Bound<'a> {
             }
         }
         keys
+    }
+
+    /// Whether a location lies past a step the game cannot take back.
+    pub fn past_no_return(&self, location: usize) -> bool {
+        self.location_area[location]
+            .is_some_and(|a| self.graph.no_return.contains(&self.graph.areas[a].id))
     }
 
     /// What each location gives in the game as it is.

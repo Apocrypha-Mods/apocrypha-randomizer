@@ -264,6 +264,9 @@ pub struct Model {
     pub enemies: Vec<Enemy>,
     pub bosses: Vec<Boss>,
     pub graces: Vec<Grace>,
+    /// What talk scripts take from the player or ask them to hold: the items
+    /// quests turn on, whatever the area map says of them.
+    pub quest_items: Vec<Item>,
     pub gaps: Gaps,
 }
 

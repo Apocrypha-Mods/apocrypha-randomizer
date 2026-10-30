@@ -670,6 +670,27 @@ the seed.
   Cyberpunk lab, hence the time.
 
   The starting slots are filled first, after the key items.
+- **Quest items** (spec §2.4, §4). `Model::quest_items` holds the 103 items
+  talk scripts take from the player or ask them to hold, read from `TAKE_ITEM`
+  and from what holds along each call chain. Before this, a quest item that no
+  requirement named was shuffled like anything else: over 20 seeds, 194 of
+  4,940 landings were unsafe: 91 on missable gifts, 67 on gifts the walk never
+  counts and 36 on locations in no area. Irina's Letter could go there, and
+  Edgar's quest with it.
+  - One copy of each, unless a copy stays where the unmodded game has it, goes
+    on a slot that always gives it, on a non-missable location the finished
+    walk reaches. Its own category's bias still applies. 73 of the 103 are not
+    key items; the rest are placed as key items, with the same rule.
+  - No quest item goes past the burning of the Erdtree (`no_return`: Farum
+    Azula, the Ashen Capital, the Elden Throne). This is cautious and not
+    checked quest by quest; it only costs choice.
+  - `check` now proves all of it, and fails a seed that breaks it.
+  - **What this does not prove:** that a quest's own steps can be done in the
+    order it asks. The logic reads no quest as a whole, only that its item can
+    be had; whether each quest finishes wants play.
+  - Gate rerun, 2026-10-30, none failing: 10,000 default seeds in 585 s, 2,000
+    at full bias in 119 s, and 2,000 with the DLC separate, half of everything
+    moving and keys at 60% bias in 78 s.
 - **Base game and DLC** (`--dlc mixed|separate`). The DLC is told by map:
   m20–m22, m25, m28, m40–m43 and m61. That gives 1,371 of the 5,451 slots.
   Separate, no item crosses sides. 2,000 seeds proven, none failing, in
@@ -790,14 +811,12 @@ native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
     other than the inventory itself.
   - Offline only one inventory is filled. In co-op, another player's
     inventory may be read too (not tested).
-  - A pick-up from the ground is still untested. Awards from an event script
-    read the same rows, and those were tested.
-    - On 2026-10-30 a second try held Rogier's Rapier +8 (raised to +8, as
-      before) on a fresh save whose chapel body gives seed 22's Twinblade.
-      The lab could not get the pick-up prompt to show.
-    - The body lies on a raised step behind a chair and a table, east of the
-      start, on the right of the aisle. Walking along the floor below it
-      never brings up the prompt.
+- **A pick-up from the ground works** (2026-10-30). The chapel body's
+  treasure part was moved, in a test map only, onto the carpet by the start
+  (its real place, on a raised step behind a chair and a table, never gave the
+  lab the prompt). Holding Rogier's Rapier +8, "Pillage remains" gave
+  Twinblade+8 where seed 22 puts a plain Twinblade, and the module's log showed
+  10000008 arrive.
 - **Lab tools:** `keys.sh` holds a key with `KEY:N` (seconds). `run.sh`
   passes `ER_LEVELS=regular,somber`, a floor for testing.
   - `look.sh DX` turns the camera by moving the mouse DX pixels on the
@@ -1083,6 +1102,15 @@ The gate was run again with this in place: `apoc-rando check` placed and
 proved seeds 0 to 9,999 in 998 s on four threads, none failing (526 s before;
 the walk has more gifts to visit, and two lab games of another project shared
 the machine).
+
+**What is left shut, and why it stays so.** Of the gifts still shut, 52 of
+the 56 not ruled out are missable, so they could not take a key item even if
+read: reading more conditions would add at most four slots. The commonest
+unread conditions are 4[0], 3[23], 1003[3] and 3[12]. Range state 1 (3[1],
+1003[3]) was studied and is still not settled: 14 of the 19 ranges 3[1] tests
+with it are stage ranges with one flag on at a time, so it is not "all on", but
+the code around its uses fits more than one other reading. It stays unread
+rather than guessed, as a wrong guess could count a gift the game withholds.
 
 **Missed gifts.** A quest stage can move on before its gift is taken. 87
 gifts wait on a flag some event turns off again (by `set_flag` or by clearing

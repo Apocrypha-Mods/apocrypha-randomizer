@@ -29,6 +29,10 @@ goal = { bosses = ["Elden Beast"] }
 
 # --- The base game: the start -------------------------------------------------
 
+# Past the burning of the Erdtree. Not checked quest by quest: leaving these
+# out of a quest item's slots only ever costs choice, never a finishable seed.
+no_return = ["farum_azula", "ashen_capital", "elden_throne"]
+
 [[area]]
 id = "stranded_graveyard"
 name = "Stranded Graveyard"

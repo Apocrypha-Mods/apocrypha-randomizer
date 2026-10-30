@@ -25,11 +25,16 @@
 //!   held, drawn with the key-item bias. A key item only goes in a slot that
 //!   always gives it (chance 1000) at a location the area map puts in an
 //!   area.
+//! - **Quest items** (what talk scripts take or ask to be held, §2.4 of the
+//!   spec) are placed next: one copy of each, unless a copy stays where it
+//!   was, goes where the finished walk gets it for sure, short of the areas
+//!   past no return. A key item that is also a quest item keeps out of those
+//!   areas too.
 //! - **Everything else** that moves fills the slots left, each item drawn
 //!   towards slots as deep as it is worth, as strongly as its category's
 //!   bias says.
 //! - **The check.** The finished placement is walked from the start with
-//!   nothing assumed, and the goal must be reached.
+//!   nothing assumed: the goal must be reached, and every quest item got.
 //!
 //! The same seed gives the same placement on every platform: the generator
 //! is our own ([`rng`]) and every collection is walked in a fixed order.
@@ -419,6 +424,25 @@ pub struct Plan {
     pub placed: Vec<usize>,
 }
 
+/// Whether a slot can be counted on: it always gives its item, at a location
+/// in an area, which no quest can move past.
+fn dependable(bound: &Bound, unit: &Unit) -> bool {
+    unit.sure()
+        && bound.location_area[unit.location].is_some()
+        && !bound.model.locations[unit.location].missable
+}
+
+/// The quest items, as (kind, id), that some unit gives.
+fn quest_items(bound: &Bound, units: &[Unit]) -> BTreeSet<(ItemKind, i32)> {
+    bound
+        .model
+        .quest_items
+        .iter()
+        .map(|i| (i.kind, i.id))
+        .filter(|q| units.iter().any(|u| (u.item.kind, u.item.id) == *q))
+        .collect()
+}
+
 /// The item a unit gives under a plan, with the unit's own chance.
 pub fn item_at(units: &[Unit], plan: &Plan, u: usize) -> Item {
     let mut item = units[plan.placed[u]].item.clone();
@@ -555,12 +579,8 @@ fn attempt(
 
     // Key items, by assumed fill, leaning deep.
     let lean = KEY_LEAN * strength(options.bias(Category::Key));
-    // Not a gift that may be missed: a key there could be lost for good.
-    let open_for_key = |u: usize| {
-        units[u].sure()
-            && bound.location_area[units[u].location].is_some()
-            && !bound.model.locations[units[u].location].missable
-    };
+    let quests = quest_items(bound, units);
+    let is_quest = |u: usize| quests.contains(&(units[u].item.kind, units[u].item.id));
     for i in 0..key_units.len() {
         let k = key_units[i];
         let held: Vec<&str> = key_units[i + 1..]
@@ -571,9 +591,10 @@ fn attempt(
         let free: Vec<usize> = (0..n)
             .filter(|&u| {
                 placed[u].is_none()
-                    && open_for_key(u)
+                    && dependable(bound, &units[u])
                     && fits(u, k)
                     && walk.taken[units[u].location]
+                    && !(is_quest(k) && bound.past_no_return(units[u].location))
             })
             .collect();
         let weights: Vec<u64> = free
@@ -587,6 +608,53 @@ fn attempt(
             ));
         };
         placed[free[at]] = Some(k);
+    }
+
+    // Quest items next: one copy of each where the finished walk gets it,
+    // unless a copy stays where the unmodded game has it.
+    let walk = bound.walk(&gives(bound, units, &placed, keys));
+    let still: BTreeSet<(ItemKind, i32)> = (0..n)
+        .filter(|&u| !moving[u] && !matches!(units[u].place, Place::Start(_)))
+        .map(|u| (units[u].item.kind, units[u].item.id))
+        .collect();
+    for q in &quests {
+        if still.contains(q)
+            || key_units
+                .iter()
+                .any(|&k| (units[k].item.kind, units[k].item.id) == *q)
+        {
+            continue;
+        }
+        let Some(i) = rest
+            .iter()
+            .position(|&u| (units[u].item.kind, units[u].item.id) == *q)
+        else {
+            continue;
+        };
+        let from = rest[i];
+        let lean = REST_LEAN * strength(options.bias(units[from].category));
+        let worth = depth[units[from].location];
+        let free: Vec<usize> = (0..n)
+            .filter(|&u| {
+                placed[u].is_none()
+                    && dependable(bound, &units[u])
+                    && fits(u, from)
+                    && walk.taken[units[u].location]
+                    && !bound.past_no_return(units[u].location)
+            })
+            .collect();
+        let weights: Vec<u64> = free
+            .iter()
+            .map(|&u| weight(-lean * (depth[units[u].location] - worth).abs()))
+            .collect();
+        let Some(at) = rng.weighted(&weights) else {
+            return Err(format!(
+                "nowhere dependable for {}",
+                units[from].item.name.as_deref().unwrap_or("?")
+            ));
+        };
+        placed[free[at]] = Some(from);
+        rest.remove(i);
     }
 
     // Starting slots next: each takes an item of its own sort, any one.
@@ -649,16 +717,32 @@ fn attempt(
 }
 
 /// The plan's proof: walked from the start with nothing assumed, the goal
-/// is reached.
+/// is reached and every quest item got, each from a dependable slot or from
+/// where the unmodded game has it.
 pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<(), String> {
     let keys = bound.key_items();
     let placed: Vec<Option<usize>> = plan.placed.iter().map(|&p| Some(p)).collect();
     let walk = bound.walk(&gives(bound, units, &placed, &keys));
-    if walk.goal {
-        Ok(())
-    } else {
-        Err(format!("seed {}: the goal cannot be reached", plan.seed))
+    if !walk.goal {
+        return Err(format!("seed {}: the goal cannot be reached", plan.seed));
     }
+    for q in quest_items(bound, units) {
+        let got = (0..units.len()).any(|u| {
+            let from = plan.placed[u];
+            (units[from].item.kind, units[from].item.id) == q
+                && (from == u
+                    || (dependable(bound, &units[u])
+                        && walk.taken[units[u].location]
+                        && !bound.past_no_return(units[u].location)))
+        });
+        if !got {
+            return Err(format!(
+                "seed {}: quest item {:?} {} cannot be counted on",
+                plan.seed, q.0, q.1
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Write a plan into the item-lot, shop and class tables.
@@ -973,6 +1057,59 @@ mod tests {
             (0..20).any(|seed| shuffle(&b, &us, seed, &keys_still).unwrap().placed[1] != 1),
             "the rest never moved"
         );
+    }
+
+    /// The test map with a quest item, a late area, a slot that may not
+    /// drop and a gift that may be missed.
+    fn quest_map() -> (logic::Graph, Model, Vec<Unit>) {
+        let mut g = graph();
+        g.no_return = vec!["cave".into()];
+        let mut m = model();
+        m.locations[1].items[0].name = Some("Letter".into());
+        m.locations[1].items[0].id = 77;
+        m.quest_items = vec![m.locations[1].items[0].clone()];
+        m.locations[3].missable = true;
+        let mut us = units(&m);
+        us[5].item.chance = 500;
+        (g, m, us)
+    }
+
+    #[test]
+    fn a_quest_item_lands_where_it_can_be_counted_on() {
+        let (g, m, us) = quest_map();
+        let b = Bound::new(&g, &m);
+        let letter = 1;
+        let mut slots = BTreeSet::new();
+        for seed in 0..200 {
+            let plan = shuffle(&b, &us, seed, &Options::default()).unwrap();
+            let at = plan.placed.iter().position(|&p| p == letter).unwrap();
+            assert!(us[at].sure(), "seed {seed}");
+            assert!(!m.locations[us[at].location].missable, "seed {seed}");
+            assert!(!b.past_no_return(us[at].location), "seed {seed}");
+            slots.insert(at);
+        }
+        assert!(slots.len() > 2, "{slots:?}");
+    }
+
+    #[test]
+    fn the_check_refuses_a_quest_item_in_a_bad_slot() {
+        let (g, m, us) = quest_map();
+        let b = Bound::new(&g, &m);
+        let mut plan = shuffle(&b, &us, 3, &Options::default()).unwrap();
+        check(&b, &us, &plan).unwrap();
+        // Swap the letter onto the gift that may be missed.
+        let at = plan.placed.iter().position(|&p| p == 1).unwrap();
+        plan.placed.swap(at, 3);
+        assert!(check(&b, &us, &plan).is_err());
+    }
+
+    #[test]
+    fn a_quest_item_held_still_stays_put() {
+        let (g, m, us) = quest_map();
+        let b = Bound::new(&g, &m);
+        let mut none = Options::default();
+        none.set(false, "all=0").unwrap();
+        assert_eq!(shuffle(&b, &us, 1, &none).unwrap().placed[1], 1);
     }
 
     #[test]

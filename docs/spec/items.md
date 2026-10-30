@@ -133,6 +133,9 @@ To be filled in as they are found (our own testing and play). Known so far:
   (prevented by the logic).
 - A location the game never actually gives (cut content) receiving an item
   (prevented: such locations are ruled out in the area map).
+- A quest item on a slot that may not give it, or may be missed, or past the
+  burning of the Erdtree (prevented: one copy of each is placed where the logic
+  can count on it).
 - **Auto-upgrade depends on what the player has done during play.** A seed
   written before play cannot know the levels, so it is done by a native
   module of ours that me3 loads with the mod and that acts at pick-up time.

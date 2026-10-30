@@ -40,7 +40,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use fs_bytes::Result;
 use fs_emevd::catalogue;
-use fs_esd::commands::{AWARD_ITEM_LOT, SET_EVENT_FLAG, SHOP_RANGES};
+use fs_esd::commands::{AWARD_ITEM_LOT, SET_EVENT_FLAG, SHOP_RANGES, TAKE_ITEM};
 use fs_esd::cond::Atom;
 use fs_msb::layout::{entry_name, field};
 use fs_param::layout::{Layout, for_table};
@@ -326,6 +326,8 @@ pub fn extract(s: &Sources) -> Result<Model> {
     // What holds on each way a talk script gives a lot, or turns a flag on.
     let mut gift_ways: HashMap<i32, BTreeSet<BTreeSet<Atom>>> = HashMap::new();
     let mut talk_sets: HashMap<u32, BTreeSet<BTreeSet<Atom>>> = HashMap::new();
+    // What talk takes from the player or asks them to hold: (type, id).
+    let mut quest_goods: BTreeSet<(i32, i32)> = BTreeSet::new();
     for (map, name, esd) in &s.talk {
         for h in fs_esd::handover::handovers(esd) {
             for f in h.flags {
@@ -334,6 +336,13 @@ pub fn extract(s: &Sources) -> Result<Model> {
         }
         for r in fs_esd::calls::resolve(esd) {
             let command = (r.bank, r.id);
+            if let (TAKE_ITEM, [Some(kind), Some(id), ..]) = (command, &r.args[..]) {
+                quest_goods.insert((*kind, *id));
+            }
+            quest_goods.extend(r.needs.iter().filter_map(|a| match a {
+                Atom::Holds(kind, id) => Some((*kind, *id)),
+                _ => None,
+            }));
             if let (AWARD_ITEM_LOT, [Some(lot), ..]) = (command, &r.args[..])
                 && *lot > 0
             {
@@ -878,6 +887,19 @@ pub fn extract(s: &Sources) -> Result<Model> {
         ids.sort();
         model.gaps.unreached_lots.insert(t.into(), ids);
     }
+    model.quest_items = quest_goods
+        .into_iter()
+        .filter_map(|(t, id)| {
+            let kind = shop_item_kind(t)?;
+            Some(Item {
+                kind,
+                id,
+                count: 1,
+                chance: 1000,
+                name: names.of(kind, id),
+            })
+        })
+        .collect();
     // What each gift asks, in the model's terms.
     let explain = Explain {
         after_boss: &after_boss,

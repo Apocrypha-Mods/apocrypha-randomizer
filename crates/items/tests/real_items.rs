@@ -33,6 +33,35 @@ macro_rules! or_skip {
     };
 }
 
+/// Every quest item some slot gives lands where the walk gets it for sure,
+/// in a seed with everything moving, and `check` says so.
+#[test]
+fn quest_items_can_be_counted_on() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    assert!(m.quest_items.len() > 90, "{}", m.quest_items.len());
+    let name = |n: &str| m.quest_items.iter().any(|i| i.name.as_deref() == Some(n));
+    for n in ["Irina's Letter", "Rya's Necklace", "Seluvis's Potion"] {
+        assert!(name(n), "{n} is not a quest item");
+    }
+    let keys = b.key_items();
+    for seed in 0..20 {
+        let plan = items::shuffle(&b, &units, seed, &items::Options::default()).unwrap();
+        items::check(&b, &units, &plan).unwrap();
+        let placed: Vec<_> = plan.placed.iter().map(|&p| Some(p)).collect();
+        let walk = b.walk(&items::gives(&b, &units, &placed, &keys));
+        let letter = (0..units.len()).find(|&u| {
+            units[plan.placed[u]].item.name.as_deref() == Some("Irina's Letter")
+                && units[u].sure()
+                && walk.taken[units[u].location]
+                && !m.locations[units[u].location].missable
+                && !b.past_no_return(units[u].location)
+        });
+        assert!(letter.is_some(), "seed {seed}: Irina's Letter is not safe");
+    }
+}
+
 #[test]
 fn seeds_place_every_item_and_can_be_finished() {
     let (s, m) = or_skip!();
