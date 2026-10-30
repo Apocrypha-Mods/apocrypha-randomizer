@@ -10,6 +10,23 @@ use fs_bytes::{Result, format_err};
 use gamedata::{Sources, elden_ring};
 use rayon::prelude::*;
 
+/// The `regulation.bin` version stamps the area map and the gate have been run
+/// against. Anything else may have moved what the logic relies on.
+const KNOWN_REGULATIONS: [&str; 2] = ["11711000", "11730034"];
+
+/// Refuse a game patch that has not been checked.
+fn known_patch(version: &str) -> Result<()> {
+    if KNOWN_REGULATIONS.contains(&version) {
+        Ok(())
+    } else {
+        Err(format_err(format!(
+            "this game's regulation.bin is version {version}, and this randomizer has only \
+             been checked on {}; it needs updating for this patch",
+            KNOWN_REGULATIONS.join(" and ")
+        )))
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "apoc-rando", about = "Elden Ring item randomizer")]
 struct Cli {
@@ -116,6 +133,7 @@ fn gen_seed(
     native: Option<&std::path::Path>,
 ) -> Result<()> {
     let sources = Sources::open(&game)?;
+    known_patch(&sources.reg.version())?;
     let model = elden_ring::extract(&sources)?;
     let graph = logic::elden_ring();
     let bound = logic::Bound::new(&graph, &model);
@@ -175,6 +193,7 @@ fn native_module(out: &std::path::Path, native: Option<&std::path::Path>) -> Res
 fn check(game: PathBuf, from: u64, seeds: u64, options: &items::Options) -> Result<()> {
     let t = Instant::now();
     let sources = Sources::open(&game)?;
+    known_patch(&sources.reg.version())?;
     let model = elden_ring::extract(&sources)?;
     let graph = logic::elden_ring();
     let bound = logic::Bound::new(&graph, &model);
@@ -217,5 +236,17 @@ fn check(game: PathBuf, from: u64, seeds: u64, options: &items::Options) -> Resu
         Ok(())
     } else {
         Err(format_err(format!("{} seeds failed", failures.len())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unknown_patch_is_refused() {
+        assert!(known_patch("11730034").is_ok());
+        let e = known_patch("11740000").unwrap_err().to_string();
+        assert!(e.contains("11740000"), "{e}");
     }
 }

@@ -48,6 +48,32 @@ The sound archives (`sd/`) and movies are left out, since the randomizer never r
 Tools and tests read game files from this folder, never from the live install.
 Nothing in it is committed.
 
+### Patch 2.7.2 (build 25827938)
+
+Steam moved the game on 2026-10-29. Tools and tests now read
+`~/Drive/GameStock/elden-ring/2.7.2.0-build25827938/`, made the same way; the
+old copy is kept. Depots 1245621 and 1245624 have manifests
+1925130620768035844 and 4777545061760251630; the DLC's is unchanged.
+
+| What | Change |
+| --- | --- |
+| `eldenring.exe` | 2.7.1.0 to 2.7.2.0 |
+| `regulation.bin` | version 11711000 to 11730034, sha256 `b8cdab84c0772f66811fdc5176a381877ca6657b37d420cc2c1562a90d63870e` |
+| Tables | `apoc-fs param-diff`: one row of `Bullet`, one byte; nothing the randomizer reads |
+| Archives | `Data0` and `Data3` differ; `Data1`, `Data2` and `DLC` are the same. Which entries changed was not looked at |
+| Game model | `apoc-fs model --dump` and `apoc-fs logic` print the same on both |
+
+Rerun on the new copy, 2026-10-30:
+- `apoc-fs check --no-recompress`: 120,408 entries, no failures, in 117 s;
+- `cargo test --release --workspace --exclude native`, real-file tests included:
+  all pass;
+- `apoc-rando check --seeds 10000`, four threads: none failing, in 1,260 s
+  beside two Cyberpunk labs.
+
+`apoc-rando` now refuses a `regulation.bin` whose version it has not been
+checked on (`KNOWN_REGULATIONS`), for both `gen` and `check`. A patch that left
+the stamp alone would get past this.
+
 ### Boot checks
 
 **Unmodded.** Launched from Steam on 2026-10-29 and reached the title screen,

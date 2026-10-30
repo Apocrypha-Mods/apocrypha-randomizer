@@ -64,6 +64,9 @@ enum Command {
         #[arg(long)]
         dump: Option<PathBuf>,
     },
+    /// What a patch changed in regulation.bin: rows added, removed and
+    /// changed in each table, and the offsets that changed.
+    ParamDiff { old: PathBuf, new: PathBuf },
     /// Column statistics for one param table, for working out its layout.
     Columns {
         game: PathBuf,
@@ -217,6 +220,7 @@ fn main() {
             samples,
         } => labels::run(game, &table, &names, from, to, max_distinct, samples),
         Command::Params { game, dump } => params(game, dump),
+        Command::ParamDiff { old, new } => param_diff(old, new),
         Command::Columns {
             game,
             table,
@@ -273,6 +277,43 @@ fn rewrite(file: PathBuf) -> fs_bytes::Result<()> {
         written.len(),
         bytes == written
     );
+    Ok(())
+}
+
+fn param_diff(old: PathBuf, new: PathBuf) -> fs_bytes::Result<()> {
+    let old = fs_param::Regulation::open(&old)?;
+    let new = fs_param::Regulation::open(&new)?;
+    println!("regulation {} -> {}", old.version(), new.version());
+    let names: Vec<String> = new.table_names().map(str::to_owned).collect();
+    for name in &names {
+        let (a, b) = (old.table(name)?, new.table(name)?);
+        let before: std::collections::BTreeMap<i32, &[u8]> =
+            a.rows.iter().map(|r| (r.id, r.data.as_slice())).collect();
+        let after: std::collections::BTreeMap<i32, &[u8]> =
+            b.rows.iter().map(|r| (r.id, r.data.as_slice())).collect();
+        let added = after.keys().filter(|id| !before.contains_key(id)).count();
+        let removed = before.keys().filter(|id| !after.contains_key(id)).count();
+        let mut changed = 0;
+        let mut offsets = std::collections::BTreeMap::<usize, usize>::new();
+        for (id, row) in &after {
+            let Some(was) = before.get(id).filter(|was| *was != row) else {
+                continue;
+            };
+            changed += 1;
+            for (o, (x, y)) in was.iter().zip(row.iter()).enumerate() {
+                if x != y {
+                    *offsets.entry(o).or_default() += 1;
+                }
+            }
+        }
+        if added + removed + changed > 0 {
+            println!("{name}: +{added} -{removed} ~{changed} at offsets {offsets:?}");
+        }
+    }
+    let gone = old.table_names().filter(|n| !names.iter().any(|m| m == n));
+    for name in gone {
+        println!("{name}: table removed");
+    }
     Ok(())
 }
 
