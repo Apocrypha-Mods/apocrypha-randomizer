@@ -754,7 +754,7 @@ may wait on another location being got.
     them from GR_MenuText 297151–297160, not from the item, and the game reads
     `menu_dlc02.msgbnd.dcx`, not `menu.msgbnd.dcx`. In the lab the menu listed
     seed 1's nine. A chosen keepsake arriving, and its count, are not yet seen.
-  - **Gathering**: 178 more slots, in a pool of their own.
+  - **Gathering**: 169 more slots, in a pool of their own.
   - **NPC equipment** (`dress_npcs`): 182 CharaInitParam rows placed in the
     maps, 776 changes on seed 1. Not yet seen on an NPC in the game.
   - Gate on 2.7.2, four threads, beside the lab: 10,000 seeds in 1,155 s, none

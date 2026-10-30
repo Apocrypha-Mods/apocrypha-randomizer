@@ -846,12 +846,12 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
     if !walk.goal {
         return Err(format!("seed {}: the goal cannot be reached", plan.seed));
     }
-    for u in 0..units.len() {
-        if is_fixed(bound, &units[u]) && plan.placed[u] != u {
+    for (u, unit) in units.iter().enumerate() {
+        if is_fixed(bound, unit) && plan.placed[u] != u {
             return Err(format!(
                 "seed {}: {} has moved",
                 plan.seed,
-                units[u].item.name.as_deref().unwrap_or("?")
+                unit.item.name.as_deref().unwrap_or("?")
             ));
         }
     }
@@ -1000,7 +1000,7 @@ pub fn dress_npcs(
     seed: u64,
     options: &Options,
 ) -> Result<Vec<String>> {
-    const SALT: u64 = 0x4e50_4347_6561_72;
+    const SALT: u64 = 0x004e_5043_4765_6172;
     let mut rng = Rng::new(seed ^ SALT);
     let names: HashMap<(ItemKind, i32), &str> = model
         .locations

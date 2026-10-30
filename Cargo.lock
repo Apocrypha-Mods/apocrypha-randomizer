@@ -763,8 +763,11 @@ name = "rando"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "fs-bnd4",
  "fs-bytes",
  "fs-dcx",
+ "fs-dvdbnd",
+ "fs-fmg",
  "fs-param",
  "gamedata",
  "items",

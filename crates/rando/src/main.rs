@@ -179,7 +179,7 @@ fn keepsake_text(
     names: &[(i32, String)],
 ) -> Result<()> {
     const MENU: &str = "/msg/engus/menu_dlc02.msgbnd.dcx";
-    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game.to_path_buf())?;
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(game)?;
     let (header, plain) = fs_dcx::decompress(&dvd.read_path(MENU)?)?;
     let mut bnd = fs_bnd4::Bnd4::read(&plain)?;
     for f in &mut bnd.files {
