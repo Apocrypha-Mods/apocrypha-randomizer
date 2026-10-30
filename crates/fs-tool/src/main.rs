@@ -22,6 +22,7 @@ mod logic;
 mod model;
 mod msb_columns;
 mod scripts;
+mod test_kit;
 
 #[derive(Parser)]
 #[command(
@@ -152,6 +153,13 @@ enum Command {
         /// The mod folder to write.
         out: PathBuf,
     },
+    /// Give a mod folder's new characters 50 of every smithing stone and of
+    /// Numen's Rune in the chapel, for testing upgrades by hand.
+    TestKit {
+        game: PathBuf,
+        /// The mod folder to change.
+        out: PathBuf,
+    },
     /// Write one file out of the archives, by path or by hash.
     Extract {
         game: PathBuf,
@@ -187,6 +195,7 @@ fn main() {
         } => check::run(game, names, !no_recompress, jobs),
         Command::Rewrite { file } => rewrite(file),
         Command::BootTest { game, out } => boot_test::run(game, out),
+        Command::TestKit { game, out } => test_kit::run(game, out),
         Command::Model { game, dump } => model::run(game, dump),
         Command::Logic { game } => logic::run(game),
         Command::Flags { game } => flags::run(game),
