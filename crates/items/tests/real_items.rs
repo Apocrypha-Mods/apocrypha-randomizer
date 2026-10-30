@@ -244,3 +244,22 @@ fn separate_keeps_base_game_and_dlc_apart() {
     let plan = items::shuffle(&b, &units, 0, &items::Options::default()).unwrap();
     assert!((0..units.len()).any(|u| dlc(u) != dlc(plan.placed[u])));
 }
+
+/// The chapel's door asks for the finger, and only the body before it can
+/// hold it: seen in play, seed 1 once shut the player in.
+#[test]
+fn the_finger_stays_before_the_chapel_door() {
+    let Some((sources, model)) = sources() else {
+        return;
+    };
+    let bound = Bound::new(graph(), model);
+    let units = items::units(model, &bound, &sources.reg).unwrap();
+    let finger = units
+        .iter()
+        .position(|u| u.item.name.as_deref() == Some("Tarnished's Wizened Finger"))
+        .unwrap();
+    for seed in 0..20 {
+        let plan = items::shuffle(&bound, &units, seed, &items::Options::default()).unwrap();
+        assert_eq!(plan.placed[finger], finger, "seed {seed}");
+    }
+}

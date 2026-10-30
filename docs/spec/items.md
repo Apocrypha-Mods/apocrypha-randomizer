@@ -136,6 +136,10 @@ To be filled in as they are found (our own testing and play). Known so far:
 - A quest item on a slot that may not give it, or may be missed, or past the
   burning of the Erdtree (prevented: one copy of each is placed where the logic
   can count on it).
+- A key item asked for before anything else can be reached: the chapel's door
+  opens only to those carrying the Tarnished's Wizened Finger, and the body
+  beside the start is the one slot before it. Seen in play on seed 1 (2026-10-30).
+  Prevented: the finger stays there at every slider setting.
 - **Auto-upgrade depends on what the player has done during play.** A seed
   written before play cannot know the levels, so it is done by a native
   module of ours that me3 loads with the mod and that acts at pick-up time.

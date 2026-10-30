@@ -542,6 +542,12 @@ fn weight(x: f64) -> u64 {
     (rng::exp(x) * 1e6) as u64
 }
 
+/// An item the area map says never moves.
+fn is_fixed(bound: &Bound, unit: &Unit) -> bool {
+    let name = unit.item.name.as_deref();
+    bound.graph.fixed.iter().any(|f| Some(f.as_str()) == name)
+}
+
 fn attempt(
     bound: &Bound,
     units: &[Unit],
@@ -562,7 +568,7 @@ fn attempt(
     // Which items move: each with its slider's shuffle chance.
     let moving: Vec<bool> = units
         .iter()
-        .map(|u| rng.below(100) < usize::from(options.shuffle(u.slider())))
+        .map(|u| rng.below(100) < usize::from(options.shuffle(u.slider())) && !is_fixed(bound, u))
         .collect();
     let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();
     let mut key_units: Vec<usize> = (0..n)
@@ -725,6 +731,15 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
     let walk = bound.walk(&gives(bound, units, &placed, &keys));
     if !walk.goal {
         return Err(format!("seed {}: the goal cannot be reached", plan.seed));
+    }
+    for u in 0..units.len() {
+        if is_fixed(bound, &units[u]) && plan.placed[u] != u {
+            return Err(format!(
+                "seed {}: {} has moved",
+                plan.seed,
+                units[u].item.name.as_deref().unwrap_or("?")
+            ));
+        }
     }
     for q in quest_items(bound, units) {
         let got = (0..units.len()).any(|u| {
@@ -1110,6 +1125,19 @@ mod tests {
         let mut none = Options::default();
         none.set(false, "all=0").unwrap();
         assert_eq!(shuffle(&b, &us, 1, &none).unwrap().placed[1], 1);
+    }
+
+    #[test]
+    fn a_fixed_item_never_moves() {
+        let (mut g, m, us) = quest_map();
+        let name = us[0].item.name.clone().unwrap();
+        g.fixed = vec![name];
+        let b = Bound::new(&g, &m);
+        assert!(b.problems.is_empty(), "{:?}", b.problems);
+        for seed in 0..50 {
+            let plan = shuffle(&b, &us, seed, &Options::default()).unwrap();
+            assert_eq!(plan.placed[0], 0, "seed {seed}");
+        }
     }
 
     #[test]

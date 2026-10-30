@@ -33,6 +33,11 @@ goal = { bosses = ["Elden Beast"] }
 # out of a quest item's slots only ever costs choice, never a finishable seed.
 no_return = ["farum_azula", "ashen_capital", "elden_throne"]
 
+# The chapel's door opens only to those carrying this finger, and the body
+# beside the start is the one slot before that door. Seen in play, 2026-10-30:
+# seed 1 moved it away and the character could not leave the chapel.
+fixed = ["Tarnished's Wizened Finger"]
+
 [[area]]
 id = "stranded_graveyard"
 name = "Stranded Graveyard"

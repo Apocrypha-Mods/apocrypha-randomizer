@@ -733,6 +733,18 @@ that give something or that another waits on, and the rest are taken in one
 pass at the end. Taking a location now also counts as a change, since a gift
 may wait on another location being got.
 
+- **The chapel's door** (found in play, 2026-10-30). Seed 1 moved the
+  Tarnished's Wizened Finger out of the chapel, the door there opens only to
+  those carrying it, and the character was shut in. The area map starts at the
+  Stranded Graveyard, past that door, so the walk never saw it. The finger is
+  now `fixed` in the area map and `check` fails a seed that moves it. Gate
+  rerun on 2.7.2, four threads, beside the lab and the game: 10,000 seeds in
+  1152 s, none failing.
+- **`apoc-fs test-kit <game> <mod>`** gives a new character 50 of each smithing
+  stone and Numen's Rune in the chapel, for testing upgrades by hand. Seen
+  arriving in the lab on 2.7.2. `tools/er-lab/play.sh` runs a mod folder on the
+  desktop. It ran on 2026-10-30, and the door above is what that found.
+
 Two things to know when reading a spoiler log:
 - Some key items exist twice in the game's lots, such as Godrick's Great
   Rune and the Academy Glintstone Key, and both copies are placed.

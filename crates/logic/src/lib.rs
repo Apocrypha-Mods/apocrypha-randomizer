@@ -185,6 +185,10 @@ pub struct Graph {
     /// quest's item is not put there, as the quest may be over by then.
     #[serde(default)]
     pub no_return: Vec<String>,
+    /// Items that never move, by name: what the game asks for before any
+    /// other item can be reached.
+    #[serde(default)]
+    pub fixed: Vec<String>,
 }
 
 /// Elden Ring's graph.
@@ -285,6 +289,16 @@ impl<'a> Bound<'a> {
         area(&graph.start, &mut problems);
         for a in &graph.no_return {
             area(a, &mut problems);
+        }
+        for name in &graph.fixed {
+            let found = model
+                .locations
+                .iter()
+                .flat_map(|l| &l.items)
+                .any(|i| i.name.as_deref() == Some(name));
+            if !found {
+                problems.push(format!("no item {name}"));
+            }
         }
         for e in &graph.edges {
             area(&e.from, &mut problems);
