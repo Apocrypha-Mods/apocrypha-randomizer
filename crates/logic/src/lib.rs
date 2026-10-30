@@ -770,8 +770,9 @@ impl<'a> Bound<'a> {
             .locations
             .iter()
             .map(|l| {
-                if l.kind == Kind::Starting {
+                if matches!(l.kind, Kind::Starting | Kind::Keepsake) {
                     // One class, not all ten: key items never start in them.
+                    // Nor is a keepsake counted on: "None" is a choice.
                     return Vec::new();
                 }
                 l.items.iter().filter_map(|i| i.name.as_deref()).collect()

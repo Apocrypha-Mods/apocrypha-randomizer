@@ -147,19 +147,61 @@ fn gen_seed(
     let plan = items::shuffle(&bound, &units, seed, options).map_err(format_err)?;
     let mut reg = fs_param::Regulation::open(&game)?;
     items::apply(&mut reg, &units, &plan)?;
+    let dressed = items::dress_npcs(&mut reg, &model, seed, options)?;
     std::fs::create_dir_all(&out)?;
+    keepsake_text(&game, &out, &items::keepsake_names(&units, &plan))?;
     if options.auto_upgrade {
         native_module(&out, native)?;
     }
     std::fs::write(out.join("regulation.bin"), reg.write()?)?;
     let spoiler = out.with_extension("spoiler.txt");
-    std::fs::write(&spoiler, items::spoiler(&bound, &units, &plan))?;
+    let mut log = items::spoiler(&bound, &units, &plan);
+    log += "\nNPC equipment\n";
+    for line in &dressed {
+        log += &format!("  {line}\n");
+    }
+    std::fs::write(&spoiler, log)?;
     eprintln!(
         "seed {seed}: {} slots shuffled; mod folder {}, spoiler log {}",
         units.len(),
         out.display(),
         spoiler.display()
     );
+    Ok(())
+}
+
+/// Character creation names its keepsakes from menu text of its own, so write
+/// what each now is, in the file the game reads (the last DLC's holds it all).
+/// English only for now.
+fn keepsake_text(
+    game: &std::path::Path,
+    out: &std::path::Path,
+    names: &[(i32, String)],
+) -> Result<()> {
+    const MENU: &str = "/msg/engus/menu_dlc02.msgbnd.dcx";
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game.to_path_buf())?;
+    let (header, plain) = fs_dcx::decompress(&dvd.read_path(MENU)?)?;
+    let mut bnd = fs_bnd4::Bnd4::read(&plain)?;
+    for f in &mut bnd.files {
+        let line = match f.short_name() {
+            Some("GR_MenuText.fmg") => None,
+            Some("GR_LineHelp.fmg") => Some("Your keepsake, chosen by the seed."),
+            _ => continue,
+        };
+        let mut fmg = fs_fmg::Fmg::read(&f.data)?;
+        for (id, name) in names {
+            let text = line.unwrap_or(name.as_str()).to_string();
+            fmg.entries.insert(*id, Some(text));
+        }
+        f.data = fmg.write()?;
+    }
+    let path = out.join(MENU.trim_start_matches('/'));
+    std::fs::create_dir_all(path.parent().unwrap_or(out))?;
+    let data = fs_dcx::compress(
+        &header.with_algorithm(fs_dcx::Algorithm::Zstd),
+        &bnd.write()?,
+    )?;
+    std::fs::write(path, data)?;
     Ok(())
 }
 

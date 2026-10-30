@@ -30,6 +30,8 @@
 //!   flag (an event run that marks one boss defeated and sets it) or the
 //!   items whose handing over in talk does (`fs_esd::handover`).
 //! - **Starting:** the ten classes' CharaInitParam rows (3000–3009).
+//! - **Keepsakes:** the nine gifts' CharaInitParam rows (2401–2409), in the
+//!   order character creation lists them.
 //!
 //! A lot may run on into the rows after it: rows that follow a lot directly
 //! and that nothing references themselves are taken as part of it. That is
@@ -60,6 +62,8 @@ const ROUNDTABLE: MapId = MapId([11, 10, 0, 0]);
 const ASSET: i64 = 13;
 /// The ten classes' starting equipment in CharaInitParam.
 const CLASSES: std::ops::RangeInclusive<i32> = 3000..=3009;
+/// The keepsakes in CharaInitParam; 2400 is "None".
+const KEEPSAKES: std::ops::RangeInclusive<i32> = 2401..=2409;
 
 fn layout(table: &str) -> &'static Layout {
     for_table(table).unwrap_or_else(|| panic!("no layout for {table}"))
@@ -822,7 +826,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
     // Starting equipment.
     let init = layout("CharaInitParam");
     for r in s.reg.table("CharaInitParam")?.rows {
-        if !CLASSES.contains(&r.id) {
+        if !CLASSES.contains(&r.id) && !KEEPSAKES.contains(&r.id) {
             continue;
         }
         let mut items = Vec::new();
@@ -852,7 +856,11 @@ pub fn extract(s: &Sources) -> Result<Model> {
             }
         }
         model.locations.push(Location {
-            kind: Kind::Starting,
+            kind: if CLASSES.contains(&r.id) {
+                Kind::Starting
+            } else {
+                Kind::Keepsake
+            },
             map: None,
             source: format!("CharaInitParam {}", r.id),
             entity: None,

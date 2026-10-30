@@ -18,6 +18,9 @@ fs-bytes.workspace = true
 # opinion on oozextract (PLAN.md §6).
 fs-dcx = { workspace = true, features = ["kraken"] }
 fs-param.workspace = true
+fs-bnd4.workspace = true
+fs-dvdbnd.workspace = true
+fs-fmg.workspace = true
 gamedata.workspace = true
 logic.workspace = true
 items.workspace = true

@@ -15,8 +15,14 @@
 //!   - a class's starting weapon, armour, talisman or spell slot, which takes
 //!     only an item of its own sort ([`fits`]) and never a key item.
 //!
-//!   Gathering, farmable drops and other starting goods (the flasks) stay as
-//!   they are.
+//!   - a keepsake, the same with its count ([`Place::Start`]);
+//!   - an item slot of a lot that regrowing nodes give ([`Place::Gather`]),
+//!     which trades only with other such slots, as it can be had again and
+//!     again.
+//!
+//!   Farmable drops and other starting goods stay as they are, and so does
+//!   whatever the area map calls `fixed`. NPCs' equipment is drawn apart from
+//!   all this ([`dress_npcs`]).
 //! - **The player's sliders** ([`options`]): for each category of item, how
 //!   much of it moves (the rest stays where the unmodded game has it) and
 //!   how strongly what moves leans towards deep slots ([`depth`]).
@@ -88,12 +94,27 @@ const STARTING: [(&str, ItemKind); 4] = [
 ];
 /// The ten classes' CharaInitParam rows.
 const CLASSES: std::ops::RangeInclusive<i32> = 3000..=3009;
+/// The keepsakes' CharaInitParam rows, with the menu text that names each:
+/// character creation does not read the name from the item.
+const KEEPSAKES: [(i32, i32); 9] = [
+    (2401, 297151),
+    (2402, 297152),
+    (2403, 297153),
+    (2404, 297154),
+    (2405, 297156),
+    (2406, 297157),
+    (2407, 297158),
+    (2408, 297159),
+    (2409, 297160),
+];
 
 /// What kind of place a unit is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Place {
     /// Slot `slot` of an item-lot row.
     Lot,
+    /// Slot `slot` of an item-lot row that regrowing nodes give.
+    Gather,
     /// A ShopLineupParam row.
     Shop,
     /// Value `slot` of a CharaInitParam field.
@@ -125,8 +146,10 @@ impl Unit {
     pub fn slider(&self) -> Category {
         match self.place {
             Place::Lot => self.category,
+            Place::Gather => Category::Gathering,
             Place::Shop => Category::Merchant,
-            Place::Start(_) => Category::Starting,
+            Place::Start(_) if CLASSES.contains(&self.row) => Category::Starting,
+            Place::Start(_) => Category::Keepsake,
         }
     }
 }
@@ -156,8 +179,11 @@ fn is_ammo(id: i32) -> bool {
 /// Whether the item now at unit `item` may go in the place of unit `slot`.
 pub fn fits(slot: &Unit, item: &Unit) -> bool {
     let it = &item.item;
+    if (slot.place == Place::Gather) != (item.place == Place::Gather) {
+        return false;
+    }
     match slot.place {
-        Place::Lot => true,
+        Place::Lot | Place::Gather => true,
         // Shops sell from the equipment tables only.
         Place::Shop => it.kind != ItemKind::CustomWeapon,
         Place::Start(field) => {
@@ -170,6 +196,8 @@ pub fn fits(slot: &Unit, item: &Unit) -> bool {
                     }
                     "accessory" => it.kind == ItemKind::Accessory,
                     "magic" => item.category == Category::Spell,
+                    // Named, as the menu shows it.
+                    "goods" => it.kind == ItemKind::Goods && it.name.is_some(),
                     _ => false,
                 }
         }
@@ -262,8 +290,20 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
     let mut tables = HashMap::new();
     let mut seen = BTreeSet::new();
     let mut out = Vec::new();
-    for (i, l) in model.locations.iter().enumerate() {
-        if !SHUFFLED.contains(&l.kind) || bound.location_unused[i] {
+    // Gathering last: a lot something else gives too moves with that.
+    let of_kind = |gather: bool| {
+        (0..model.locations.len()).filter(move |&i| {
+            let kind = model.locations[i].kind;
+            if gather {
+                kind == Kind::Gather
+            } else {
+                SHUFFLED.contains(&kind)
+            }
+        })
+    };
+    for i in of_kind(false).chain(of_kind(true)) {
+        let l = &model.locations[i];
+        if bound.location_unused[i] {
             continue;
         }
         let Some(lot) = &l.lot else {
@@ -313,7 +353,11 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                 };
                 out.push(Unit {
                     location: i,
-                    place: Place::Lot,
+                    place: if l.kind == Kind::Gather {
+                        Place::Gather
+                    } else {
+                        Place::Lot
+                    },
                     table: lot.table.clone(),
                     row,
                     slot,
@@ -412,6 +456,53 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
             }
         }
     }
+    // The keepsakes.
+    let (goods_slot, goods_count) = (init.field("goods"), init.field("goods_count"));
+    let accessory = init.field("accessory");
+    for r in reg.table("CharaInitParam")?.rows {
+        if !KEEPSAKES.iter().any(|&(row, _)| row == r.id) {
+            continue;
+        }
+        let source = format!("CharaInitParam {}", r.id);
+        let Some(i) = model.locations.iter().position(|l| l.source == source) else {
+            continue;
+        };
+        let mut add = |field: &'static str, kind, slot: usize, id: i32, count: i64| {
+            if id <= 0 {
+                return;
+            }
+            let item = Item {
+                kind,
+                id,
+                count: count.max(1) as u32,
+                chance: 1000,
+                name: names.get(&(kind, id)).map(|n| n.to_string()),
+            };
+            out.push(Unit {
+                location: i,
+                place: Place::Start(field),
+                table: "CharaInitParam".into(),
+                row: r.id,
+                slot,
+                category: category(&item, &goods_type, &keys),
+                item,
+            });
+        };
+        for slot in 0..goods_slot.count {
+            let id = goods_slot.get(&r.data, slot) as i32;
+            add(
+                "goods",
+                ItemKind::Goods,
+                slot,
+                id,
+                goods_count.get(&r.data, slot),
+            );
+        }
+        for slot in 0..accessory.count {
+            let id = accessory.get(&r.data, slot) as i32;
+            add("accessory", ItemKind::Accessory, slot, id, 1);
+        }
+    }
     Ok(out)
 }
 
@@ -470,7 +561,10 @@ pub fn gives<'a>(
         .iter()
         .enumerate()
         .map(|(i, l)| {
-            if SHUFFLED.contains(&l.kind) || l.kind == Kind::Starting || shops.contains(&i) {
+            if SHUFFLED.contains(&l.kind)
+                || matches!(l.kind, Kind::Starting | Kind::Keepsake)
+                || shops.contains(&i)
+            {
                 return Vec::new();
             }
             l.items
@@ -568,7 +662,19 @@ fn attempt(
     // Which items move: each with its slider's shuffle chance.
     let moving: Vec<bool> = units
         .iter()
-        .map(|u| rng.below(100) < usize::from(options.shuffle(u.slider())) && !is_fixed(bound, u))
+        .map(|u| {
+            // A key or quest item on a node stays: it must be got somewhere
+            // the logic can count on, and nodes trade only among themselves.
+            let pinned = is_fixed(bound, u)
+                || (u.place == Place::Gather
+                    && (u.category == Category::Key
+                        || bound
+                            .model
+                            .quest_items
+                            .iter()
+                            .any(|q| (q.kind, q.id) == (u.item.kind, u.item.id))));
+            rng.below(100) < usize::from(options.shuffle(u.slider())) && !pinned
+        })
         .collect();
     let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();
     let mut key_units: Vec<usize> = (0..n)
@@ -680,12 +786,20 @@ fn attempt(
 
     // Everything else, each item towards slots as deep as it is worth.
     let band = |u: usize| ((depth[units[u].location] * BANDS as f64) as usize).min(BANDS - 1);
-    let mut bands: Vec<Vec<usize>> = vec![Vec::new(); BANDS];
+    // Nodes draw from their own bands, as they trade only among themselves.
+    let mut pools: [Vec<Vec<usize>>; 2] = [vec![Vec::new(); BANDS], vec![Vec::new(); BANDS]];
     for u in (0..n).filter(|&u| placed[u].is_none()) {
-        bands[band(u)].push(u);
+        pools[usize::from(units[u].place == Place::Gather)][band(u)].push(u);
     }
     for from in rest {
-        let lean = REST_LEAN * strength(options.bias(units[from].category));
+        let gather = units[from].place == Place::Gather;
+        let bands = &mut pools[usize::from(gather)];
+        let slider = if gather {
+            Category::Gathering
+        } else {
+            units[from].category
+        };
+        let lean = REST_LEAN * strength(options.bias(slider));
         let worth = depth[units[from].location];
         let weights: Vec<u64> = bands
             .iter()
@@ -796,12 +910,16 @@ pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
         let item = item_at(units, plan, u);
         let data = &mut param.rows[rows[&unit.row]].data;
         init.field(field).set(data, unit.slot, i64::from(item.id))?;
+        if field == "goods" {
+            init.field("goods_count")
+                .set(data, unit.slot, i64::from(item.count.clamp(1, 255)))?;
+        }
     }
     reg.set_table("CharaInitParam", &param)?;
 
     let tables: BTreeSet<&str> = units
         .iter()
-        .filter(|u| u.place == Place::Lot)
+        .filter(|u| matches!(u.place, Place::Lot | Place::Gather))
         .map(|u| u.table.as_str())
         .collect();
     for table in tables {
@@ -822,7 +940,7 @@ pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
         for (u, unit) in units
             .iter()
             .enumerate()
-            .filter(|(_, u)| u.place == Place::Lot && u.table == table)
+            .filter(|(_, u)| matches!(u.place, Place::Lot | Place::Gather) && u.table == table)
         {
             let item = item_at(units, plan, u);
             let data = &mut param.rows[rows[&unit.row]].data;
@@ -833,6 +951,140 @@ pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
         reg.set_table(table, &param)?;
     }
     Ok(())
+}
+
+/// What each keepsake now is, as the menu should name it: its menu text's id
+/// and the name, with how many.
+pub fn keepsake_names(units: &[Unit], plan: &Plan) -> Vec<(i32, String)> {
+    KEEPSAKES
+        .iter()
+        .filter_map(|&(row, text)| {
+            let u = units
+                .iter()
+                .position(|u| matches!(u.place, Place::Start(_)) && u.row == row)?;
+            let item = item_at(units, plan, u);
+            let name = item.name?;
+            Some((
+                text,
+                if item.count > 1 {
+                    format!("{name} x{}", item.count)
+                } else {
+                    name
+                },
+            ))
+        })
+        .collect()
+}
+
+/// A weapon's sort, from the millions of its id: an NPC keeps to what its AI
+/// knows how to use. 0 is everything swung or thrust.
+fn weapon_sort(id: i32) -> u8 {
+    match id / 1_000_000 {
+        24 => 1,
+        30..=32 => 2,
+        33 => 3,
+        34 => 4,
+        40..=44 => 5,
+        _ => 0,
+    }
+}
+
+/// Give the NPCs placed in the maps other weapons and armour, each with the
+/// `npc-gear` slider's chance, and say what changed. A weapon keeps its sort
+/// and its level, up to the +10 every path reaches, and loses its affinity;
+/// armour keeps its body part. Empty hands and slots stay empty. The seed draws
+/// this apart from the placement, which it does not change.
+pub fn dress_npcs(
+    reg: &mut Regulation,
+    model: &Model,
+    seed: u64,
+    options: &Options,
+) -> Result<Vec<String>> {
+    const SALT: u64 = 0x4e50_4347_6561_72;
+    let mut rng = Rng::new(seed ^ SALT);
+    let names: HashMap<(ItemKind, i32), &str> = model
+        .locations
+        .iter()
+        .flat_map(|l| &l.items)
+        .filter_map(|i| Some(((i.kind, i.id), i.name.as_deref()?)))
+        .collect();
+    let pool =
+        |reg: &Regulation, table: &str, kind, keep: &dyn Fn(i32) -> bool| -> Result<Vec<i32>> {
+            let mut ids: Vec<i32> = reg
+                .table(table)?
+                .rows
+                .iter()
+                .map(|r| r.id)
+                .filter(|&id| keep(id) && names.contains_key(&(kind, id)))
+                .collect();
+            ids.sort_unstable();
+            Ok(ids)
+        };
+    let weapons = pool(reg, "EquipParamWeapon", ItemKind::Weapon, &|id| {
+        id >= 1_000_000 && id % 10_000 == 0 && !is_ammo(id)
+    })?;
+    let armour = pool(reg, "EquipParamProtector", ItemKind::Protector, &|id| {
+        id >= 1_000
+    })?;
+    let dressed: BTreeSet<i32> = model.enemies.iter().filter_map(|e| e.chara_init).collect();
+    let init = for_table("CharaInitParam").ok_or_else(|| format_err("no class layout"))?;
+    let mut param = reg.table("CharaInitParam")?;
+    let chance = usize::from(options.shuffle(Category::NpcGear));
+    let name = |kind, id: i32| {
+        names
+            .get(&(kind, id))
+            .map_or_else(|| id.to_string(), |n| n.to_string())
+    };
+    let mut lines = Vec::new();
+    for row in param.rows.iter_mut().filter(|r| dressed.contains(&r.id)) {
+        let (w, p) = (init.field("weapon"), init.field("protector"));
+        for slot in 0..w.count {
+            let id = w.get(&row.data, slot) as i32;
+            if id < 1_000_000 || is_ammo(id) || rng.below(100) >= chance {
+                continue;
+            }
+            let sort: Vec<i32> = weapons
+                .iter()
+                .copied()
+                .filter(|&n| weapon_sort(n) == weapon_sort(id))
+                .collect();
+            if sort.is_empty() {
+                continue;
+            }
+            let new = sort[rng.below(sort.len())];
+            w.set(&mut row.data, slot, i64::from(new + (id % 100).min(10)))?;
+            lines.push(format!(
+                "CharaInitParam {}: {} (was {})",
+                row.id,
+                name(ItemKind::Weapon, new),
+                name(ItemKind::Weapon, id - id % 10_000)
+            ));
+        }
+        for slot in 0..p.count {
+            let id = p.get(&row.data, slot) as i32;
+            if id < 1_000 || rng.below(100) >= chance {
+                continue;
+            }
+            let part: Vec<i32> = armour
+                .iter()
+                .copied()
+                .filter(|&n| body_part(n) == body_part(id))
+                .collect();
+            if part.is_empty() {
+                continue;
+            }
+            let new = part[rng.below(part.len())];
+            p.set(&mut row.data, slot, i64::from(new))?;
+            lines.push(format!(
+                "CharaInitParam {}: {} (was {})",
+                row.id,
+                name(ItemKind::Protector, new),
+                name(ItemKind::Protector, id)
+            ));
+        }
+    }
+    reg.set_table("CharaInitParam", &param)?;
+    Ok(lines)
 }
 
 /// The spoiler log: where every key item went, then every shuffled slot by

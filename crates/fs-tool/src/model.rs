@@ -106,5 +106,6 @@ fn short(k: Kind) -> &'static str {
         Kind::BossReward => "boss",
         Kind::Shop => "shop",
         Kind::Starting => "start",
+        Kind::Keepsake => "keep",
     }
 }

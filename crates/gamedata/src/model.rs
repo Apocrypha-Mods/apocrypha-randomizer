@@ -32,10 +32,12 @@ pub enum Kind {
     Shop,
     /// In a class's starting equipment.
     Starting,
+    /// A gift chosen at character creation.
+    Keepsake,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 9] = [
+    pub const ALL: [Kind; 10] = [
         Kind::Treasure,
         Kind::EnemyDrop,
         Kind::RepeatDrop,
@@ -45,6 +47,7 @@ impl Kind {
         Kind::BossReward,
         Kind::Shop,
         Kind::Starting,
+        Kind::Keepsake,
     ];
 
     pub fn label(self) -> &'static str {
@@ -58,6 +61,7 @@ impl Kind {
             Kind::BossReward => "boss reward",
             Kind::Shop => "shop",
             Kind::Starting => "starting",
+            Kind::Keepsake => "keepsake",
         }
     }
 }

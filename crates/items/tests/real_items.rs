@@ -213,7 +213,7 @@ fn shops_and_classes_are_written() {
                 let r = classes.rows.iter().find(|r| r.id == unit.row).unwrap();
                 init.field(field).get(&r.data, unit.slot)
             }
-            items::Place::Lot => continue,
+            items::Place::Lot | items::Place::Gather => continue,
         };
         assert_eq!(got, i64::from(now.id), "{:?} {}", unit.place, unit.row);
     }
@@ -262,4 +262,90 @@ fn the_finger_stays_before_the_chapel_door() {
         let plan = items::shuffle(&bound, &units, seed, &items::Options::default()).unwrap();
         assert_eq!(plan.placed[finger], finger, "seed {seed}");
     }
+}
+
+/// Nova's choices from play: these stay at any slider.
+#[test]
+fn what_is_fixed_stays() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let plan = items::shuffle(&b, &units, 1, &items::Options::default()).unwrap();
+    for name in [
+        "Flask of Crimson Tears",
+        "Flask of Cerulean Tears",
+        "Flask of Wondrous Physick",
+        "Spectral Steed Whistle",
+        "Crafting Kit",
+    ] {
+        let at: Vec<usize> = (0..units.len())
+            .filter(|&u| units[u].item.name.as_deref() == Some(name))
+            .collect();
+        assert!(!at.is_empty(), "{name}");
+        for u in at {
+            assert_eq!(plan.placed[u], u, "{name}");
+        }
+    }
+}
+
+#[test]
+fn keepsakes_move_and_are_named_for_the_menu() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let keep: Vec<usize> = (0..units.len())
+        .filter(|&u| units[u].slider() == items::Category::Keepsake)
+        .collect();
+    assert_eq!(keep.len(), 9);
+    let pot = keep
+        .iter()
+        .find(|&&u| units[u].item.name.as_deref() == Some("Cracked Pot"))
+        .unwrap();
+    assert_eq!(units[*pot].item.count, 3);
+    let plan = items::shuffle(&b, &units, 1, &items::Options::default()).unwrap();
+    assert!(keep.iter().any(|&u| plan.placed[u] != u));
+    assert_eq!(items::keepsake_names(&units, &plan).len(), 9);
+    let mut still = items::Options::default();
+    still.set(false, "keepsakes=0").unwrap();
+    let plan = items::shuffle(&b, &units, 1, &still).unwrap();
+    assert!(keep.iter().all(|&u| plan.placed[u] == u));
+}
+
+#[test]
+fn nodes_trade_only_among_themselves() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let gather = |u: usize| units[u].place == items::Place::Gather;
+    assert!((0..units.len()).filter(|&u| gather(u)).count() > 50);
+    let plan = items::shuffle(&b, &units, 1, &items::Options::default()).unwrap();
+    assert!((0..units.len()).any(|u| gather(u) && plan.placed[u] != u));
+    for u in 0..units.len() {
+        assert_eq!(gather(u), gather(plan.placed[u]), "{u}");
+    }
+    let mut still = items::Options::default();
+    still.set(false, "gathering=0").unwrap();
+    let plan = items::shuffle(&b, &units, 1, &still).unwrap();
+    assert!((0..units.len()).all(|u| !gather(u) || plan.placed[u] == u));
+}
+
+#[test]
+fn npcs_are_dressed_from_the_seed() {
+    let (_, m) = or_skip!();
+    let game = std::path::PathBuf::from(std::env::var_os("APOC_ER_STOCK").unwrap());
+    let run = |o: &items::Options| {
+        let mut reg = fs_param::Regulation::open(&game).unwrap();
+        let lines = items::dress_npcs(&mut reg, m, 1, o).unwrap();
+        (lines, reg.table("CharaInitParam").unwrap())
+    };
+    let (a, table) = run(&items::Options::default());
+    assert!(a.len() > 100, "{}", a.len());
+    assert_eq!(a, run(&items::Options::default()).0);
+    let init = fs_param::layout::for_table("CharaInitParam").unwrap();
+    // A class is nobody in the maps' row, so it is left alone.
+    let vagabond = table.rows.iter().find(|r| r.id == 3000).unwrap();
+    assert_eq!(init.field("weapon").get(&vagabond.data, 0), 2_000_000);
+    let mut still = items::Options::default();
+    still.set(false, "npc-gear=0").unwrap();
+    assert!(run(&still).0.is_empty());
 }

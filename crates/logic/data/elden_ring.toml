@@ -36,7 +36,16 @@ no_return = ["farum_azula", "ashen_capital", "elden_throne"]
 # The chapel's door opens only to those carrying this finger, and the body
 # beside the start is the one slot before that door. Seen in play, 2026-10-30:
 # seed 1 moved it away and the character could not leave the chapel.
-fixed = ["Tarnished's Wizened Finger"]
+fixed = [
+    "Tarnished's Wizened Finger",
+    # Nova's choices from play, 2026-10-30: the flasks, Torrent from Melina, and
+    # the Crafting Kit where Kalé sells it.
+    "Flask of Crimson Tears",
+    "Flask of Cerulean Tears",
+    "Flask of Wondrous Physick",
+    "Spectral Steed Whistle",
+    "Crafting Kit",
+]
 
 [[area]]
 id = "stranded_graveyard"

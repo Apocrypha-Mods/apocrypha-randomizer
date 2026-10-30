@@ -745,6 +745,21 @@ may wait on another location being got.
   arriving in the lab on 2.7.2. `tools/er-lab/play.sh` runs a mod folder on the
   desktop. It ran on 2026-10-30, and the door above is what that found.
 
+- **From play, 2026-10-30** (spec §2.6a to c):
+  - Seen working in a real playthrough: auto-upgrade gave a new weapon at +3
+    after one was raised to +3.
+  - `fixed` now also holds the three flasks, the whistle and the Crafting Kit.
+  - **Keepsakes** are CharaInitParam 2401–2409, a new `Kind::Keepsake`; 2400 is
+    "None". Their counts are at +0xCC (`goods_count`). Character creation names
+    them from GR_MenuText 297151–297160, not from the item, and the game reads
+    `menu_dlc02.msgbnd.dcx`, not `menu.msgbnd.dcx`. In the lab the menu listed
+    seed 1's nine. A chosen keepsake arriving, and its count, are not yet seen.
+  - **Gathering**: 178 more slots, in a pool of their own.
+  - **NPC equipment** (`dress_npcs`): 182 CharaInitParam rows placed in the
+    maps, 776 changes on seed 1. Not yet seen on an NPC in the game.
+  - Gate on 2.7.2, four threads, beside the lab: 10,000 seeds in 1,155 s, none
+    failing.
+
 Two things to know when reading a spoiler log:
 - Some key items exist twice in the game's lots, such as Godrick's Great
   Rune and the Academy Glintstone Key, and both copies are placed.

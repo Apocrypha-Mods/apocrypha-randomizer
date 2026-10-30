@@ -352,6 +352,18 @@ confidence = "confirmed"
 evidence = "93..98% of the values other than -1 are EquipParamGoods rows, in each of the ten slots."
 
 [[layout.field]]
+name = "goods_count"
+offset = 0xCC
+kind = "u8"
+count = 10
+stride = 1
+confidence = "probable"
+evidence = """
+How many of each `goods` slot. The keepsakes hold their item in slot 2, and byte
+2 here reads 2 Stonesword Keys, 3 Cracked Pots, 5 Bewitching Branches and 5
+Boiled Prawns, as their captions say. Other slots read by likeness."""
+
+[[layout.field]]
 name = "goods_b"
 offset = 0x114
 kind = "i32"

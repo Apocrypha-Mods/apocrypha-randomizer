@@ -101,9 +101,35 @@ map count as the base game.
   play.
 - Each slot takes an item of its own sort: weapons for weapon slots (not
   arrows or bolts), armour for the same body part, talismans, and spells.
+- **Keepsakes** can be randomized too (Nova, 2026-10-30), with a **keepsakes**
+  shuffle slider. Each takes goods or a talisman, as it did, in whatever count
+  the item comes in. The menu names what each now is, in English for now.
 - The other starting goods, such as the flasks, stay as they are, and key
   items never start in a class's hands, since the player's class is not
   known in advance.
+
+### 2.6a What always stays
+
+Whatever the sliders say (Nova, from play, 2026-10-30):
+- the Flasks of Crimson Tears, Cerulean Tears and Wondrous Physick;
+- the Spectral Steed Whistle, from Melina;
+- the Crafting Kit, so Kalé always sells it;
+- the Tarnished's Wizened Finger (§3).
+
+### 2.6b Gathering
+
+What regrowing nodes give, in caves and the overworld (plants, ores and so on),
+can be randomized (Nova, 2026-10-30): a **gathering** shuffle slider and bias
+slider, which behave as the others do. These items trade places only with each
+other. A node can be picked again and again, so a one-off item must not land on
+one, and nothing else takes a node's place. A key or quest item a node gives stays.
+
+### 2.6c NPC equipment
+
+What NPCs wear and hold can be randomized (Nova, 2026-10-30), with an **npc-gear**
+shuffle slider. Armour keeps its body part; a weapon keeps its sort (melee,
+shield, staff, seal, bow, torch) so an NPC can still use it, and its level up to
++10, without its affinity. Talismans and what an NPC drops do not change.
 
 ### 2.7 Weapon levels and auto-upgrade
 

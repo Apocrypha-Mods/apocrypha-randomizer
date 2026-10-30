@@ -10,6 +10,10 @@
 //!   much of the shops' stock, and of the classes' starting weapons, armour,
 //!   talismans and spells, is put in play. What lands there leans by its own
 //!   category's bias.
+//! - **Gathering** has both: how much of what plants, ores and other nodes
+//!   give moves, among nodes only, and how strongly it leans. **Keepsakes**
+//!   and **NPC gear** have a shuffle slider: how many of the gifts at character
+//!   creation, and how much of what NPCs wear and hold, is put in play.
 //! - **Bias** (0–100%): where moved items lean. At 0% any free slot is as
 //!   likely as any other. Higher, key items lean towards deep slots (late in
 //!   the game and hard to get at), which chains them behind one another, and
@@ -42,11 +46,17 @@ pub enum Category {
     /// Not a kind of item but a kind of slot: the classes' starting weapons,
     /// armour, talismans and spells.
     Starting,
+    /// Not a kind of item but a kind of slot: what regrowing nodes give.
+    Gathering,
+    /// Not a kind of item but a kind of slot: the gifts at character creation.
+    Keepsake,
+    /// What NPCs wear and hold. Nothing a player picks up.
+    NpcGear,
 }
 
 impl Category {
     /// Every slider, item categories and kinds of slot alike.
-    pub const ALL: [Category; 12] = [
+    pub const ALL: [Category; 15] = [
         Category::Key,
         Category::Weapon,
         Category::Armour,
@@ -59,6 +69,9 @@ impl Category {
         Category::Consumable,
         Category::Merchant,
         Category::Starting,
+        Category::Gathering,
+        Category::Keepsake,
+        Category::NpcGear,
     ];
 
     /// The categories of item.
@@ -90,6 +103,9 @@ impl Category {
             Category::Consumable => "consumables",
             Category::Merchant => "merchants",
             Category::Starting => "starting-gear",
+            Category::Gathering => "gathering",
+            Category::Keepsake => "keepsakes",
+            Category::NpcGear => "npc-gear",
         }
     }
 
@@ -101,8 +117,8 @@ impl Category {
 /// Every slider of a seed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Options {
-    shuffle: [u8; 12],
-    bias: [u8; 12],
+    shuffle: [u8; 15],
+    bias: [u8; 15],
     /// Whether base-game and DLC items stay on their own side.
     pub dlc_separate: bool,
     /// Whether weapons arrive at the level the player has raised one to
@@ -114,8 +130,8 @@ impl Default for Options {
     /// Everything moves, with no lean: the plainest shuffle.
     fn default() -> Self {
         Options {
-            shuffle: [100; 12],
-            bias: [0; 12],
+            shuffle: [100; 15],
+            bias: [0; 15],
             dlc_separate: false,
             auto_upgrade: false,
         }
