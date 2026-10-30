@@ -15,6 +15,7 @@ use rayon::prelude::*;
 mod boot_test;
 mod check;
 mod columns;
+mod enemies;
 mod flags;
 mod instructions;
 mod labels;
@@ -141,6 +142,20 @@ enum Command {
         #[arg(long)]
         dump: Option<PathBuf>,
     },
+    /// How the placed enemies divide, and each boss as the scripts name it.
+    Enemies { game: PathBuf },
+    /// How NpcParam rows differ, word by word.
+    NpcDiff { game: PathBuf, rows: Vec<i32> },
+    /// How SpEffectParam rows differ, word by word.
+    SpDiff { game: PathBuf, rows: Vec<i32> },
+    /// Every event run in a map's script that names one of these entities.
+    EntityEvents {
+        game: PathBuf,
+        map: String,
+        entities: Vec<u32>,
+    },
+    /// A map's creature models as bytes.
+    MsbModels { game: PathBuf, map: String },
     /// The area graph checked against the game, and the vanilla game walked
     /// from the start.
     Logic { game: PathBuf },
@@ -211,6 +226,15 @@ fn main() {
         Command::TestKit { game, out } => test_kit::run(game, out),
         Command::Model { game, dump } => model::run(game, dump),
         Command::Logic { game } => logic::run(game),
+        Command::Enemies { game } => enemies::run(game),
+        Command::NpcDiff { game, rows } => enemies::diff(game, rows),
+        Command::SpDiff { game, rows } => enemies::sp_diff(game, rows),
+        Command::EntityEvents {
+            game,
+            map,
+            entities,
+        } => enemies::events(game, map, entities),
+        Command::MsbModels { game, map } => enemies::models(game, map),
         Command::Flags { game } => flags::run(game),
         Command::MsbColumns {
             game,

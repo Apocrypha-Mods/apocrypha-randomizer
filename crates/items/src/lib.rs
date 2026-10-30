@@ -171,6 +171,11 @@ pub fn in_dlc(model: &Model, location: usize) -> bool {
         .is_some_and(|m| DLC_MAPS.contains(&m.area()))
 }
 
+/// Whether a map is in the DLC.
+pub fn in_dlc_map(m: gamedata::MapId) -> bool {
+    DLC_MAPS.contains(&m.area())
+}
+
 /// Arrows and bolts, which are weapons to the game but go in no hand.
 fn is_ammo(id: i32) -> bool {
     (50_000_000..54_000_000).contains(&id)

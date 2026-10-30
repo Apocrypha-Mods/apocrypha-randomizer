@@ -25,6 +25,7 @@ fs-esd = { path = "crates/fs-esd" }
 gamedata = { path = "crates/gamedata" }
 logic = { path = "crates/logic" }
 items = { path = "crates/items" }
+enemies = { path = "crates/enemies" }
 rando = { path = "crates/rando" }
 
 aes = "0.8"

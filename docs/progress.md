@@ -9,6 +9,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
+| 5. Enemy randomizer | started 2026-10-30; not seen in game | `apoc-rando gen --enemies` writes a seed, and the real-file test reads it back. No lab run was made, at Nova's request (below). Its gate, in-game hazard checks, is open. |
 
 ## Phase 0: setup
 
@@ -894,6 +895,52 @@ native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
     not.
   - If a run is stopped by hand, `systemctl --user reset-failed
     apoc-er-lab.scope` clears the unit before the next run.
+
+## Phase 5: enemy randomizer
+
+`crates/enemies`, from `docs/spec/enemies.md`. **Nothing here has run in the
+game:** Nova asked for no lab tests of it, so it stays off unless `--enemies` is
+given. The tests read back what is written, and that is all they can show.
+
+- **What moves.** A part keeps its entity id, so scripts still find whoever stands
+  there, and takes another's NpcParam row, AI, equipment and model.
+- **Strength, from the game's own tiers.** `NpcParam.scale_a` (+0x58) is a
+  SpEffectParam row, and its +0x10 a health rate. Margit's 2521 x 1.656 is the
+  known 4,174, and Morgott's same 2521 x 4.125 the known 10,399, held by a test.
+  Scale off, a clone keeps the body's own. Which of an effect's other rates are
+  damage is not settled, as the tier is copied whole.
+- **Clones.** A moved body gets a row from 800,000,000 up, keeping the spot's drops
+  and runes (+0x2C, probable), and with scaling its health and both tiers.
+- **Models.** A map's model entry: name offset, type 2, its own index, the source
+  path's offset, and at +0x18 how many parts use it, always updated. Part names
+  still say the old model; 20 of the game's own parts already differ.
+- **Size** is from `height` (+0x14) and `radius` (+0x18), both probable: the larger
+  of height and twice the radius, under 2.7 small, under 6 medium, else large.
+- **Malenia** is one body. Event 15002811 starts her second phase; it is copied to
+  the new boss's script and no longer starts at home (`malenia.rs`).
+
+On 2.7.2, seed 1, all moving, 2026-10-30:
+- 233 boss spots with 163 different names, and 21,710 ordinary spots (19,968
+  small, 1,438 medium, 304 large), 126 of them humans; 21,940 of 21,943 hold someone new;
+- 468 maps, 2 scripts and 18,696 new rows, 28 MB, in 80 s with the item shuffle;
+- left in place: Beast Clergyman, God-Devouring Serpent, Promised Consort Radahn,
+  Messmer the Impaler, Stonedigger Troll, Magma Wyrm Makar, Nox Swordstress, Erdtree
+  Avatar and three Scadutree Avatars, as no script read waits on their deaths.
+
+`apoc-fs enemies`, `npc-diff`, `sp-diff`, `entity-events` and `msb-models` show the
+data this came from. `crates/enemies/tests/real_enemies.rs` holds it.
+
+Still to do:
+- [ ] **The gate:** the spec's hazards in the game, once a lab run is wanted.
+- [ ] **Malenia's trigger.** 4[14] with 5 sets off her phase, and what it tests is
+      not read; it may not fire on a body moved elsewhere, or may fire in her old
+      arena's death event. Only play will tell.
+- [ ] **Other bosses' own phases.** One-body bosses with scripted phases (Godrick,
+      say) lose them when moved, as those events stay in the old arena. Only
+      Malenia's moves, by Nova's choice.
+- [ ] **Hostile or friendly.** NpcParam's team is not read, so "friendly" means has
+      talk, or is named and not built like a player. Named humans with no talk swap,
+      and that includes rows of Millicent, Anastasia and D used in quest events.
 
 ## Phase 3: game model
 

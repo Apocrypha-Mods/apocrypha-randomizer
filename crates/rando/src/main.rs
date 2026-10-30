@@ -88,6 +88,15 @@ struct Sliders {
     /// beside this program).
     #[arg(long)]
     native: Option<PathBuf>,
+    /// Move enemies, as percentages: `--enemies bosses=100,ordinary=100,mix=0`.
+    /// Bosses trade with bosses, ordinary enemies with those of about their
+    /// size, and `mix` is the share of bosses that trade with an ordinary enemy.
+    /// Nothing moves unless this is given: it has not yet been seen in the game.
+    #[arg(long, default_value = "")]
+    enemies: String,
+    /// Leave moved enemies at their own strength, not that of where they land.
+    #[arg(long)]
+    no_enemy_scaling: bool,
 }
 
 impl Sliders {
@@ -97,6 +106,14 @@ impl Sliders {
         o.set(true, &self.bias).map_err(format_err)?;
         o.dlc_separate = self.dlc == "separate";
         o.auto_upgrade = self.auto_upgrade;
+        Ok(o)
+    }
+
+    fn enemy_options(&self) -> Result<enemies::Options> {
+        let mut o = enemies::Options::default();
+        o.set(&self.enemies).map_err(format_err)?;
+        o.scale = !self.no_enemy_scaling;
+        o.dlc_separate = self.dlc == "separate";
         Ok(o)
     }
 }
@@ -109,9 +126,10 @@ fn main() {
             seed,
             out,
             sliders,
-        } => sliders
-            .options()
-            .and_then(|o| gen_seed(game, seed, out, &o, sliders.native.as_deref())),
+        } => sliders.options().and_then(|o| {
+            let foes = sliders.enemy_options()?;
+            gen_seed(game, seed, out, &o, &foes, sliders.native.as_deref())
+        }),
         Command::Check {
             game,
             seeds,
@@ -130,6 +148,7 @@ fn gen_seed(
     seed: u64,
     out: PathBuf,
     options: &items::Options,
+    foes: &enemies::Options,
     native: Option<&std::path::Path>,
 ) -> Result<()> {
     let sources = Sources::open(&game)?;
@@ -153,6 +172,13 @@ fn gen_seed(
     if options.auto_upgrade {
         native_module(&out, native)?;
     }
+    let enemy_log = if foes.is_off() {
+        None
+    } else {
+        Some(move_enemies(
+            &game, &out, &sources, &model, &mut reg, seed, foes,
+        )?)
+    };
     std::fs::write(out.join("regulation.bin"), reg.write()?)?;
     let spoiler = out.with_extension("spoiler.txt");
     let mut log = items::spoiler(&bound, &units, &plan);
@@ -160,6 +186,7 @@ fn gen_seed(
     for line in &dressed {
         log += &format!("  {line}\n");
     }
+    log += enemy_log.as_deref().unwrap_or("");
     std::fs::write(&spoiler, log)?;
     eprintln!(
         "seed {seed}: {} slots shuffled; mod folder {}, spoiler log {}",
@@ -167,6 +194,85 @@ fn gen_seed(
         out.display(),
         spoiler.display()
     );
+    Ok(())
+}
+
+/// Move the enemies and write what changed: maps, scripts and health bar names.
+fn move_enemies(
+    game: &std::path::Path,
+    out: &std::path::Path,
+    sources: &Sources,
+    model: &gamedata::model::Model,
+    reg: &mut fs_param::Regulation,
+    seed: u64,
+    foes: &enemies::Options,
+) -> Result<String> {
+    let pool = enemies::pool(sources, model)?;
+    let plan = enemies::shuffle(&pool, seed, foes);
+    let applied = enemies::apply(reg, sources, &pool, &plan, foes)?;
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(game)?;
+    let write = |path: String, plain: Vec<u8>| -> Result<()> {
+        let (header, _) = fs_dcx::decompress(&dvd.read_path(&path)?)?;
+        let to = out.join(path.trim_start_matches('/'));
+        std::fs::create_dir_all(to.parent().unwrap_or(out))?;
+        let data = fs_dcx::compress(&header.with_algorithm(fs_dcx::Algorithm::Zstd), &plain)?;
+        std::fs::write(to, data)?;
+        Ok(())
+    };
+    applied
+        .maps
+        .par_iter()
+        .try_for_each(|(m, msb)| write(format!("/map/mapstudio/{m}.msb.dcx"), msb.write()?))?;
+    applied
+        .scripts
+        .par_iter()
+        .try_for_each(|(m, script)| write(format!("/event/{m}.emevd.dcx"), script.write()?))?;
+    bar_text(&dvd, out, &applied.bar_names)?;
+    eprintln!(
+        "enemies: {} maps changed, {} scripts, {} new NpcParam rows",
+        applied.maps.len(),
+        applied.scripts.len(),
+        applied.new_rows
+    );
+    Ok(enemies::spoiler(&pool, &plan, foes))
+}
+
+/// A health bar names who stands there now. English only for now, as with the
+/// keepsakes.
+fn bar_text(
+    dvd: &fs_dvdbnd::Dvd,
+    out: &std::path::Path,
+    names: &std::collections::BTreeMap<i32, String>,
+) -> Result<()> {
+    const ITEMS: &str = "/msg/engus/item_dlc02.msgbnd.dcx";
+    let (header, plain) = fs_dcx::decompress(&dvd.read_path(ITEMS)?)?;
+    let mut bnd = fs_bnd4::Bnd4::read(&plain)?;
+    for f in &mut bnd.files {
+        let is_npc_name = f
+            .short_name()
+            .is_some_and(|n| n.starts_with("NpcName") && n.ends_with(".fmg"));
+        if !is_npc_name {
+            continue;
+        }
+        let mut fmg = fs_fmg::Fmg::read(&f.data)?;
+        let mut changed = false;
+        for (id, name) in names {
+            if fmg.entries.contains_key(id) {
+                fmg.entries.insert(*id, Some(name.clone()));
+                changed = true;
+            }
+        }
+        if changed {
+            f.data = fmg.write()?;
+        }
+    }
+    let path = out.join(ITEMS.trim_start_matches('/'));
+    std::fs::create_dir_all(path.parent().unwrap_or(out))?;
+    let data = fs_dcx::compress(
+        &header.with_algorithm(fs_dcx::Algorithm::Zstd),
+        &bnd.write()?,
+    )?;
+    std::fs::write(path, data)?;
     Ok(())
 }
 

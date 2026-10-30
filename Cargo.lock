@@ -242,6 +242,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
+name = "enemies"
+version = "0.1.0"
+dependencies = [
+ "fs-bytes",
+ "fs-dcx",
+ "fs-emevd",
+ "fs-msb",
+ "fs-param",
+ "gamedata",
+ "items",
+]
+
+[[package]]
 name = "env_filter"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -763,6 +776,7 @@ name = "rando"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "enemies",
  "fs-bnd4",
  "fs-bytes",
  "fs-dcx",

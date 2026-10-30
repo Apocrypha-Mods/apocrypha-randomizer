@@ -24,5 +24,6 @@ fs-fmg.workspace = true
 gamedata.workspace = true
 logic.workspace = true
 items.workspace = true
+enemies.workspace = true
 clap.workspace = true
 rayon.workspace = true

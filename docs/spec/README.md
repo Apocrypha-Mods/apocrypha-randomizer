@@ -1,14 +1,13 @@
 # Spec
 
-What the randomizer does, as behaviour only (PLAN.md §1, rule 3). Two
-sources feed it:
+What the randomizer does, as behaviour only (PLAN.md §1, rule 3). Both
+halves are our own design:
 
-- **Our own design** (route C, item half): `items.md`, written from Nova's
+- **Items** (route C): `items.md`, written from Nova's
   decisions with no upstream material read, so no contamination review is
   needed.
-- **The dirty room** (route C, enemy half, later): a behaviour-only write-up
-  of upstream's enemy-randomizer hazards by someone who writes no code here,
-  reviewed for contamination before it lands in this folder.
+- **Enemies**: `enemies.md`, the same way, chosen by Nova
+  on 2026-10-30 in place of a dirty-room write-up.
 
 Code follows this folder. If something is unclear, ask for the spec to be
 extended; don't go and look upstream.

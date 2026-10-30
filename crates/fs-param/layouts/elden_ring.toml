@@ -237,6 +237,55 @@ evidence = """
 NpcName text (e.g. Rennala, Queen of the Full Moon on rows 20300000..20310124)."""
 
 [[layout.field]]
+name = "height"
+offset = 0x14
+kind = "f32"
+confidence = "probable"
+evidence = "Most rows 1.7 to 2.2, the size of a person; Margit 3.6, Mohg 4.0: how tall the body is."
+
+[[layout.field]]
+name = "radius"
+offset = 0x18
+kind = "f32"
+confidence = "probable"
+evidence = "Most rows 0.4 to 0.5; Margit 1.1, Mohg 1.3: how wide the body is."
+
+[[layout.field]]
+name = "hp"
+offset = 0x24
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+Margit's 2521, times the health rate of his scale_a effect (1.656), is the 4,174
+known from play; Morgott shares the 2521, and his 4.125 gives the known 10,399."""
+
+[[layout.field]]
+name = "runes"
+offset = 0x2C
+kind = "i32"
+confidence = "probable"
+evidence = "0 in 4,306 rows, otherwise mostly round numbers such as 500, 1000 and 3000."
+
+[[layout.field]]
+name = "scale_a"
+offset = 0x58
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+A row of SpEffectParam whose +0x10 is a health rate (see hp). One character's rows
+differ here by where they stand: Margit 7030, Morgott 7110."""
+
+[[layout.field]]
+name = "scale_b"
+offset = 0x6C
+kind = "i32"
+confidence = "probable"
+evidence = """
+Runs alongside scale_a, always 400 higher in the rows looked at (7030 and 7430).
+Its effects also carry rates, but they are not in force on a first journey, as
+the health sums above need only scale_a. Perhaps later journeys."""
+
+[[layout.field]]
 name = "item_lot_enemy_id"
 offset = 0x30
 kind = "i32"
