@@ -1,0 +1,202 @@
+/* The mod manager hands over its colours and type (host.js, `wear`); these
+   are what the page falls back to when opened on its own: the app's Mist
+   palette, dark then light. */
+:root {
+  --bg-base: hsl(219 41% 8%);
+  --bg-surface: hsl(221 39% 11%);
+  --bg-raised: hsl(220 31% 15%);
+  --bg-overlay: hsl(220 30% 17%);
+  --bg-sunken: hsl(219 47% 6%);
+  --bg-hover: hsl(220 29% 19%);
+  --bg-selected: hsl(220 28% 21%);
+  --border: hsl(220 26% 21%);
+  --border-field: hsl(218 15% 47%);
+  --text-primary: hsl(213 36% 95%);
+  --text-secondary: hsl(216 19% 72%);
+  --text-tertiary: hsl(216 16% 59%);
+  --accent: hsl(218 47% 74%);
+  --accent-muted: hsl(220 40% 19%);
+  --accent-contrast: hsl(219 41% 8%);
+  --success: hsl(151 43% 60%);
+  --warning: hsl(36 70% 61%);
+  --danger: hsl(0 79% 74%);
+  --font-display: "Geist Variable", "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  --shadow: 0 24px 48px -12px hsl(220 60% 2% / 0.7);
+  --scrim: hsl(220 50% 3% / 0.55);
+  --tint: 14%;
+  /* The app's two springs (theme.css). Nothing else moves. */
+  --smooth: linear(0, 0.04, 0.129, 0.238, 0.349, 0.455, 0.551, 0.634, 0.704, 0.763, 0.811, 0.85, 0.882, 0.908, 0.928, 0.944, 0.956, 0.966, 0.974, 0.98, 0.984, 0.988, 0.991, 0.993, 0.995, 0.996, 0.997, 0.998, 0.998, 0.999, 0.999, 0.999, 1);
+  --snappy: linear(0, 0.041, 0.134, 0.251, 0.374, 0.492, 0.599, 0.691, 0.768, 0.832, 0.881, 0.919, 0.947, 0.968, 0.982, 0.992, 0.999, 1.003, 1.005, 1.006, 1.006, 1.006, 1.005, 1.004, 1.004, 1.003, 1.002, 1.002, 1.001, 1.001, 1.001, 1, 1);
+  --ds: 546ms;
+  --dn: 433ms;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg-base: hsl(216 22% 92%);
+  --bg-surface: hsl(216 26% 94.5%);
+  --bg-raised: hsl(220 30% 98.5%);
+  --bg-overlay: hsl(220 30% 98.5%);
+  --bg-sunken: hsl(215 22% 88.5%);
+  --bg-hover: hsl(216 25% 95.5%);
+  --bg-selected: hsl(215 22% 88.5%);
+  --border: hsl(215 22% 84%);
+  --border-field: hsl(217 15% 52%);
+  --text-primary: hsl(218 45% 16%);
+  --text-secondary: hsl(216 19% 38%);
+  --text-tertiary: hsl(215 18% 40%);
+  --accent: hsl(217 42% 32%);
+  --accent-muted: hsl(216 42% 91%);
+  --accent-contrast: #fff;
+  --success: hsl(155 45% 31%);
+  --warning: hsl(33 82% 30%);
+  --danger: hsl(356 54% 43%);
+  --shadow: 0 24px 48px -12px hsl(220 40% 20% / 0.25);
+  --scrim: hsl(218 30% 30% / 0.22);
+  --tint: 16%;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: 14px/20px var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+#app { padding: 4px 24px 32px; min-width: 0; }
+
+/* Under the host's title row: what state the add-on is in, and its settings. */
+.top { display: flex; align-items: center; gap: 12px; min-height: 32px; margin: 0 0 12px; }
+.top .status { flex: 1; min-width: 0; font-size: 14px; color: var(--text-secondary); }
+.ib { width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center; color: var(--text-secondary); }
+.ib:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ib:active { background: var(--bg-selected); }
+
+.btn {
+  height: 32px; padding: 0 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 14px; font-weight: 500; color: var(--text-primary); background: var(--bg-raised); white-space: nowrap;
+ 
+}
+.btn:hover { background: var(--bg-hover); }
+.btn:active { background: var(--bg-selected); }
+.btn.sm { height: 28px; padding: 0 12px; font-size: 13px; }
+.btn.pri { background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+.btn.pri:hover { background: color-mix(in srgb, var(--accent) 90%, var(--text-primary)); }
+.btn.pri:active { background: color-mix(in srgb, var(--accent) 86%, var(--bg-base)); }
+.btn.q { background: none; color: var(--text-secondary); }
+.btn.q:hover { color: var(--text-primary); background: var(--bg-hover); }
+.btn:disabled { cursor: default; }
+
+.tag { height: 20px; padding: 0 7px; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--bg-raised); color: var(--text-secondary); white-space: nowrap; }
+.tag.warn { background: color-mix(in srgb, var(--warning) var(--tint), transparent); color: var(--warning); }
+.tag.bad { background: color-mix(in srgb, var(--danger) var(--tint), transparent); color: var(--danger); }
+.tag.ok { background: color-mix(in srgb, var(--success) var(--tint), transparent); color: var(--success); }
+
+.card { border-radius: 20px; background: var(--bg-surface); box-shadow: inset 0 0 0 1px var(--border); }
+.sh { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; font-weight: 600; color: var(--text-tertiary); padding: 0 16px 8px; }
+.sh .x { font-weight: 400; }
+
+.mw { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.mw > .side { order: 2; }
+@media (max-width: 760px) {
+  .mw { grid-template-columns: minmax(0, 1fr); }
+  .mw > .side { order: -1; }
+}
+
+/* Build card */
+.side { position: sticky; top: 4px; }
+.side .card { display: grid; gap: 16px; padding: 20px; align-content: start; }
+.side h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.kv { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px 12px; font-size: 14px; }
+.kv .k { color: var(--text-tertiary); }
+.kv .val { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv .accent { color: var(--accent); }
+.big { font-size: 28px; font-weight: 300; letter-spacing: -0.01em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.res { display: grid; gap: 6px; }
+.sec { color: var(--text-secondary); font-size: 13px; }
+.pair { display: flex; gap: 8px; }
+.pair > * { flex: 1; }
+.bbw { position: relative; display: grid; border-radius: 999px; overflow: hidden; isolation: isolate; }
+.bbw .btn { width: 100%; position: relative; z-index: 2; }
+.bbw .lbl { font-variant-numeric: tabular-nums; }
+.bbw .fill { position: absolute; inset: 0; z-index: 3; pointer-events: none; transform-origin: left; transform: scaleX(0); opacity: 0; transition: transform var(--dn) var(--snappy), opacity var(--ds) var(--smooth); }
+.bbw .fill i { position: absolute; inset: 0; background: var(--accent); opacity: 0.32; }
+.bbw .fill.on { opacity: 1; }
+.bbw.run .btn { background: var(--bg-raised); color: var(--text-primary); font-weight: 500; filter: none; }
+
+/* Empty and can't-build cards */
+.empty { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; align-items: start; padding: 24px; max-width: 560px; }
+.empty.one { grid-template-columns: 1fr; }
+.disc { grid-row: span 3; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--bg-raised); color: var(--text-secondary); }
+.empty h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.empty p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+.empty .acts { justify-content: flex-start; margin-top: 12px; }
+
+/* What a seed moves: rows of sliders in one card, as Bodyworks' sliders. */
+.groups { display: grid; gap: 20px; min-width: 0; }
+.rows { padding: 4px 0; }
+.sr { position: relative; display: grid; grid-template-columns: 160px minmax(0, 1fr) 44px; gap: 12px; align-items: center; min-height: 40px; padding: 0 16px; }
+.sr::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1px; background: var(--border); }
+.sr:last-child::after { display: none; }
+.sr .n { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
+.sr output { text-align: right; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.sr.pick { grid-template-columns: minmax(0, 1fr) auto; }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 20px; margin: 0; background: none; cursor: pointer; --at: 0%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--at), var(--bg-selected) var(--at)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5px; border-radius: 50%; background: var(--text-primary); box-shadow: 0 1px 3px hsl(0 0% 0% / 0.5); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--bg-selected); }
+input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type="range"]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--text-primary); }
+input[type="range"]:disabled { cursor: default; opacity: 0.5; }
+.seg { display: inline-flex; padding: 2px; border-radius: 999px; background: var(--bg-sunken); box-shadow: inset 0 0 0 1px var(--border); }
+.seg button { height: 24px; padding: 0 12px; border-radius: 999px; font-size: 13px; color: var(--text-secondary); }
+.seg button.on { background: var(--bg-selected); color: var(--text-primary); font-weight: 500; }
+.seedrow { display: flex; gap: 8px; }
+.seedrow .inp { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+
+/* Menus and sheets */
+.menu { position: fixed; z-index: 20; min-width: 200px; padding: 6px; border-radius: 14px; background: var(--bg-overlay); box-shadow: 0 0 0 1px var(--border), var(--shadow); display: grid; gap: 1px; font-size: 13px; animation: fadeIn 150ms linear both; }
+.mi { height: 30px; padding: 0 10px; display: flex; align-items: center; gap: 10px; border-radius: 8px; color: var(--text-primary); text-align: left; width: 100%; outline: none; }
+.mi:hover, .mi:focus-visible { background: var(--accent-muted); }
+.mi:disabled { color: var(--text-tertiary); cursor: default; background: none; }
+.mi .k { margin-left: auto; color: var(--text-tertiary); font-size: 12px; }
+.msep { height: 1px; margin: 4px 8px; background: var(--border); }
+.scrim { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 24px; background: var(--scrim); animation: fadeIn var(--ds) var(--smooth) both; }
+.sheet { width: min(440px, 100%); max-height: calc(100vh - 48px); overflow: auto; border-radius: 20px; background: var(--bg-overlay); box-shadow: 0 0 0 1px var(--border), var(--shadow); padding: 24px; display: grid; gap: 20px; align-content: start; animation: rise var(--ds) var(--smooth) both; }
+.sheet.wide { width: min(620px, 100%); }
+.sheet h3 { margin: 0; font-size: 18px; font-weight: 600; }
+.acts { display: flex; justify-content: flex-end; gap: 8px; }
+.acts .lead { margin-right: auto; }
+.fld { display: grid; gap: 6px; }
+.fld > span { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.inp { height: 34px; padding: 0 12px; border-radius: 10px; border: 0; background: var(--bg-sunken); box-shadow: inset 0 0 0 1px var(--border-field); font: inherit; color: var(--text-primary); width: 100%; }
+.inp:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+select.inp { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--text-tertiary) 50%), linear-gradient(135deg, var(--text-tertiary) 50%, transparent 50%); background-position: calc(100% - 17px) 15px, calc(100% - 12px) 15px; background-size: 5px 5px; background-repeat: no-repeat; padding-right: 32px; }
+.chk { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+.log { font-family: var(--font-mono); font-size: 12px; line-height: 20px; padding: 12px 14px; border-radius: 12px; background: var(--bg-sunken); color: var(--text-secondary); white-space: pre-wrap; overflow: auto; max-height: 50vh; margin: 0; user-select: text; }
+
+/* Arrivals: the snappy spring for rows and ticks, the smooth one for results. */
+@keyframes rowIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@keyframes breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.in { animation: rowIn var(--dn) var(--snappy) both; animation-delay: calc(var(--i, 0) * 28ms); }
+.tick { animation: pop var(--dn) var(--snappy) both; }
+.risein { animation: rise var(--ds) var(--smooth) both; }
+.fadein { animation: fadeIn var(--ds) var(--smooth) both; }
+.ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border-field); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .in, .tick, .risein, .sheet { animation-name: fadeIn; }
+  .bbw .fill { transition: opacity var(--ds) linear; }
+  .ring { animation: none; }
+}

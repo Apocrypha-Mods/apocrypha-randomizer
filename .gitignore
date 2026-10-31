@@ -6,3 +6,4 @@
 regulation.bin
 .env
 .claude/
+dist/
