@@ -279,7 +279,7 @@ fn script_dump(game: PathBuf, events: &[i64], uses: &[String]) -> fs_bytes::Resu
     let s = gamedata::Sources::open(&game)?;
     for (map, script) in &s.scripts {
         for event in &script.events {
-            let whole = events.contains(&(event.id as i64));
+            let whole = events.contains(&{ event.id });
             for i in &event.instructions {
                 let key = format!("{}:{}", i.bank, i.id);
                 if whole || uses.contains(&key) {
