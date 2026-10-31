@@ -22,6 +22,7 @@ mod labels;
 mod logic;
 mod model;
 mod msb_columns;
+mod names;
 mod scripts;
 mod test_kit;
 
@@ -37,6 +38,19 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Build a list of archive paths from the game's own files, each one
+    /// confirmed by a matching hash. The list is game data: never commit it.
+    Names {
+        game: PathBuf,
+        /// Where to write the list.
+        #[arg(long)]
+        out: PathBuf,
+        /// Where what was read from the game is kept between runs.
+        #[arg(long, default_value = "scratch/names-cache")]
+        cache: PathBuf,
+        #[arg(long, default_value_t = 4)]
+        jobs: usize,
+    },
     /// Read every entry of every archive and report what is in them.
     Survey {
         /// The folder holding the archives and eldenring.exe.
@@ -330,6 +344,12 @@ fn main() {
     let cli = Cli::parse();
     let result = match cli.command {
         Command::Survey { game, jobs } => survey(game, jobs),
+        Command::Names {
+            game,
+            out,
+            cache,
+            jobs,
+        } => names::run(game, out, cache, jobs),
         Command::Check {
             game,
             names,
