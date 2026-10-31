@@ -211,6 +211,31 @@ enum Command {
         #[arg(long)]
         from: Option<String>,
     },
+    /// Leave a mod folder's moved enemies with one health, for lab checks of what
+    /// their death sets off. Never for a seed that is meant to be played.
+    TestWeak {
+        game: PathBuf,
+        /// The mod folder to change.
+        out: PathBuf,
+    },
+    /// Kill an entity some seconds after its map loads, for lab checks of what a
+    /// death sets off. Never for a seed that is meant to be played.
+    TestKill {
+        game: PathBuf,
+        /// The mod folder to change.
+        out: PathBuf,
+        /// The map, as `m10_00_00_00`.
+        #[arg(long)]
+        map: String,
+        #[arg(long)]
+        entity: u32,
+        /// Seconds after loading.
+        #[arg(long, default_value_t = 20.0)]
+        after: f32,
+        /// A mod folder whose copy of the map's script to build on.
+        #[arg(long)]
+        over: Option<PathBuf>,
+    },
     /// Write one file out of the archives, by path or by hash.
     Extract {
         game: PathBuf,
@@ -308,6 +333,15 @@ fn main() {
             to,
             filter,
         } => columns::run(game, &table, &widths, from, to, &filter),
+        Command::TestKill {
+            game,
+            out,
+            map,
+            entity,
+            after,
+            over,
+        } => test_kit::kill(game, out, &map, entity, after, over),
+        Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::TestWarp {
             game,
             out,

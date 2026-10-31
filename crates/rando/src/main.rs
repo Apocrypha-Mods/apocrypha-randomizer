@@ -372,7 +372,10 @@ fn write_profile(out: &Path, mods: &[PathBuf], native: bool) -> Result<()> {
         .file_name()
         .ok_or_else(|| format_err("the mod folder has no name"))?
         .to_string_lossy();
-    let mut text = String::from("profileVersion = \"v1\"\n\n[[supports]]\ngame = \"eldenring\"\n");
+    // A save of its own: a seed's progress and the player's real game never mix.
+    let mut text = format!(
+        "profileVersion = \"v1\"\nsavefile = \"{name}.sl2\"\n\n[[supports]]\ngame = \"eldenring\"\n"
+    );
     let mut ids: Vec<String> = Vec::new();
     let mut natives: Vec<String> = Vec::new();
     for m in mods {
@@ -723,6 +726,7 @@ mod tests {
         let table: toml::Table = text.parse().unwrap();
         let packages = table["packages"].as_array().unwrap();
         assert_eq!(packages.len(), 2, "{text}");
+        assert_eq!(table["savefile"].as_str(), Some("seed.sl2"));
         assert_eq!(packages[1]["path"].as_str(), Some("seed"));
         assert_eq!(packages[1]["load_after"][0]["id"].as_str(), Some("mod-0"));
         let natives = table["natives"].as_array().unwrap();

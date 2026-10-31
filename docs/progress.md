@@ -1008,21 +1008,31 @@ What real mods showed, each fixed:
 - Nightreign Movement ships a DLL and no profile.
 
 **Seen in the lab, 2.7.2, seed 1, 2026-10-31** (`ER_BELOW` and `ER_NATIVES` in `run.sh`
-load other mods under the seed; four launches, `ER_CPU=300`, two Cyberpunk labs beside):
+load other mods under the seed; `ER_CPU=300`, two Cyberpunk labs beside for the first runs):
 - **ELDEN VINS 1.9.1 alone** (made for 1.17.0: 109,115 rows changed, 24,339 added): its
   title screen, and me3 served the seed's `regulation.bin` and `menu_dlc02` with VINS's
   character files beneath. The world loaded at 6.3 GB; through Margit's fog, the fight
   began under his name. Items alone move in this seed, so he stood there.
 - **Nightreign Movement and VINS together, all bosses moved:** no crash in any run, up
   to 5.9 to 6.3 GB. The seed's maps and text served, and an Ancestor Spirit stood in
-  Margit's arena under its own name, on a screen showing VINS's title menu text with the
-  seed's menu file. Killing it was not tried, nor was picking up an item.
-- **Not seen:** the keepsake names on screen. VINS's title menu took no arrow keys in
-  the lab; a test holds that the seed's file has them beside the mod's own line.
+  Margit's arena under its own name, with VINS's title menu text still showing from the
+  seed's menu file.
+- **A moved boss dies, and the reward is the seed's.** `test-kill` kills the spot's entity
+  by the game's own 2004[4], on VINS's copy of the map's script (the character died before
+  landing a hit by hand, so it was not killed by the player). "GREAT ENEMY FELLED" showed,
+  and Sanguine Amaryllis arrived, the spoiler's item for flag 9100, Margit's Talisman Pouch
+  unmodded. That dialog shows no count, so the spoiler's x5 is not seen.
+- **The other load order, Nightreign last:** its title art, compass and character files are
+  the ones served, so the later mod wins as me3's source says. On that seed the character
+  creator gave the Warrior the seed's gear, and listed all nine keepsakes as the spoiler has
+  them, in order. In the world it walked, attacked and rolled for over a minute, at 6.1 GB.
 - **The two mods clash with each other, not with the seed.** Both replace the player's
-  character files, `c0000.hks` and `common.emevd`, 18 files in all, and VINS's come
-  last, so Nightreign's moves are likely lost while its DLL still loads. The run lists
-  them. Which one wins is the player's load order; no tool can merge those files.
+  character files, `c0000.hks` and `common.emevd`, 18 files in all, and the later is used
+  whole. The run lists them. Which wins is the player's load order; those files cannot be
+  merged. Whether Nightreign's moves feel right was not judged: a 10 fps lab cannot tell.
+- **The profile:** me3 0.13's own `profile show` reads `<out>.me3` and lists its packages and
+  DLLs. The lab builds the same order by hand, and `me3 launch` itself was not run, as it
+  would use the Steam prefix and not the lab's. The profile names a save of its own.
 - `test-warp` from a map to itself reloads for ever: a limit of that tool, not of mods.
 
 **Proof, four threads:** Nightreign Movement alone, 10,000 seeds in 1,023 s; both

@@ -153,3 +153,66 @@ pub fn warp(
     )?;
     Ok(())
 }
+
+/// Leave a mod folder's moved enemies with one health, to see in the lab what
+/// their death sets off. Rows from 800,000,000 up are the ones a seed makes.
+pub fn weak_enemies(game: PathBuf, out: PathBuf) -> Result<()> {
+    const HP: usize = 0x24;
+    let file = out.join("regulation.bin");
+    let bytes = std::fs::read(&file)?;
+    let key = fs_param::crypto::find_key(&std::fs::read(game.join("eldenring.exe"))?, &bytes)?;
+    let mut reg = fs_param::Regulation::read(&key, &bytes)?;
+    let mut npc = reg.table("NpcParam")?;
+    let mut count = 0;
+    for row in npc.rows.iter_mut().filter(|r| r.id >= 800_000_000) {
+        row.data[HP..HP + 4].copy_from_slice(&1i32.to_le_bytes());
+        count += 1;
+    }
+    reg.set_table("NpcParam", &npc)?;
+    // A new file: the folder may share this one with a copy.
+    std::fs::remove_file(&file)?;
+    std::fs::write(&file, reg.write()?)?;
+    eprintln!("{count} rows left with one health");
+    Ok(())
+}
+
+/// Kill an entity some seconds after its map loads (2004[4]: the entity, then 1 to
+/// give runes), to see in the lab what a death sets off. Built on `over`'s copy of
+/// the map's script, a mod's, if it has one.
+pub fn kill(
+    game: PathBuf,
+    out: PathBuf,
+    map: &str,
+    entity: u32,
+    after: f32,
+    over: Option<PathBuf>,
+) -> Result<()> {
+    let script_path = format!("/event/{map}.emevd.dcx");
+    let bytes = match over
+        .map(|d| d.join(script_path.trim_start_matches('/')))
+        .filter(|f| f.is_file())
+    {
+        Some(file) => std::fs::read(file)?,
+        None => Dvd::open_elden_ring(&game)?.read_path(&script_path)?,
+    };
+    let (header, plain) = fs_dcx::decompress(&bytes)?;
+    let mut script = Emevd::read(&plain)?;
+    let event = script
+        .events
+        .iter_mut()
+        .find(|e| e.id == 0)
+        .ok_or_else(|| format_err("the script has no event 0"))?;
+    let mut args = entity.to_le_bytes().to_vec();
+    args.extend(1u32.to_le_bytes());
+    event
+        .instructions
+        .push(instruction(1001, 0, after.to_le_bytes().to_vec()));
+    event.instructions.push(instruction(2004, 4, args));
+    let path = out.join(script_path.trim_start_matches('/'));
+    std::fs::create_dir_all(path.parent().unwrap_or(&out))?;
+    std::fs::write(
+        path,
+        fs_dcx::compress(&header.with_algorithm(Algorithm::Zstd), &script.write()?)?,
+    )?;
+    Ok(())
+}
