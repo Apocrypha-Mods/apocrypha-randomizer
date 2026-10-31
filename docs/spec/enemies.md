@@ -85,6 +85,8 @@ To be filled in as they are found. Not yet seen in the game:
   but not its wake (20000 up), and stands asleep. `apoc-fs boss-commands` lists what
   each spot is told. Which ids a body has is a rough reading of its `.anibnd`: 106 of
   340 commands were not found on the spot's own body, so some archives hold more.
+- **Moving ordinary enemies crashes the game near Stormveil**, at every model limit
+  tried (`progress.md`). Bosses alone do not. Not yet safe to play.
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
 - **Cutscenes** show or expect the old boss.

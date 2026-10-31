@@ -936,11 +936,18 @@ Still to do:
   Margit's arena his own cutscene played, as a cutscene has its own copy of him, and
   then a Godskin Apostle stood there with its name on the bar, and fought: Margit's
   wake, which it may lack, froze nothing. Killing it was not tried.
+- **Ordinary enemies crash the game** (same day, seed 1). Moving them, the game
+  boots and the chapel loads, then it closes some 30 s after loading around
+  Stormveil, the same way each run: a null read on the main thread at
+  `eldenring.exe+0x475D2B` (r14 = 0x90000051). A limit of 20, 8 and 1 all fail, and at
+  limit 1 with bosses left alone it failed twice; bosses only, from the same save, ran
+  100 s. So it is not the number of models. Rows or a particular body remain, untested.
 - **Machine checks.** The PC went down during the all-enemies run with no kernel
   message, and the next boot reports a fatal CPU error: MC5 (execution unit),
   syndrome 0x4d000000, at a Wine address. Boots of 2026-10-29 and 30 report the same
   on other threads. Not memory: the lab peaked at 6.7 GB of its 9. Two Cyberpunk labs
-  ran beside it. The lab takes `ER_CPU` to lower its CPU quota.
+  ran beside it. Six later launches, alone and at `ER_CPU=200`, did not bring the PC
+  down, which rules nothing out. The lab takes `ER_CPU` to lower its CPU quota.
 - [ ] **The gate:** the spec's hazards in the game, once a lab run is wanted.
 - [ ] **Malenia's trigger.** Read from the scripts, not yet seen in play. 4[14] with
       5 and 0 waits on a body's fall, and 286 uses across bosses run into its death;
