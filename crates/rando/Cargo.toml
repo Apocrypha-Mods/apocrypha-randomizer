@@ -27,3 +27,4 @@ items.workspace = true
 enemies.workspace = true
 clap.workspace = true
 rayon.workspace = true
+toml.workspace = true

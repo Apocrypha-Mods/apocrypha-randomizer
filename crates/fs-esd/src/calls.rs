@@ -144,6 +144,7 @@ mod tests {
             condition_list: vec![],
             expressions: vec![],
             name: vec![],
+            nameless: false,
         };
         let none = Span {
             offset: -1,

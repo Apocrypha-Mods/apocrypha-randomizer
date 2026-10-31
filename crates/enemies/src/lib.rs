@@ -31,7 +31,8 @@ const MODELS: &str = "MODEL_PARAM_ST";
 const ENEMY: i64 = 2;
 /// Mixed into the seed, so enemies draw apart from items.
 const SALT: u64 = 0x454E_454D_4945_5321;
-/// Where the rows made for a seed start. The game's own stop below this.
+/// Where the rows made for a seed start, unless a mod's already go higher. The
+/// game's own stop below this.
 const FIRST_NEW_ROW: i32 = 800_000_000;
 /// Models with no creature of their own: the player's form, and a stand-in.
 const NOT_BODIES: [&str; 1] = ["c1000"];
@@ -668,11 +669,15 @@ pub fn apply(
 ) -> Result<Applied> {
     let npc = for_table("NpcParam").ok_or_else(|| format_err("no layout for NpcParam"))?;
     let mut table: Param = reg.table("NpcParam")?;
-    if table.rows.iter().any(|r| r.id >= FIRST_NEW_ROW) {
-        return Err(format_err(
-            "NpcParam already has rows where this tool makes its own",
-        ));
-    }
+    // A mod may already have rows up here (ELDEN VINS does), so new ones follow them.
+    let first_new = table
+        .rows
+        .iter()
+        .map(|r| r.id)
+        .max()
+        .map_or(FIRST_NEW_ROW, |top| {
+            top.saturating_add(1).max(FIRST_NEW_ROW)
+        });
     let rows: HashMap<i32, Row> = table.rows.iter().map(|r| (r.id, r.clone())).collect();
     let mut made: BTreeMap<Vec<u8>, i32> = BTreeMap::new();
     let mut new_rows: Vec<Row> = Vec::new();
@@ -688,7 +693,9 @@ pub fn apply(
             return Err(format_err("a body's row has gone missing"));
         };
         let data = row_for(b, p, options.scale, npc)?;
-        let next = FIRST_NEW_ROW + made.len() as i32;
+        let next = first_new
+            .checked_add(made.len() as i32)
+            .ok_or_else(|| format_err("NpcParam has no ids left for new rows"))?;
         let id = *made.entry(data.clone()).or_insert_with(|| {
             new_rows.push(Row {
                 id: next,

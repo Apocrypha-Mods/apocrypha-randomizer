@@ -6,4 +6,4 @@ pub mod model;
 pub mod sources;
 
 pub use model::Model;
-pub use sources::{MapId, Sources};
+pub use sources::{GameFiles, MapId, Sources};

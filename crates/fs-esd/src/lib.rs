@@ -35,6 +35,11 @@ use fs_bytes::{self as rd, Error, Result, format_err};
 
 const MAGIC: &[u8; 4] = b"fsSL";
 const HEADER_LEN: usize = 0x6C;
+/// A span pointing at nothing.
+const NO_SPAN: Span = Span {
+    offset: -1,
+    count: 0,
+};
 const SCRIPT_LEN: usize = 0x48;
 const GROUP_LEN: usize = 0x20;
 const STATE_LEN: usize = 0x48;
@@ -119,6 +124,10 @@ pub struct Esd {
     pub expressions: Vec<u8>,
     /// The script's name, e.g. `t334011000`, without its terminator.
     pub name: Vec<u16>,
+    /// The file stores no name at all: offset -1, length 0, nothing after the
+    /// expressions. The game's own scripts always have one; some modding tools
+    /// write them this way.
+    pub nameless: bool,
 }
 
 /// Whether `b` starts like an ESD.
@@ -282,7 +291,12 @@ impl Esd {
 
         // The name: right after the expressions, at an even offset.
         let name_at = expr_end + expr_end % 2;
-        let name = rd::utf16z(d, name_at, MAX_NAME, "ESD name")?;
+        let nameless = name_len == 0 && name_span == NO_SPAN;
+        let name = if nameless {
+            Vec::new()
+        } else {
+            rd::utf16z(d, name_at, MAX_NAME, "ESD name")?
+        };
         let esd = Esd {
             unk18: word(0x18)? as u32,
             hash,
@@ -294,14 +308,11 @@ impl Esd {
             condition_list,
             expressions,
             name,
+            nameless,
         };
         // Everything derived must be what the file holds.
-        if name_len != esd.name.len() + 1
-            || name_span
-                != (Span {
-                    offset: name_at as i64,
-                    count: name_len as i64,
-                })
+        if name_len != esd.name_units()
+            || name_span != esd.name_span()
             || group_span != esd.group_span()
             || size != esd.data_len()
         {
@@ -336,7 +347,31 @@ impl Esd {
     }
 
     fn data_len(&self) -> usize {
-        self.name_at() + (self.name.len() + 1) * 2
+        if self.nameless {
+            self.expr_end()
+        } else {
+            self.name_at() + self.name_units() * 2
+        }
+    }
+
+    /// The name's stored length, its terminator included.
+    fn name_units(&self) -> usize {
+        if self.nameless {
+            0
+        } else {
+            self.name.len() + 1
+        }
+    }
+
+    fn name_span(&self) -> Span {
+        if self.nameless {
+            NO_SPAN
+        } else {
+            Span {
+                offset: self.name_at() as i64,
+                count: self.name_units() as i64,
+            }
+        }
     }
 
     fn group_span(&self) -> Span {
@@ -476,7 +511,7 @@ impl Esd {
             (self.tables_end(), "tables"),
             (self.condition_list.len(), "condition list"),
             (self.expr_end(), "expressions"),
-            (self.name.len() + 1, "name"),
+            (self.name_units(), "name"),
             (size, "size"),
             (0, ""),
             (size, "size"),
@@ -490,11 +525,7 @@ impl Esd {
         out.extend_from_slice(&self.hash);
         out.extend_from_slice(&0u32.to_le_bytes());
         self.group_span().write(&mut out);
-        Span {
-            offset: self.name_at() as i64,
-            count: self.name.len() as i64 + 1,
-        }
-        .write(&mut out);
+        self.name_span().write(&mut out);
         out.extend_from_slice(&(-1i64).to_le_bytes());
         out.extend_from_slice(&(-1i64).to_le_bytes());
         for g in &self.groups {
@@ -526,13 +557,15 @@ impl Esd {
             out.extend_from_slice(&o.to_le_bytes());
         }
         out.extend_from_slice(&self.expressions);
-        if self.expr_end() % 2 == 1 {
-            out.push(0);
+        if !self.nameless {
+            if self.expr_end() % 2 == 1 {
+                out.push(0);
+            }
+            for u in &self.name {
+                out.extend_from_slice(&u.to_le_bytes());
+            }
+            out.extend_from_slice(&[0, 0]);
         }
-        for u in &self.name {
-            out.extend_from_slice(&u.to_le_bytes());
-        }
-        out.extend_from_slice(&[0, 0]);
         debug_assert_eq!(out.len(), HEADER_LEN + size);
         Ok(out)
     }
@@ -557,6 +590,7 @@ mod tests {
             condition_list: vec![],
             expressions: vec![0x82, 0xA0, 0x86, 0x01, 0x00, 0xA1, 0x41],
             name: "t100001000".encode_utf16().collect(),
+            nameless: false,
         };
         let groups_at = SCRIPT_LEN as i64;
         let states_at = groups_at + GROUP_LEN as i64;
@@ -607,6 +641,15 @@ mod tests {
         assert_eq!(back, sample());
         assert_eq!(back.write().unwrap(), bytes);
         assert_eq!(back.name(), "t100001000");
+        let mut none = sample();
+        none.name.clear();
+        none.nameless = true;
+        let plain = none.write().unwrap();
+        assert_eq!(
+            Esd::read(&plain).unwrap(),
+            none,
+            "a script with no name reads back"
+        );
         assert_eq!(bytes.len() % 2, 0, "the name sits on an even offset");
     }
 

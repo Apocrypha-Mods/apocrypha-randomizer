@@ -173,3 +173,101 @@ fn a_file_that_is_not_a_regulation_stops_the_run_and_names_the_mod() {
     assert!(String::from_utf8_lossy(&run.stderr).contains("broken.bin"));
     assert!(!dir.join("seed").exists());
 }
+
+/// One text table's entries in a file of the seed's or a mod's.
+fn menu_entry(file: &[u8], table: &str, id: i32) -> Option<String> {
+    let (_, plain) = fs_dcx::decompress(file).unwrap();
+    let bnd = fs_bnd4::Bnd4::read(&plain).unwrap();
+    bnd.files
+        .iter()
+        .filter(|f| f.short_name() == Some(table))
+        .find_map(|f| {
+            fs_fmg::Fmg::read(&f.data)
+                .unwrap()
+                .entries
+                .get(&id)
+                .cloned()
+                .flatten()
+        })
+}
+
+/// Files the seed rewrites are built on the mod's copy: its own text stays, the
+/// seed's keepsake names go in, and a profile loads the seed after the mod. A mod
+/// may also already use the rows enemy moves make for themselves.
+#[test]
+fn a_seed_builds_on_a_mods_own_files_and_rows() {
+    const MENU: &str = "/msg/engus/menu_dlc02.msgbnd.dcx";
+    let Some(game) = stock() else { return };
+    let dir = work("merge-files");
+    let m = dir.join("Mod");
+
+    // The mod's menu text, with a line of its own.
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game).unwrap();
+    let (header, plain) = fs_dcx::decompress(&dvd.read_path(MENU).unwrap()).unwrap();
+    let mut bnd = fs_bnd4::Bnd4::read(&plain).unwrap();
+    let file = bnd
+        .files
+        .iter_mut()
+        .find(|f| f.short_name() == Some("GR_MenuText.fmg"))
+        .unwrap();
+    let mut fmg = fs_fmg::Fmg::read(&file.data).unwrap();
+    fmg.entries.insert(999_999_001, Some("From the mod".into()));
+    file.data = fmg.write().unwrap();
+    let packed = fs_dcx::compress(
+        &header.with_algorithm(fs_dcx::Algorithm::Zstd),
+        &bnd.write().unwrap(),
+    )
+    .unwrap();
+    // Mods name folders in any case.
+    let at = m.join("MSG/engus/menu_dlc02.msgbnd.dcx");
+    std::fs::create_dir_all(at.parent().unwrap()).unwrap();
+    std::fs::write(at, packed).unwrap();
+
+    // Its regulation, with a row where enemy moves begin their own.
+    let mut reg = Regulation::open(&game).unwrap();
+    let mut npc = reg.table("NpcParam").unwrap();
+    let mut extra = npc.rows[0].clone();
+    extra.id = 800_000_000;
+    npc.rows.push(extra);
+    reg.set_table("NpcParam", &npc).unwrap();
+    std::fs::write(m.join("regulation.bin"), reg.write().unwrap()).unwrap();
+
+    let out = dir.join("seed");
+    let run = apoc_rando(&[
+        "gen".as_ref(),
+        game.as_os_str(),
+        "--seed".as_ref(),
+        "1".as_ref(),
+        "--out".as_ref(),
+        out.as_os_str(),
+        "--enemies".as_ref(),
+        "bosses=100".as_ref(),
+        "--with-mod".as_ref(),
+        m.as_os_str(),
+    ]);
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+
+    let menu = std::fs::read(out.join(MENU.trim_start_matches('/'))).unwrap();
+    assert_eq!(
+        menu_entry(&menu, "GR_MenuText.fmg", 999_999_001).as_deref(),
+        Some("From the mod")
+    );
+    let stock_name = menu_entry(&dvd.read_path(MENU).unwrap(), "GR_MenuText.fmg", 297_151);
+    assert_ne!(
+        menu_entry(&menu, "GR_MenuText.fmg", 297_151),
+        stock_name,
+        "the keepsake's name is the seed's"
+    );
+
+    let profile: toml::Table = std::fs::read_to_string(out.with_extension("me3"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    let packages = profile["packages"].as_array().unwrap();
+    assert_eq!(packages.last().unwrap()["path"].as_str(), Some("seed"));
+    assert_eq!(packages.len(), 2);
+}

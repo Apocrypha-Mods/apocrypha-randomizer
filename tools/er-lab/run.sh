@@ -19,6 +19,30 @@ NATIVES=""
 if [ -n "${ER_NATIVE:-}" ]; then
   NATIVES="{ path = 'Z:$(printf '%s' "$ER_NATIVE" | sed 's#/#\\#g')', optional = false, load_before = [], load_after = [], load_early = false }"
 fi
+# Other mods under the seed: $ER_BELOW, folders separated by ':', lowest priority
+# first (me3 lets a later package override an earlier one), and $ER_NATIVES, more
+# DLLs separated by ':'.
+winpath() { printf 'Z:%s' "$(printf '%s' "$1" | sed 's#/#\\#g')"; }
+BELOW=""; AFTER=""; n=0
+if [ -n "${ER_BELOW:-}" ]; then
+  IFS=: read -ra DIRS <<< "$ER_BELOW"
+  for d in "${DIRS[@]}"; do
+    BELOW+="[[packages]]
+id = \"below-$n\"
+source = '$(winpath "$d")'
+load_before = []
+load_after = [$AFTER]
+
+"
+    AFTER="{ id = \"below-$n\", optional = false }"; n=$((n+1))
+  done
+fi
+if [ -n "${ER_NATIVES:-}" ]; then
+  IFS=: read -ra DLLS <<< "$ER_NATIVES"
+  for d in "${DLLS[@]}"; do
+    NATIVES+="${NATIVES:+, }{ path = '$(winpath "$d")', optional = false, load_before = [], load_after = [], load_early = false }"
+  done
+fi
 pactl list short sinks | grep -q apoc_mute || pactl load-module module-null-sink sink_name=apoc_mute >/dev/null
 cat > "$L/attach.toml" <<TOML
 game = "elden-ring"
@@ -33,11 +57,11 @@ disable_arxan = false
 mem_patch = false
 skip_steam_init = true
 
-[[packages]]
+$BELOW[[packages]]
 id = "apoc-rando"
 source = 'Z:$(printf '%s' "$MOD" | sed 's#/#\\#g')'
 load_before = []
-load_after = []
+load_after = [$AFTER]
 
 [property_overrides]
 TOML

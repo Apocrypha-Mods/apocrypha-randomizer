@@ -8,7 +8,7 @@ use std::time::Instant;
 use clap::{Parser, Subcommand};
 use fs_bytes::{Result, format_err};
 use fs_param::merge::{self, Contribution};
-use gamedata::{Sources, elden_ring};
+use gamedata::{GameFiles, Sources, elden_ring};
 use rayon::prelude::*;
 
 /// The `regulation.bin` version stamps the area map and the gate have been run
@@ -103,8 +103,8 @@ struct Sliders {
     /// Another mod's regulation.bin, or a folder holding one, to build the seed
     /// on. Repeat it for more, lowest priority first: where two mods set one
     /// value, the later one wins and the spoiler log says so. The seed is
-    /// randomized and proven on the merged tables. Only regulation.bin is
-    /// merged; a mod's other files are not read.
+    /// randomized and proven on the merged tables, and on the mods' own maps,
+    /// scripts, talk and text. A me3 profile beside the seed loads them all.
     #[arg(long = "with-mod", value_name = "PATH")]
     with_mods: Vec<PathBuf>,
 }
@@ -169,7 +169,11 @@ fn mod_regulation(path: &Path) -> Result<PathBuf> {
     if path.is_file() {
         return Ok(path.to_path_buf());
     }
-    for inside in ["regulation.bin", "root-files/regulation.bin"] {
+    for inside in [
+        "regulation.bin",
+        "root-files/regulation.bin",
+        "mod/regulation.bin",
+    ] {
         let file = path.join(inside);
         if file.is_file() {
             return Ok(file);
@@ -181,15 +185,22 @@ fn mod_regulation(path: &Path) -> Result<PathBuf> {
     )))
 }
 
-/// The folder a mod lives in: the mod manager keeps files for the game's folder
-/// in `root-files`, beside `main`.
-fn mod_root(path: &Path) -> Option<&Path> {
-    let dir = if path.is_file() { path.parent()? } else { path };
-    match dir.file_name() {
-        Some(n) if n == "root-files" => dir.parent(),
-        _ if path.is_file() && path.file_name().is_some_and(|n| n != "regulation.bin") => None,
-        _ => Some(dir),
+/// The folders of a mod that hold the game's own paths, for me3 to serve and us
+/// to read: where its `regulation.bin` is, or for the mod manager's layout, `main`
+/// (its `root-files` holds the regulation alone). A bare file has none.
+fn mod_dirs(path: &Path) -> Result<Vec<PathBuf>> {
+    let file = mod_regulation(path)?;
+    if file.file_name().is_none_or(|n| n != "regulation.bin") {
+        return Ok(Vec::new());
     }
+    let dir = file.parent().unwrap_or(Path::new(".")).to_path_buf();
+    Ok(match (dir.file_name(), dir.parent()) {
+        (Some(n), Some(up)) if n == "root-files" => vec![up.join("main")]
+            .into_iter()
+            .filter(|d| d.is_dir())
+            .collect(),
+        _ => vec![dir],
+    })
 }
 
 /// A mod's name in reports: its folder, or its file if that says more.
@@ -202,7 +213,12 @@ fn mod_label(path: &Path) -> String {
         Some(path)
     };
     let dir = match dir {
-        Some(d) if d.file_name().is_some_and(|n| n == "root-files") => d.parent(),
+        Some(d)
+            if d.file_name()
+                .is_some_and(|n| n == "root-files" || n == "mod") =>
+        {
+            d.parent()
+        }
         d => d,
     };
     dir.and_then(named)
@@ -274,41 +290,155 @@ fn merge_log(report: &merge::MergeReport) -> String {
             c.overridden.join(", ")
         );
     }
-    log += "  The proof covers these tables. It does not see a mod's maps, scripts or text.\n";
+    log += "  The proof covers these tables and the mods' maps, scripts, talk and text.\n";
     log
 }
 
-/// Files of a mod's folder, other than `regulation.bin`, that the seed also
-/// writes: only one of each can load. A mod manager's `main` and `root-files`
-/// stand for the game's folder.
-fn overlaps(mod_dir: &Path, out: &Path) -> Vec<String> {
-    fn walk(dir: &Path, rel: &Path, found: &mut Vec<PathBuf>) {
-        let Ok(entries) = std::fs::read_dir(dir) else {
-            return;
+/// What a mod's own me3 profile loads as natives (DLLs), by full path. A DLL it
+/// names and does not ship is left out and said: me3 would refuse the profile.
+fn mod_natives(dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut places: Vec<&Path> = Vec::new();
+    for d in dirs {
+        places.push(d);
+        places.extend(d.parent());
+    }
+    let mut out = Vec::new();
+    let mut profile_found = false;
+    for place in places {
+        let Ok(entries) = std::fs::read_dir(place) else {
+            continue;
         };
-        for e in entries.flatten() {
-            let rel = rel.join(e.file_name());
-            if e.path().is_dir() {
-                walk(&e.path(), &rel, found);
-            } else {
-                found.push(rel);
+        let mut profiles: Vec<PathBuf> = entries
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "me3"))
+            .collect();
+        profiles.sort();
+        // A mod with several profiles has one of them as its main one, which
+        // cannot be told; the first is taken, and the run names it.
+        let Some(profile) = profiles.first() else {
+            continue;
+        };
+        profile_found = true;
+        let parsed = std::fs::read_to_string(profile)
+            .ok()
+            .and_then(|t| t.parse::<toml::Table>().ok());
+        let Some(table) = parsed else {
+            eprintln!("warning: {} could not be read", profile.display());
+            continue;
+        };
+        for key in ["natives", "native"] {
+            let list = table.get(key).and_then(|v| v.as_array());
+            for path in list
+                .into_iter()
+                .flatten()
+                .filter_map(|n| n.get("path")?.as_str())
+            {
+                let dll = place.join(path);
+                if dll.is_file() {
+                    out.push(dll);
+                } else {
+                    eprintln!(
+                        "warning: {} names {path}, which is not there; left out",
+                        profile.display()
+                    );
+                }
+            }
+        }
+        break;
+    }
+    // A mod with no profile of its own means its `dll` folder to be loaded whole.
+    if !profile_found {
+        for dir in dirs {
+            let Ok(entries) = std::fs::read_dir(dir.join("dll")) else {
+                continue;
+            };
+            let mut dlls: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.extension().is_some_and(|x| x.eq_ignore_ascii_case("dll")))
+                .collect();
+            dlls.sort();
+            out.extend(dlls);
+        }
+    }
+    out
+}
+
+/// A me3 profile beside the mod folder: the mods, lowest priority first, then the
+/// seed, which me3 lets override them all, as it holds what the mods change.
+fn write_profile(out: &Path, mods: &[PathBuf], native: bool) -> Result<()> {
+    let name = out
+        .file_name()
+        .ok_or_else(|| format_err("the mod folder has no name"))?
+        .to_string_lossy();
+    let mut text = String::from("profileVersion = \"v1\"\n\n[[supports]]\ngame = \"eldenring\"\n");
+    let mut ids: Vec<String> = Vec::new();
+    let mut natives: Vec<String> = Vec::new();
+    for m in mods {
+        let dirs = mod_dirs(m)?;
+        natives.extend(
+            mod_natives(&dirs)
+                .iter()
+                .map(|d| std::fs::canonicalize(d).map(|p| p.display().to_string()))
+                .collect::<std::io::Result<Vec<_>>>()?,
+        );
+        for dir in &dirs {
+            let id = format!("mod-{}", ids.len());
+            let path = std::fs::canonicalize(dir)?;
+            text += &format!(
+                "\n[[packages]]\nid = \"{id}\"\npath = '{}'\n",
+                path.display()
+            );
+            if let Some(before) = ids.last() {
+                text += &format!("load_after = [{{ id = \"{before}\", optional = false }}]\n");
+            }
+            ids.push(id);
+        }
+    }
+    text += &format!("\n[[packages]]\nid = \"apoc-rando-seed\"\npath = \"{name}\"\n");
+    if let Some(before) = ids.last() {
+        text += &format!("load_after = [{{ id = \"{before}\", optional = false }}]\n");
+    }
+    for dll in natives {
+        text += &format!("\n[[natives]]\npath = '{dll}'\n");
+    }
+    if native {
+        text += &format!("\n[[natives]]\npath = \"{name}/apoc_native.dll\"\n");
+    }
+    std::fs::write(out.with_extension("me3"), text)?;
+    Ok(())
+}
+
+/// The model of what will ship. A boss keeps the name it has in the unmodded
+/// game, as the area map knows it by that: a mod may give a fight's health bar
+/// a name of its own (ELDEN VINS does for Makar), and it is the same fight.
+fn extract_model(
+    game: &Path,
+    sources: &Sources,
+    mods: &[PathBuf],
+) -> Result<gamedata::model::Model> {
+    let mut model = elden_ring::extract(sources)?;
+    if !mods.is_empty() {
+        let stock = elden_ring::extract(&Sources::open(game)?)?;
+        let names: std::collections::HashMap<i32, Option<String>> =
+            stock.bosses.into_iter().map(|b| (b.area, b.name)).collect();
+        for boss in &mut model.bosses {
+            if let Some(name) = names.get(&boss.area) {
+                boss.name = name.clone();
             }
         }
     }
-    let mut files = Vec::new();
-    walk(mod_dir, Path::new(""), &mut files);
-    let mut same: Vec<String> = files
-        .iter()
-        .map(|f| {
-            f.strip_prefix("main")
-                .or_else(|_| f.strip_prefix("root-files"))
-                .unwrap_or(f)
-        })
-        .filter(|f| *f != Path::new("regulation.bin") && out.join(f).is_file())
-        .map(|f| f.display().to_string())
-        .collect();
-    same.sort();
-    same
+    Ok(model)
+}
+
+/// The game's files with the mods' folders over them.
+fn open_files(game: &Path, mods: &[PathBuf]) -> Result<GameFiles> {
+    let mut dirs = Vec::new();
+    for m in mods {
+        dirs.extend(mod_dirs(m)?);
+    }
+    GameFiles::open(game, &dirs)
 }
 
 fn gen_seed(
@@ -320,10 +450,11 @@ fn gen_seed(
     native: Option<&std::path::Path>,
     mods: &[PathBuf],
 ) -> Result<()> {
-    let mut sources = Sources::open(&game)?;
+    let files = open_files(&game, mods)?;
+    let mut sources = Sources::open_with(&game, &files)?;
     known_patch(&sources.reg.version())?;
     let merged = merge_mods(&game, &mut sources, mods)?;
-    let model = elden_ring::extract(&sources)?;
+    let model = extract_model(&game, &sources, mods)?;
     let graph = logic::elden_ring();
     let bound = logic::Bound::new(&graph, &model);
     if !bound.problems.is_empty() {
@@ -338,7 +469,7 @@ fn gen_seed(
     items::apply(&mut reg, &units, &plan)?;
     let dressed = items::dress_npcs(&mut reg, &model, seed, options)?;
     std::fs::create_dir_all(&out)?;
-    keepsake_text(&game, &out, &items::keepsake_names(&units, &plan))?;
+    keepsake_text(&files, &out, &items::keepsake_names(&units, &plan))?;
     if options.auto_upgrade {
         native_module(&out, native)?;
     }
@@ -346,7 +477,7 @@ fn gen_seed(
         None
     } else {
         Some(move_enemies(
-            &game, &out, &sources, &model, &mut reg, seed, foes,
+            &files, &out, &sources, &model, &mut reg, seed, foes,
         )?)
     };
     std::fs::write(out.join("regulation.bin"), reg.write()?)?;
@@ -359,19 +490,11 @@ fn gen_seed(
     }
     log += enemy_log.as_deref().unwrap_or("");
     std::fs::write(&spoiler, log)?;
-    if !mods.is_empty() {
-        eprintln!(
-            "this seed's regulation.bin already holds the mods above: don't let another mod's \
-             regulation.bin load over it"
-        );
+    for file in &files.shadowed {
+        eprintln!("warning: more than one mod has {file}; the later one is used");
     }
-    for m in mods {
-        for file in mod_root(m).map_or(Vec::new(), |root| overlaps(root, &out)) {
-            eprintln!(
-                "warning: {} and this seed both have {file}; if both are loaded, only one is used",
-                mod_label(m)
-            );
-        }
+    if options.auto_upgrade || !mods.is_empty() {
+        write_profile(&out, mods, options.auto_upgrade)?;
     }
     eprintln!(
         "seed {seed}: {} slots shuffled; mod folder {}, spoiler log {}",
@@ -384,7 +507,7 @@ fn gen_seed(
 
 /// Move the enemies and write what changed: maps, scripts and health bar names.
 fn move_enemies(
-    game: &std::path::Path,
+    files: &GameFiles,
     out: &std::path::Path,
     sources: &Sources,
     model: &gamedata::model::Model,
@@ -395,9 +518,8 @@ fn move_enemies(
     let pool = enemies::pool(sources, model)?;
     let plan = enemies::shuffle(&pool, seed, foes);
     let applied = enemies::apply(reg, sources, &pool, &plan, foes)?;
-    let dvd = fs_dvdbnd::Dvd::open_elden_ring(game)?;
     let write = |path: String, plain: Vec<u8>| -> Result<()> {
-        let (header, _) = fs_dcx::decompress(&dvd.read_path(&path)?)?;
+        let (header, _) = fs_dcx::decompress(&files.read(&path)?)?;
         let to = out.join(path.trim_start_matches('/'));
         std::fs::create_dir_all(to.parent().unwrap_or(out))?;
         let data = fs_dcx::compress(&header.with_algorithm(fs_dcx::Algorithm::Zstd), &plain)?;
@@ -412,7 +534,7 @@ fn move_enemies(
         .scripts
         .par_iter()
         .try_for_each(|(m, script)| write(format!("/event/{m}.emevd.dcx"), script.write()?))?;
-    bar_text(&dvd, out, &applied.bar_names)?;
+    bar_text(files, out, &applied.bar_names)?;
     eprintln!(
         "enemies: {} maps changed, {} scripts, {} new NpcParam rows",
         applied.maps.len(),
@@ -425,12 +547,12 @@ fn move_enemies(
 /// A health bar names who stands there now. English only for now, as with the
 /// keepsakes.
 fn bar_text(
-    dvd: &fs_dvdbnd::Dvd,
+    files: &GameFiles,
     out: &std::path::Path,
     names: &std::collections::BTreeMap<i32, String>,
 ) -> Result<()> {
     const ITEMS: &str = "/msg/engus/item_dlc02.msgbnd.dcx";
-    let (header, plain) = fs_dcx::decompress(&dvd.read_path(ITEMS)?)?;
+    let (header, plain) = fs_dcx::decompress(&files.read(ITEMS)?)?;
     let mut bnd = fs_bnd4::Bnd4::read(&plain)?;
     for f in &mut bnd.files {
         let is_npc_name = f
@@ -464,14 +586,9 @@ fn bar_text(
 /// Character creation names its keepsakes from menu text of its own, so write
 /// what each now is, in the file the game reads (the last DLC's holds it all).
 /// English only for now.
-fn keepsake_text(
-    game: &std::path::Path,
-    out: &std::path::Path,
-    names: &[(i32, String)],
-) -> Result<()> {
+fn keepsake_text(files: &GameFiles, out: &std::path::Path, names: &[(i32, String)]) -> Result<()> {
     const MENU: &str = "/msg/engus/menu_dlc02.msgbnd.dcx";
-    let dvd = fs_dvdbnd::Dvd::open_elden_ring(game)?;
-    let (header, plain) = fs_dcx::decompress(&dvd.read_path(MENU)?)?;
+    let (header, plain) = fs_dcx::decompress(&files.read(MENU)?)?;
     let mut bnd = fs_bnd4::Bnd4::read(&plain)?;
     for f in &mut bnd.files {
         let line = match f.short_name() {
@@ -496,8 +613,7 @@ fn keepsake_text(
     Ok(())
 }
 
-/// Put the native module in the mod folder, and write a me3 profile beside
-/// it that loads both: `<out>.me3`.
+/// Put the native module in the mod folder.
 fn native_module(out: &std::path::Path, native: Option<&std::path::Path>) -> Result<()> {
     const DLL: &str = "apoc_native.dll";
     let from = match native {
@@ -511,15 +627,6 @@ fn native_module(out: &std::path::Path, native: Option<&std::path::Path>) -> Res
         )));
     }
     std::fs::copy(&from, out.join(DLL))?;
-    let name = out
-        .file_name()
-        .ok_or_else(|| format_err("the mod folder has no name"))?
-        .to_string_lossy();
-    let profile = format!(
-        "profileVersion = \"v1\"\n\n[[supports]]\ngame = \"eldenring\"\n\n\
-         [[packages]]\npath = \"{name}\"\n\n[[natives]]\npath = \"{name}/{DLL}\"\n"
-    );
-    std::fs::write(out.with_extension("me3"), profile)?;
     Ok(())
 }
 
@@ -531,10 +638,11 @@ fn check(
     mods: &[PathBuf],
 ) -> Result<()> {
     let t = Instant::now();
-    let mut sources = Sources::open(&game)?;
+    let files = open_files(&game, mods)?;
+    let mut sources = Sources::open_with(&game, &files)?;
     known_patch(&sources.reg.version())?;
     merge_mods(&game, &mut sources, mods)?;
-    let model = elden_ring::extract(&sources)?;
+    let model = extract_model(&game, &sources, mods)?;
     let graph = logic::elden_ring();
     let bound = logic::Bound::new(&graph, &model);
     let units = items::units(&model, &bound, &sources.reg)?;
@@ -596,23 +704,30 @@ mod tests {
     }
 
     #[test]
-    fn a_file_both_a_mod_and_the_seed_write_is_found_but_not_the_regulation() {
-        let dir = std::env::temp_dir().join(format!("apoc-overlap-{}", std::process::id()));
-        let (m, out) = (dir.join("mod"), dir.join("out"));
-        for f in [
-            m.join("main/msg/engus/item.dcx"),
-            m.join("root-files/regulation.bin"),
-            m.join("main/other.dcx"),
-            out.join("msg/engus/item.dcx"),
-            out.join("regulation.bin"),
-        ] {
-            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
-            std::fs::write(f, b"").unwrap();
-        }
-        let same = overlaps(&m, &out);
+    fn a_profile_loads_the_seed_after_every_mod_and_carries_their_dlls() {
+        let dir = std::env::temp_dir().join(format!("apoc-profile-{}", std::process::id()));
+        let root = dir.join("Big Mod");
+        let bin = root.join("mod/regulation.bin");
+        std::fs::create_dir_all(root.join("mod/dll")).unwrap();
+        std::fs::write(&bin, b"").unwrap();
+        std::fs::write(root.join("mod/dll/here.dll"), b"").unwrap();
+        std::fs::write(
+            root.join("Big Mod.me3"),
+            "[[natives]]\npath = \"mod/dll/here.dll\"\n[[natives]]\npath = \"mod/dll/gone.dll\"\n",
+        )
+        .unwrap();
+        let out = dir.join("seed");
+        write_profile(&out, std::slice::from_ref(&root), false).unwrap();
+        let text = std::fs::read_to_string(out.with_extension("me3")).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(same.len(), 1, "{same:?}");
-        assert!(same[0].ends_with("item.dcx"), "{same:?}");
+        let table: toml::Table = text.parse().unwrap();
+        let packages = table["packages"].as_array().unwrap();
+        assert_eq!(packages.len(), 2, "{text}");
+        assert_eq!(packages[1]["path"].as_str(), Some("seed"));
+        assert_eq!(packages[1]["load_after"][0]["id"].as_str(), Some("mod-0"));
+        let natives = table["natives"].as_array().unwrap();
+        assert_eq!(natives.len(), 1, "{text}");
+        assert!(natives[0]["path"].as_str().unwrap().ends_with("here.dll"));
     }
 
     #[test]

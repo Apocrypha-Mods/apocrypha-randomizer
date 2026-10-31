@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use fs_bnd4::Bnd4;
-use fs_bytes::Result;
+use fs_bytes::{Result, format_err};
 use fs_dvdbnd::Dvd;
 use fs_emevd::Emevd;
 use fs_esd::Esd;
@@ -106,45 +106,114 @@ pub struct Sources {
     pub text: Text,
 }
 
+/// The game's files as the game will see them: a mod folder's copy of a file
+/// over the archives' copy, as me3 serves it.
+pub struct GameFiles {
+    dvd: Dvd,
+    /// By lowercase path from the game's root, `/msg/engus/item.msgbnd.dcx`:
+    /// mods name folders in any case (`map/MapStudio`), and the game does not mind.
+    loose: HashMap<String, std::path::PathBuf>,
+    /// Paths more than one mod folder holds; the later one is used.
+    pub shadowed: Vec<String>,
+}
+
+impl GameFiles {
+    /// The game folder, with mod folders over it, lowest priority first.
+    pub fn open(game: &std::path::Path, mods: &[std::path::PathBuf]) -> Result<Self> {
+        fn walk(dir: &std::path::Path, rel: &str, found: &mut Vec<(String, std::path::PathBuf)>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for e in entries.flatten() {
+                let name = e.file_name().to_string_lossy().to_lowercase();
+                let rel = format!("{rel}/{name}");
+                if e.path().is_dir() {
+                    walk(&e.path(), &rel, found);
+                } else {
+                    found.push((rel, e.path()));
+                }
+            }
+        }
+        let mut loose = HashMap::new();
+        let mut shadowed = Vec::new();
+        for dir in mods {
+            let mut found = Vec::new();
+            walk(dir, "", &mut found);
+            for (rel, path) in found {
+                if loose.insert(rel.clone(), path).is_some() {
+                    shadowed.push(rel);
+                }
+            }
+        }
+        shadowed.sort();
+        shadowed.dedup();
+        Ok(GameFiles {
+            dvd: Dvd::open_elden_ring(game)?,
+            loose,
+            shadowed,
+        })
+    }
+
+    pub fn exists(&self, path: &str) -> bool {
+        self.loose.contains_key(&path.to_lowercase()) || self.dvd.find(path).is_some()
+    }
+
+    /// A file's bytes as stored, compression and all.
+    pub fn read(&self, path: &str) -> Result<Vec<u8>> {
+        match self.loose.get(&path.to_lowercase()) {
+            Some(file) => Ok(std::fs::read(file)?),
+            None => Ok(self.dvd.read_path(path)?),
+        }
+    }
+}
+
 impl Sources {
     /// Read everything from a game folder (the stock copy, PLAN.md §5).
     pub fn open(game: &std::path::Path) -> Result<Self> {
-        let dvd = Dvd::open_elden_ring(game)?;
-        let read =
-            |path: &str| -> Result<Vec<u8>> { Ok(fs_dcx::decompress(&dvd.read_path(path)?)?.1) };
-        let ids = map_ids(&dvd);
+        Self::open_with(game, &GameFiles::open(game, &[])?)
+    }
+
+    /// Read everything as `files` serves it. The tables stay the game's own:
+    /// merging them is the caller's, as mods' tables combine and files do not.
+    pub fn open_with(game: &std::path::Path, dvd: &GameFiles) -> Result<Self> {
+        let read = |path: &str| -> Result<Vec<u8>> {
+            let bytes = dvd
+                .read(path)
+                .map_err(|e| format_err(format!("{path}: {e}")))?;
+            Ok(fs_dcx::decompress(&bytes)
+                .map_err(|e| format_err(format!("{path}: {e}")))?
+                .1)
+        };
+        let ids = map_ids(dvd);
         let maps = ids
             .par_iter()
             .map(|&m| {
-                Ok((
-                    m,
-                    Msb::read(&read(&format!("/map/mapstudio/{m}.msb.dcx"))?)?,
-                ))
+                Ok((m, {
+                    let path = format!("/map/mapstudio/{m}.msb.dcx");
+                    Msb::read(&read(&path)?).map_err(|e| format_err(format!("{path}: {e}")))?
+                }))
             })
             .collect::<Result<Vec<_>>>()?;
         let scripts = ids
             .par_iter()
             .filter_map(|&m| {
                 let path = format!("/event/{m}.emevd.dcx");
-                dvd.find(&path)
-                    .map(|_| Ok((m, Emevd::read(&read(&path)?)?)))
+                dvd.exists(&path)
+                    .then(|| Ok((m, Emevd::read(&read(&path)?)?)))
             })
             .collect::<Result<Vec<_>>>()?;
         // Talk binders are named by map too, but the open worlds' NPCs sit in
         // m60_00_00_00 and m61_00_00_00, which have no map file, and the
         // grace menu (Melina among it) in m00_00_00_00.
-        let mut talk_ids = named(&dvd, |m| format!("/script/talk/{m}.talkesdbnd.dcx"));
-        if dvd
-            .find(&format!("/script/talk/{EVERYWHERE}.talkesdbnd.dcx"))
-            .is_some()
-        {
+        let mut talk_ids = named(dvd, |m| format!("/script/talk/{m}.talkesdbnd.dcx"));
+        if dvd.exists(&format!("/script/talk/{EVERYWHERE}.talkesdbnd.dcx")) {
             talk_ids.insert(0, EVERYWHERE);
         }
         let talk = talk_ids
             .par_iter()
             .filter_map(|&m| {
                 let path = format!("/script/talk/{m}.talkesdbnd.dcx");
-                dvd.find(&path).map(|_| -> Result<Vec<_>> {
+                dvd.exists(&path).then(|| -> Result<Vec<_>> {
                     Bnd4::read(&read(&path)?)?
                         .files
                         .iter()
@@ -166,7 +235,9 @@ impl Sources {
             common_func: Emevd::read(&read("/event/common_func.emevd.dcx")?)?,
             common: Emevd::read(&read("/event/common.emevd.dcx")?)?,
             talk,
-            text: text(&dvd)?,
+            // The game's own names, whatever a mod calls things: the area map knows
+            // an item or boss by its name, and a renaming changes neither.
+            text: text(&dvd.dvd)?,
         })
     }
 
@@ -176,19 +247,19 @@ impl Sources {
 }
 
 /// Every map the archives hold under a `mAA_BB_CC_DD` name, in order.
-fn map_ids(dvd: &Dvd) -> Vec<MapId> {
+fn map_ids(dvd: &GameFiles) -> Vec<MapId> {
     named(dvd, |m| format!("/map/mapstudio/{m}.msb.dcx"))
 }
 
 /// Every map id for which the archives hold the file `path` names.
-fn named(dvd: &Dvd, path: impl Fn(MapId) -> String) -> Vec<MapId> {
+fn named(dvd: &GameFiles, path: impl Fn(MapId) -> String) -> Vec<MapId> {
     let mut out = Vec::new();
     for a in 10..100 {
         for b in 0..100 {
             for c in 0..100 {
                 for d in 0..4 {
                     let m = MapId([a, b, c, d]);
-                    if dvd.find(&path(m)).is_some() {
+                    if dvd.exists(&path(m)) {
                         out.push(m);
                     }
                 }
@@ -200,7 +271,12 @@ fn named(dvd: &Dvd, path: impl Fn(MapId) -> String) -> Vec<MapId> {
 
 /// Each name table, merged across `X`, `X_dlc01` and `X_dlc02`.
 pub fn text(dvd: &Dvd) -> Result<Text> {
-    let (_, plain) = fs_dcx::decompress(&dvd.read_path(ITEM_TEXT)?)?;
+    text_of(&dvd.read_path(ITEM_TEXT)?)
+}
+
+/// [`text`], from the item text file's bytes.
+fn text_of(file: &[u8]) -> Result<Text> {
+    let (_, plain) = fs_dcx::decompress(file)?;
     let bnd = Bnd4::read(&plain)?;
     let mut out = Text::new();
     for f in &bnd.files {

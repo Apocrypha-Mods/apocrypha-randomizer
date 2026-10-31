@@ -788,6 +788,7 @@ dependencies = [
  "items",
  "logic",
  "rayon",
+ "toml",
 ]
 
 [[package]]
