@@ -1040,13 +1040,17 @@ load other mods under the seed; `ER_CPU=300`, two Cyberpunk labs beside for the 
 - **The two mods clash with each other, not with the seed.** Both replace the player's
   character files, `c0000.hks` and `common.emevd`, 18 files in all, and the later is used
   whole. The run lists them. Which wins is the player's load order; those files cannot be
-  merged. Whether Nightreign's moves feel right was not judged: a 10 fps lab cannot tell.
+  merged. Compared byte by byte, all 18 differ, the moves among them (`c0000.hks`, 1.05 MB
+  against 0.89; `c0000.anibnd`, 7.4 MB against 20.8). So these two mods cannot both have their
+  moves: the later's are the character's, and the earlier's DLL runs beside files not its own.
+  Whether Nightreign's moves feel right was not judged: a 10 fps lab cannot tell.
 - **The profile:** `me3 launch -p`, 0.13, headless and boxed, read `<out>.me3` and wrote the
   attach config the lab builds by hand: the two mods in order, the seed after them, and
   `savefile = "prof-seed1.sl2"`. The game itself did not start that way: the Steam Linux
   Runtime's container (`srt-bwrap`) died before it, in this headless box, with nothing in
   me3's log. So the profile's contents are proven and a launch from it on a desktop is not;
   the same config does run the game when the lab launches it. `ER0000.sl2` was untouched.
+  A second try with the runtime's verbose logging said no more.
 - `test-warp` from a map to itself reloads for ever: a limit of that tool, not of mods.
 
 **Proof, four threads:** Nightreign Movement alone, 10,000 seeds in 1,023 s; both
