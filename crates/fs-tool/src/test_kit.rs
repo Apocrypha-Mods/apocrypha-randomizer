@@ -178,7 +178,8 @@ pub fn weak_enemies(game: PathBuf, out: PathBuf) -> Result<()> {
 
 /// Kill an entity some seconds after its map loads (2004[4]: the entity, then 1 to
 /// give runes), to see in the lab what a death sets off. Built on `over`'s copy of
-/// the map's script, a mod's, if it has one.
+/// the map's script, a mod's, if it has one. With `freeze`, stop its AI instead, so
+/// a character in the lab can walk up and hit it.
 pub fn kill(
     game: PathBuf,
     out: PathBuf,
@@ -186,6 +187,7 @@ pub fn kill(
     entity: u32,
     after: f32,
     over: Option<PathBuf>,
+    freeze: bool,
 ) -> Result<()> {
     let script_path = format!("/event/{map}.emevd.dcx");
     let bytes = match over
@@ -202,12 +204,25 @@ pub fn kill(
         .iter_mut()
         .find(|e| e.id == 0)
         .ok_or_else(|| format_err("the script has no event 0"))?;
-    let mut args = entity.to_le_bytes().to_vec();
-    args.extend(1u32.to_le_bytes());
-    event
-        .instructions
-        .push(instruction(1001, 0, after.to_le_bytes().to_vec()));
-    event.instructions.push(instruction(2004, 4, args));
+    if freeze {
+        // 2004[1]: the entity, then 0 for its AI off. Again and again, as a fight's
+        // own wake turns it back on.
+        let mut args = entity.to_le_bytes().to_vec();
+        args.extend(0u32.to_le_bytes());
+        for _ in 0..120 {
+            event
+                .instructions
+                .push(instruction(1001, 0, 1.0f32.to_le_bytes().to_vec()));
+            event.instructions.push(instruction(2004, 1, args.clone()));
+        }
+    } else {
+        let mut args = entity.to_le_bytes().to_vec();
+        args.extend(1u32.to_le_bytes());
+        event
+            .instructions
+            .push(instruction(1001, 0, after.to_le_bytes().to_vec()));
+        event.instructions.push(instruction(2004, 4, args));
+    }
     let path = out.join(script_path.trim_start_matches('/'));
     std::fs::create_dir_all(path.parent().unwrap_or(&out))?;
     std::fs::write(

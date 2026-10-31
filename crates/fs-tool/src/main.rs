@@ -235,6 +235,9 @@ enum Command {
         /// A mod folder whose copy of the map's script to build on.
         #[arg(long)]
         over: Option<PathBuf>,
+        /// Stop the entity's AI every second instead of killing it.
+        #[arg(long)]
+        freeze: bool,
     },
     /// Write one file out of the archives, by path or by hash.
     Extract {
@@ -340,7 +343,8 @@ fn main() {
             entity,
             after,
             over,
-        } => test_kit::kill(game, out, &map, entity, after, over),
+            freeze,
+        } => test_kit::kill(game, out, &map, entity, after, over, freeze),
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::TestWarp {
             game,

@@ -943,6 +943,11 @@ Still to do:
   `eldenring.exe+0x475D2B` (r14 = 0x90000051). A limit of 20, 8 and 1 all fail, and at
   limit 1 with bosses left alone it failed twice; bosses only, from the same save, ran
   100 s. So it is not the number of models. Rows or a particular body remain, untested.
+- **Machine checks again** (2026-10-31, 16:36). The PC went down some 25 s after a lab run was
+  stopped, its scope having just timed out and been killed, nothing else running. The same
+  fatal error: MC5, syndrome 0x4d000000, on another address (Ryzen 7 5700X). The last three
+  boots all report it, so this reads as the CPU faulting under load, not as anything a mod or
+  a seed asks of it. Stock settings and a BIOS update are what to try. Keep launches few.
 - **Machine checks.** The PC went down during the all-enemies run with no kernel
   message, and the next boot reports a fatal CPU error: MC5 (execution unit),
   syndrome 0x4d000000, at a Wine address. Boots of 2026-10-29 and 30 report the same
@@ -1021,7 +1026,13 @@ load other mods under the seed; `ER_CPU=300`, two Cyberpunk labs beside for the 
   by the game's own 2004[4], on VINS's copy of the map's script (the character died before
   landing a hit by hand, so it was not killed by the player). "GREAT ENEMY FELLED" showed,
   and Sanguine Amaryllis arrived, the spoiler's item for flag 9100, Margit's Talisman Pouch
-  unmodded. That dialog shows no count, so the spoiler's x5 is not seen.
+  unmodded. The inventory log on a fresh save read (11, goods 2020012, 5): the spoiler's x5.
+- **A kill by the player was not landed.** With the boss's AI off (`test-kill --freeze`) the
+  character walked up to it unhurt, and swung, but steering by screenshot at 10 fps did not
+  connect. Its attacks, the boss's damage and YOU DIED all ran. The death itself is the
+  game's, so the same events run; the hit is what is not seen.
+- **All five DLLs are in the game's module list** (`/proc/<pid>/maps`): Nightreign's, VINS's
+  three and ours, side by side.
 - **The other load order, Nightreign last:** its title art, compass and character files are
   the ones served, so the later mod wins as me3's source says. On that seed the character
   creator gave the Warrior the seed's gear, and listed all nine keepsakes as the spoiler has
