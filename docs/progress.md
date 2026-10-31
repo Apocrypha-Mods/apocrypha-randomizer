@@ -490,7 +490,7 @@ scripts:
       254 `boss_health_bar` bosses are enemy entity ids). spEffect targets are
       not checked yet.
 - [ ] **The conditions quest events wait on** (3[3], 3[12], 4[0], 4[5] and
-      others): read, they would open more of the 57 gifts still shut.
+      others): read, they would open more of the 54 gifts still shut.
 - [ ] **The other 300 or so instructions** are uncatalogued. The ones Phase 5
       needs (enabling and disabling characters, warps, cutscenes) take
       entity ids, so they also come after MSB.
@@ -1360,18 +1360,53 @@ proved seeds 0 to 9,999 in 998 s on four threads, none failing (526 s before;
 the walk has more gifts to visit, and two lab games of another project shared
 the machine).
 
-**What is left shut, and why it stays so.** Of the gifts still shut, 52 of
-the 56 not ruled out are missable, so they could not take a key item even if
-read: reading more conditions would add at most four slots. The commonest
-unread conditions are 4[0], 3[23], 1003[3] and 3[12]. Range state 1 (3[1],
+**The four gifts not missable, read one at a time (2026-10-31).** Three of the
+four now open, and only one of them can take a key item. 54 gifts stay shut
+instead of 57, and 90 are missable instead of 87.
+
+- **Great-Jar's Arsenal opens, and can take a key item.** It waited on three
+  deaths (`if_character_dead`, 4[0] asking for state 1). The Knights of the Great
+  Jar are summoned once the Jar is spoken to, and the reward's flag waits for all
+  three. It now asks for the map the fight is on.
+- **Ruins Map (2nd) and (3rd) open, and cannot.** Count Ymir's maps waited on two
+  bells, each an object action (5[2]) done holding the Hole-Laden Necklace (3[4]).
+  These read the bells only, and the necklace is now a key item. But the talk script
+  makes these gifts either-or: with both bells rung it gives lot 106620 if lot 106610
+  was taken, and lot 106630 if not, while lots 106610 and 106630 share one pick-up
+  flag.
+- **A fault this showed, now fixed.** Lot 106610 (Ruins Map (2nd), Beloved Stardust)
+  was counted free and could take a key item. A player who rang both bells before
+  talking to Ymir again would never be offered it, losing the key. All three lots are
+  now `missable`. Gifts sharing a pick-up flag are marked so by rule. The only other
+  such pair (Cross Map, 106100 and 106120) was already missable.
+- **Neutralizing Boluses stays shut.** Its flag 10009335 is tested once in its talk
+  script (t304001000), and no event, talk script or param row sets it.
+
+So key-capable slots change by none: one gained, one found unsafe and taken away.
+
+`missable` still does not see what a talk script's branches do when a flag's test
+fails, so a gift that loses out on an unread branch and shares no flag with its
+twin would not be marked. No such case is known beyond lot 106620, which is listed
+by hand.
+
+The gate was run again on 2.7.2 with this in place: `apoc-rando check` placed and
+proved seeds 0 to 9,999 in 1,379 s on four threads, none failing, with other work
+sharing the machine (load 10 to 16).
+
+**What is left shut, and why it stays so.** 53 gifts not ruled out stay shut: the
+Boluses and 52 missable ones, which could not take a key item even if read, and
+some of which also wait on flags nothing sets. They stay unread: an NPC's death,
+for one, may only be possible at one stage of a quest, which the way would not
+show. The commonest unread conditions
+are 4[0] outside the Jar, 3[23], 1003[3] and 3[12]. Range state 1 (3[1],
 1003[3]) was studied and is still not settled: 14 of the 19 ranges 3[1] tests
 with it are stage ranges with one flag on at a time, so it is not "all on", but
 the code around its uses fits more than one other reading. It stays unread
 rather than guessed, as a wrong guess could count a gift the game withholds.
 
-**Missed gifts.** A quest stage can move on before its gift is taken. 87
-gifts wait on a flag some event turns off again (by `set_flag` or by clearing
-a range), and are marked `missable`. They are shuffled like any other slot,
+**Missed gifts.** A quest stage can move on before its gift is taken. 90
+gifts are marked `missable`: most wait on a flag some event turns off again (by
+`set_flag` or by clearing a range), and the rest are the either-or gifts above. They are shuffled like any other slot,
 but never take a key item, since a key there could be lost for good. Flags
 talk scripts turn off are not counted: talk turns its own flags on and off as
 a conversation goes. Of the slots that could take a key item before, only two

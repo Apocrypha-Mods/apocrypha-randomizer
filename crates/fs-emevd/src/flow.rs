@@ -31,6 +31,49 @@ pub enum Test {
     Other { bank: u32, id: u32, args: Vec<u8> },
 }
 
+/// What an unread test is, as the catalogue reads it, for a reader to judge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Reading {
+    /// The character is dead (`if_character_dead` asking for state 1).
+    Dead(u32),
+    /// The player holds a good, or does not (`if_item`, category 3).
+    Good { id: i32, held: bool },
+    /// The player did the action at an object (`if_object_action`).
+    ObjectAction(u32),
+    /// `if_unnamed_state`: not settled, only ever beside what is waited for.
+    Unnamed,
+}
+
+impl Test {
+    /// What this test is, when the catalogue has read it. `None` for a state
+    /// or a category not read, and for anything else.
+    pub fn reading(&self) -> Option<Reading> {
+        let Test::Other { bank, id, args } = self else {
+            return None;
+        };
+        let ins = Instruction {
+            bank: *bank,
+            id: *id,
+            args: args.clone(),
+            layer: None,
+        };
+        let e = catalogue::lookup(*bank, *id)?;
+        let word = |name| Entry::word(&ins, e.arg(name).word);
+        match e.name.as_str() {
+            "if_character_dead" => {
+                (word("state")? == 1).then_some(Reading::Dead(word("character")?))
+            }
+            "if_item" => (e.byte(&ins, "category")? == 3).then_some(Reading::Good {
+                id: word("item")? as i32,
+                held: word("state")? == 1,
+            }),
+            "if_object_action" => Some(Reading::ObjectAction(word("object")?)),
+            "if_unnamed_state" => Some(Reading::Unnamed),
+            _ => None,
+        }
+    }
+}
+
 /// A test that must hold, or must not.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Lit {
@@ -534,6 +577,29 @@ mod tests {
                 Way::from([flag(12, true)])
             ]
         );
+    }
+
+    #[test]
+    fn a_reading_is_only_of_what_the_catalogue_has_read() {
+        let of = |bank, id, words: &[u32]| other(&ins(bank, id, words)).test.reading();
+        // A character's death, by its state.
+        let dead = |state| of(4, 0, &[0, 77, state, 1.0f32.to_bits()]);
+        assert_eq!(dead(1), Some(Reading::Dead(77)));
+        assert_eq!(dead(0), None);
+        // Goods by their category; weapons are not read.
+        assert_eq!(
+            of(3, 4, &[bytes([0, 3, 0]), 8, 1]),
+            Some(Reading::Good { id: 8, held: true })
+        );
+        assert_eq!(
+            of(3, 4, &[bytes([0, 3, 0]), 8, 0]),
+            Some(Reading::Good { id: 8, held: false })
+        );
+        assert_eq!(of(3, 4, &[0, 8, 1]), None);
+        assert_eq!(of(5, 2, &[0, 9]), Some(Reading::ObjectAction(9)));
+        // A flag is no unread test, and the unknown stay unknown.
+        assert_eq!(Test::Flag(1).reading(), None);
+        assert_eq!(of(4, 3, &[0, 77]), None);
     }
 
     #[test]

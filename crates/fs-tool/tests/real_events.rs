@@ -200,7 +200,7 @@ fn every_packed_byte_claim_holds() {
                                 .iter()
                                 .any(|l| l.bank == 1014 && l.id == b as u32),
                             "group" | "source" => (-15..=15).contains(&(b as i8)),
-                            "state" | "flag_kind" => b <= 3,
+                            "state" | "flag_kind" | "category" => b <= 3,
                             "end" => b <= 1,
                             other => panic!("{}: no such byte as {other}", e.name),
                         } as usize;
@@ -219,4 +219,70 @@ fn every_packed_byte_claim_holds() {
             assert!((-15..=15).contains(&(ins.args[0] as i8)), "{ins:?}");
         }
     }
+}
+
+/// The readings of what a quest's way waits on: a character's death, an item
+/// held. Over every run, with placeholders filled.
+#[test]
+fn the_quest_condition_readings_hold() {
+    let Some(g) = game() else {
+        eprintln!("APOC_ER_STOCK is not set; skipping");
+        return;
+    };
+    let dead = catalogue::named("if_character_dead");
+    let item = catalogue::named("if_item");
+    let goods: HashSet<i32> = g
+        .reg
+        .table("EquipParamGoods")
+        .unwrap()
+        .rows
+        .iter()
+        .map(|r| r.id)
+        .collect();
+    let (mut on, mut on_boss, mut off, mut off_boss) = (0, 0, 0, 0);
+    let (mut goods_uses, mut goods_rows) = (0, 0);
+    let common = Some(&g.scripts[0]);
+    for s in &g.scripts {
+        for run in catalogue::runs(s, common) {
+            let ins = &run.instructions;
+            for (k, i) in ins.iter().enumerate() {
+                if (i.bank, i.id) == (dead.bank, dead.id) {
+                    assert_eq!(i.args[12..16], 1.0f32.to_le_bytes(), "{i:?}");
+                    if dead.byte(i, "group") == Some(0) {
+                        let boss = ins[k + 1..].iter().any(|j| (j.bank, j.id) == (2003, 12));
+                        match catalogue::Entry::word(i, dead.arg("state").word) {
+                            Some(1) => {
+                                on += 1;
+                                on_boss += usize::from(boss);
+                            }
+                            Some(0) => {
+                                off += 1;
+                                off_boss += usize::from(boss);
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                if (i.bank, i.id) == (item.bank, item.id) {
+                    let category = item.byte(i, "category").unwrap();
+                    assert!(category == 0 || category == 3, "{i:?}");
+                    let id = catalogue::Entry::word(i, item.arg("item").word).unwrap() as i32;
+                    // Event 18000020 asks for ids that are no such rows.
+                    if category == 3 && id > 0 && run.event.id != 18000020 {
+                        goods_uses += 1;
+                        goods_rows += usize::from(goods.contains(&id));
+                    }
+                }
+            }
+        }
+    }
+    eprintln!(
+        "dead: {on_boss} of {on}, alive: {off_boss} of {off}; goods {goods_rows} of {goods_uses}"
+    );
+    assert!(on >= 200 && on_boss * 100 >= on * 60, "{on_boss} of {on}");
+    assert_eq!(off_boss, 0, "a boss's death event waits on it being alive");
+    assert!(
+        goods_rows * 100 >= goods_uses * 95,
+        "{goods_rows} of {goods_uses}"
+    );
 }

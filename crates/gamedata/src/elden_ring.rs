@@ -940,6 +940,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
         // A way that asks nothing makes the rest moot; no way at all is never.
         l.given_if = (out.first() != Some(&Vec::new())).then_some(out);
     }
+    mark_either_or(&mut model.locations);
 
     Ok(model)
 }
@@ -988,6 +989,46 @@ impl Names<'_> {
 const MAX_WAYS: usize = 8;
 /// How deep a flag set in talk is followed back to what that talk asks.
 const MAX_DEPTH: usize = 4;
+
+/// The Knights of the Great Jar (m60_47_41). Talking to the Jar turns on
+/// 1047419200; then entering the fight's region summons each knight not yet
+/// dead (event 1047412300, which ends by running again), and 1047419201, the
+/// Jar's reward, waits for all three dead (1047412301). Nothing clears either
+/// flag, so the fight can be taken up again. Other deaths stay
+/// unread: an NPC may only be there at one stage of a quest, which the way would
+/// not show.
+const JAR_KNIGHTS: [u32; 3] = [1047410701, 1047410702, 1047410703];
+/// The two hanging bells the Hole-Laden Necklace sounds (m61_50_40, m61_53_46):
+/// object actions by their maps' event tables, and each event asks for nothing
+/// else than holding the necklace there.
+const BELLS: [u32; 2] = [2050403600, 2053463600];
+/// A lot given in place of one of an either-or pair ([`mark_either_or`]) that
+/// shares no flag with them: Ymir's 106620, given with both bells rung only if
+/// 106610 was taken (machine 2147483608 of t420006100 branches on 2051459208,
+/// set when 106610 is given, and gives this or 106630).
+const GIVEN_INSTEAD: [i32; 1] = [106620];
+
+/// Gifts a player gets one or the other of. Two gifts with one pick-up flag are
+/// the same reward by two ways, and the way taken shuts the other: Ymir gives
+/// 106610 if talked to before both bells have rung, and 106630 if after.
+/// Which one depends on the player, so neither can be counted on for a key item.
+fn mark_either_or(locations: &mut [Location]) {
+    let mut by_flag: HashMap<u32, usize> = HashMap::new();
+    for l in locations.iter().filter(|l| l.kind == Kind::Gift) {
+        if let Some(f) = l.flag {
+            *by_flag.entry(f).or_default() += 1;
+        }
+    }
+    for l in locations.iter_mut().filter(|l| l.kind == Kind::Gift) {
+        let shared = l.flag.is_some_and(|f| by_flag[&f] > 1);
+        let instead = l
+            .lot
+            .as_ref()
+            .and_then(|lot| lot.ids.first())
+            .is_some_and(|id| GIVEN_INSTEAD.contains(id));
+        l.missable |= shared || instead;
+    }
+}
 
 /// Turns what talk conditions ask ([`Atom`]s) into the model's terms.
 struct Explain<'a> {
@@ -1104,15 +1145,28 @@ impl Explain<'_> {
     /// The ways to have what an event run asks before it sets `f`. Flags that
     /// must be off are taken to be off, as in talk.
     fn event_way(&self, e: &EventWay, f: u32, depth: usize) -> Vec<Way> {
-        use fs_emevd::flow::Test;
+        use fs_emevd::flow::{Reading, Test};
         let mut ways: Vec<Way> = vec![e.map.map(Cond::Map).into_iter().collect()];
+        let at_a_bell = e.way.iter().any(|l| {
+            matches!(l.test.reading(), Some(Reading::ObjectAction(o)) if l.holds && BELLS.contains(&o))
+        });
         for lit in &e.way {
             let options = match (&lit.test, lit.holds) {
                 (Test::Flag(g), true) if *g != f => self.flag(*g, depth),
                 (Test::Flag(_), _) => continue,
-                // A test not read (a position, a character's state, a count)
-                // shuts the way: it may ask what the logic cannot see.
-                (Test::Other { .. }, _) => return Vec::new(),
+                (Test::Other { .. }, holds) => match (lit.test.reading(), holds) {
+                    (Some(Reading::Dead(c)), true) if JAR_KNIGHTS.contains(&c) => continue,
+                    (Some(Reading::ObjectAction(o)), true) if BELLS.contains(&o) => continue,
+                    (Some(Reading::Unnamed), true) if at_a_bell => continue,
+                    // Holding a good, however the event asks it.
+                    (Some(Reading::Good { id, held }), holds) if held == holds => {
+                        vec![vec![Cond::Holds(self.item(ItemKind::Goods, id))]]
+                    }
+                    // Any other test (a position, a character's state, a
+                    // count) shuts the way: it may ask what the logic cannot
+                    // see.
+                    _ => return Vec::new(),
+                },
             };
             let mut next: Vec<Way> = Vec::new();
             for w in &ways {

@@ -265,6 +265,109 @@ name = "condition"
 kind = "packed"
 bytes = ["end", "state"]
 
+# --- Conditions read on a quest's way ----------------------------------------
+#
+# What flow keeps as an unread test until crates/gamedata reads it. Each is read
+# only where the note beside its use there says why; see `flow::reading`.
+
+[[instruction]]
+bank = 4
+id = 0
+name = "if_character_dead"
+length = 16
+confidence = "probable"
+evidence = """
+1,510 uses in event runs, always 16 bytes: byte 0 a condition group, word 1 a
+character, word 2 a state, word 3 always the float 1.0. Of 267 runs that wait in
+group 0 for state 1, 170 go on to boss_defeated (2003[12]) for that fight, the
+shape of a boss's death event; of the 3 that wait for state 0, none do. Knights
+of the Great Jar (m60_47_41 events 1047412300 and 1047412301): the fight summons
+each knight only when this is not yet in state 1, and the Jar's reward flag waits
+for all three in state 1. Read as: the character is dead (state 1). State 0 is not
+read."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "number"
+
+[[instruction]]
+bank = 3
+id = 4
+name = "if_item"
+length = 12
+confidence = "probable"
+evidence = """
+617 uses in event runs, always 12 bytes: byte 0 a group, byte 1 a category, 0 or
+3; word 1 an id; word 2 a state, always 0 or 1. In category 3, word 1 is an
+EquipParamGoods row in 94 of 95 uses outside one event (18000020, whose 20 ids are
+no such rows). The bell events (m61_50_40 2050402600, m61_53_46 2053462600) wait
+on it for the Hole-Laden Necklace, whose caption says it is used at a hallowed
+ruin to sound a hanging bell, and the bell's visual comes on with state 1 and off
+with state 0, as the player's holding it changes. Read as: the player holds (state
+1) or does not hold (state 0) the item. Only goods (category 3) are read."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group", "category"]
+[[instruction.arg]]
+word = 1
+name = "item"
+kind = "number"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 5
+id = 2
+name = "if_object_action"
+length = 8
+confidence = "probable"
+evidence = """
+46 uses, always 8 bytes: byte 0 a group, word 1 an entity. The two bells' entities
+(2050403600, 2053463600) are named as object actions in their maps' own event
+tables: "ObjAct 指遺跡 指笛" and "ObjAct 指遺跡 笛を吹く". Read as: the player did the
+action at that object, which needs nothing but standing there. Read only for the
+bells."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "object"
+kind = "entity"
+
+[[instruction]]
+bank = 3
+id = 26
+name = "if_unnamed_state"
+length = 4
+confidence = "probable"
+evidence = """
+524 uses, always 4 bytes: only a group, with nothing named. It stands in the same
+group as what the event waits for, including an object action (11 uses) and a
+death that leads to boss_defeated (13 runs), so ordinary play meets it while it
+meets those. What it tests is not settled. Read only beside a bell's object
+action, on the gift waiting for those bells."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+
 # --- Control flow -------------------------------------------------------------
 #
 # Conditions (banks 0 to 999) put what they test in a condition group: byte 0

@@ -251,3 +251,40 @@ fn quest_gifts_open_on_the_stages_events_set() {
         );
     }
 }
+
+/// The gifts opened by reading one condition at a time, and what they ask.
+#[test]
+fn gifts_read_one_at_a_time() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let w = b.walk(&b.vanilla());
+    let by_lot = |id: i32| {
+        (0..m.locations.len())
+            .find(|&i| {
+                m.locations[i].kind == gamedata::model::Kind::Gift
+                    && m.locations[i]
+                        .lot
+                        .as_ref()
+                        .is_some_and(|l| l.ids.first() == Some(&id))
+            })
+            .unwrap()
+    };
+    // The Great Jar's reward takes a key item, and asks only for its map.
+    let jar = by_lot(104700);
+    assert!(!m.locations[jar].missable);
+    assert!(w.taken[jar], "the Jar's reward is got");
+    let asks = format!("{:?}", m.locations[jar].given_if);
+    assert!(asks.contains("Map(") && !asks.contains("Flag("), "{asks}");
+    // Ymir's maps: open, and either-or, so none of them takes a key item.
+    for lot in [106610, 106620, 106630] {
+        let l = by_lot(lot);
+        assert!(m.locations[l].missable, "lot {lot}");
+        assert!(w.taken[l], "lot {lot} is got");
+    }
+    for lot in [106620, 106630] {
+        let asks = format!("{:?}", m.locations[by_lot(lot)].given_if);
+        assert!(asks.contains("Hole-Laden Necklace"), "{asks}");
+    }
+    // The necklace that starts it is not one of them.
+    assert!(!m.locations[by_lot(106600)].missable);
+}
