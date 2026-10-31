@@ -931,6 +931,16 @@ On 2.7.2, seed 1, all moving, 2026-10-30:
 data this came from. `crates/enemies/tests/real_enemies.rs` holds it.
 
 Still to do:
+- **First seen in the lab** (2026-10-31, seed 1, bosses only, items unmoved, warped
+  in with `test-warp --from`): the world and Stormveil loaded at about 7 GB. In
+  Margit's arena his own cutscene played, as a cutscene has its own copy of him, and
+  then a Godskin Apostle stood there with its name on the bar, and fought: Margit's
+  wake, which it may lack, froze nothing. Killing it was not tried.
+- **Machine checks.** The PC went down during the all-enemies run with no kernel
+  message, and the next boot reports a fatal CPU error: MC5 (execution unit),
+  syndrome 0x4d000000, at a Wine address. Boots of 2026-10-29 and 30 report the same
+  on other threads. Not memory: the lab peaked at 6.7 GB of its 9. Two Cyberpunk labs
+  ran beside it. The lab takes `ER_CPU` to lower its CPU quota.
 - [ ] **The gate:** the spec's hazards in the game, once a lab run is wanted.
 - [ ] **Malenia's trigger.** Read from the scripts, not yet seen in play. 4[14] with
       5 and 0 waits on a body's fall, and 286 uses across bosses run into its death;

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run Elden Ring through me3 with $MOD in headless gamescope (640x360, 10 fps),
 # boxed in so it cannot crowd the desktop: its own prefix, nice 19, idle I/O,
-# at most four cores' worth of CPU, and a hard memory cap (killed rather than
+# at most four cores' worth of CPU ($ER_CPU percent, default 400), and a hard memory cap (killed rather than
 # swapped into a freeze). Audio goes to a null sink. Stop it with
 # `systemctl --user stop apoc-er-lab.scope`.
 #
@@ -43,7 +43,7 @@ load_after = []
 TOML
 cd "$GAME"
 exec systemd-run --user --scope --unit=apoc-er-lab \
-  -p MemoryMax=9G -p MemorySwapMax=1G -p CPUWeight=10 -p CPUQuota=400% -p IOWeight=10 \
+  -p MemoryMax=9G -p MemorySwapMax=1G -p CPUWeight=10 -p CPUQuota=${ER_CPU:-400}% -p IOWeight=10 \
   nice -n 19 ionice -c 3 \
   gamescope --backend headless -W 640 -H 360 -r 10 -- \
   env ME3_GAME_LAUNCHED='"elden-ring"' ME3_LAUNCHER_ARGV='[]' \

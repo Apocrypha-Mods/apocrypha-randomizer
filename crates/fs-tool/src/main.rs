@@ -194,6 +194,9 @@ enum Command {
         /// The entity to land on.
         #[arg(long)]
         entity: u32,
+        /// The map whose loading sets it off, as `m60_42_36_00` (default the chapel).
+        #[arg(long)]
+        from: Option<String>,
     },
     /// Write one file out of the archives, by path or by hash.
     Extract {
@@ -290,7 +293,8 @@ fn main() {
             out,
             map,
             entity,
-        } => test_kit::warp(game, out, &map, entity),
+            from,
+        } => test_kit::warp(game, out, &map, entity, from),
         Command::Extract {
             game,
             file,
