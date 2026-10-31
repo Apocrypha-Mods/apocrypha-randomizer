@@ -1546,7 +1546,10 @@ manager and reaches only what the mod manager hands it. One file serves every sy
   as `apoc-rando`'s, in 105 s with 1.29 GiB of module memory. A native single-threaded
   run takes 61 s and 1.14 GiB, or 66 s and 1.97 GiB with enemies moved.
 - **The page follows Motion's layout and CSS**, the design system's §6.4ae, with
-  Bodyworks' sliders. A screenshot against a stand-in host matches Motion's page.
+  Bodyworks' sliders. Checked by eye against a screenshot of Motion's page.
+- **The packed add-on, driven in Chrome** with its Build button, against a stand-in
+  host serving the stock game: seed 1's 16 files came to `output.write` as the same bytes
+  as `apoc-rando`'s, in 2 min 23 s. The file is 882 KB.
 - **One new request of the mod manager:** `files.part` with `own: true`, a piece of the
   game's own loose file and never a mod's. It is on the branch `feat/randomizer-addon`
   of `Apocrypha-Mods/apocrypha`.

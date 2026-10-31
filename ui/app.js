@@ -320,7 +320,11 @@ async function build() {
   b.btn.disabled = true;
   b.btn.classList.remove("pri");
   const u = { read: 0, toRead: 0, writing: false };
-  const text = () => (u.writing ? "Writing files" : u.toRead ? `Reading ${u.read.toLocaleString()} of ${u.toRead.toLocaleString()}` : "Starting");
+  const text = () => {
+    if (u.writing) return "Writing files";
+    if (!u.toRead) return "Starting";
+    return u.read < u.toRead ? `Reading ${u.read.toLocaleString()} of ${u.toRead.toLocaleString()}` : "Building";
+  };
   const show = () => {
     const f = L.progress(u);
     b.set({ frac: f, show: true, text: text() });
