@@ -19,6 +19,38 @@ pub use items::Options as ItemOptions;
 /// Where a run's messages go. It may be called from several threads.
 pub type Say<'a> = &'a (dyn Fn(&str) + Sync);
 
+/// Where a seed's files go: a mod folder, or the mod manager's add-on frame, which
+/// has no folders. `path` is from the mod's root, `map/mapstudio/m10_00_00_00.msb.dcx`.
+pub trait Sink: Sync {
+    fn put(&self, path: &str, bytes: Vec<u8>) -> Result<()>;
+}
+
+/// A mod folder.
+pub struct Folder<'a>(pub &'a Path);
+
+impl Sink for Folder<'_> {
+    fn put(&self, path: &str, bytes: Vec<u8>) -> Result<()> {
+        let to = self.0.join(path);
+        std::fs::create_dir_all(to.parent().unwrap_or(self.0))?;
+        std::fs::write(to, bytes)?;
+        Ok(())
+    }
+}
+
+/// What a seed is, whatever it is built from and wherever it goes.
+#[derive(Clone, Copy)]
+pub struct Job<'a> {
+    pub seed: u64,
+    pub options: &'a ItemOptions,
+    pub enemies: &'a EnemyOptions,
+}
+
+/// A seed built by [`build`].
+pub struct Built {
+    pub slots: usize,
+    pub spoiler: String,
+}
+
 /// One seed to build.
 pub struct Request {
     /// The game folder, holding `eldenring.exe` and `regulation.bin`.
@@ -354,47 +386,30 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
         native,
         mods,
     } = request;
-    let (game, seed, mods) = (game.as_path(), *seed, mods.as_slice());
+    let (game, mods) = (game.as_path(), mods.as_slice());
     let files = open_files(game, mods)?;
     let mut sources = Sources::open_with(game, &files)?;
     known_patch(&sources.reg.version())?;
     let merged = merge_mods(game, &mut sources, mods, say)?;
     let model = extract_model(game, &sources, mods)?;
-    let graph = logic::elden_ring();
-    let bound = logic::Bound::new(&graph, &model);
-    if !bound.problems.is_empty() {
-        return Err(format_err(format!(
-            "the area map does not fit this game: {:?}",
-            bound.problems
-        )));
-    }
-    let units = items::units(&model, &bound, &sources.reg)?;
-    let plan = items::shuffle(&bound, &units, seed, options).map_err(format_err)?;
-    let mut reg = sources.reg.clone();
-    items::apply(&mut reg, &units, &plan)?;
-    let dressed = items::dress_npcs(&mut reg, &model, seed, options)?;
     std::fs::create_dir_all(out)?;
-    keepsake_text(&files, out, &items::keepsake_items(&units, &plan))?;
     if options.auto_upgrade {
         native_module(out, native.as_deref())?;
     }
-    let enemy_log = if foes.is_off() {
-        None
-    } else {
-        Some(move_enemies(
-            &files, request, &sources, &model, &mut reg, say,
-        )?)
-    };
-    std::fs::write(out.join("regulation.bin"), reg.write()?)?;
+    let built = build(
+        &files,
+        &sources,
+        &model,
+        Job {
+            seed: *seed,
+            options,
+            enemies: foes,
+        },
+        &Folder(out),
+        say,
+    )?;
     let spoiler = out.with_extension("spoiler.txt");
-    let mut log = merged;
-    log += &items::spoiler(&bound, &units, &plan);
-    log += "\nNPC equipment\n";
-    for line in &dressed {
-        log += &format!("  {line}\n");
-    }
-    log += enemy_log.as_deref().unwrap_or("");
-    std::fs::write(&spoiler, log)?;
+    std::fs::write(&spoiler, merged + &built.spoiler)?;
     for file in &files.shadowed {
         say(&format!(
             "warning: more than one mod has {file}; the later one is used"
@@ -406,33 +421,81 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
         None
     };
     Ok(Outcome {
-        slots: units.len(),
+        slots: built.slots,
         folder: out.clone(),
         spoiler,
         profile,
     })
 }
 
+/// The seed itself: place the items, move the enemies, and put what changed in
+/// `sink`. Touches no folder, so it runs wherever the game's files can be handed
+/// to it.
+pub fn build(
+    files: &GameFiles,
+    sources: &Sources,
+    model: &gamedata::model::Model,
+    job: Job,
+    sink: &dyn Sink,
+    say: Say,
+) -> Result<Built> {
+    let Job {
+        seed,
+        options,
+        enemies: foes,
+    } = job;
+    let graph = logic::elden_ring();
+    let bound = logic::Bound::new(&graph, model);
+    if !bound.problems.is_empty() {
+        return Err(format_err(format!(
+            "the area map does not fit this game: {:?}",
+            bound.problems
+        )));
+    }
+    let units = items::units(model, &bound, &sources.reg)?;
+    let plan = items::shuffle(&bound, &units, seed, options).map_err(format_err)?;
+    let mut reg = sources.reg.clone();
+    items::apply(&mut reg, &units, &plan)?;
+    let dressed = items::dress_npcs(&mut reg, model, seed, options)?;
+    keepsake_text(files, sink, &items::keepsake_items(&units, &plan))?;
+    let enemy_log = if foes.is_off() {
+        None
+    } else {
+        Some(move_enemies(
+            files, job, sources, model, &mut reg, sink, say,
+        )?)
+    };
+    sink.put("regulation.bin", reg.write()?)?;
+    let mut log = items::spoiler(&bound, &units, &plan);
+    log += "\nNPC equipment\n";
+    for line in &dressed {
+        log += &format!("  {line}\n");
+    }
+    log += enemy_log.as_deref().unwrap_or("");
+    Ok(Built {
+        slots: units.len(),
+        spoiler: log,
+    })
+}
+
 /// Move the enemies and write what changed: maps, scripts and health bar names.
 fn move_enemies(
     files: &GameFiles,
-    request: &Request,
+    job: Job,
     sources: &Sources,
     model: &gamedata::model::Model,
     reg: &mut fs_param::Regulation,
+    out: &dyn Sink,
     say: Say,
 ) -> Result<String> {
-    let (out, seed, foes) = (request.out.as_path(), request.seed, &request.enemies);
+    let (seed, foes) = (job.seed, job.enemies);
     let pool = enemies::pool(sources, model)?;
     let plan = enemies::shuffle(&pool, seed, foes);
     let applied = enemies::apply(reg, sources, &pool, &plan, foes)?;
     let write = |path: String, plain: Vec<u8>| -> Result<()> {
         let (header, _) = fs_dcx::decompress(&files.read(&path)?)?;
-        let to = out.join(path.trim_start_matches('/'));
-        std::fs::create_dir_all(to.parent().unwrap_or(out))?;
         let data = fs_dcx::compress(&header.with_algorithm(fs_dcx::Algorithm::Zstd), &plain)?;
-        std::fs::write(to, data)?;
-        Ok(())
+        out.put(path.trim_start_matches('/'), data)
     };
     applied
         .maps
@@ -453,7 +516,7 @@ fn move_enemies(
 }
 
 /// The languages the game ships text in; each is written where the game holds it.
-const LANGUAGES: [&str; 15] = [
+pub const LANGUAGES: [&str; 15] = [
     "engus", "araae", "deude", "frafr", "itait", "jpnjp", "korkr", "polpl", "porbr", "rusru",
     "spaar", "spaes", "thath", "zhocn", "zhotw",
 ];
@@ -466,7 +529,7 @@ fn language_text(files: &GameFiles, language: &str) -> Result<Text> {
 /// Write one text binder back into the mod folder after `edit`.
 fn rewrite_text(
     files: &GameFiles,
-    out: &Path,
+    out: &dyn Sink,
     path: &str,
     edit: impl Fn(&mut fs_bnd4::File) -> Result<()>,
 ) -> Result<()> {
@@ -475,21 +538,18 @@ fn rewrite_text(
     for f in &mut bnd.files {
         edit(f)?;
     }
-    let to = out.join(path.trim_start_matches('/'));
-    std::fs::create_dir_all(to.parent().unwrap_or(out))?;
     let data = fs_dcx::compress(
         &header.with_algorithm(fs_dcx::Algorithm::Zstd),
         &bnd.write()?,
     )?;
-    std::fs::write(to, data)?;
-    Ok(())
+    out.put(path.trim_start_matches('/'), data)
 }
 
 /// A health bar names who stands there now, in each language, from that language's
 /// own name for them; English where it has none.
 fn bar_text(
     files: &GameFiles,
-    out: &Path,
+    out: &dyn Sink,
     names: &BTreeMap<i32, String>,
     sources: &BTreeMap<i32, i32>,
 ) -> Result<()> {
@@ -540,7 +600,7 @@ fn item_table(kind: ItemKind) -> &'static str {
 /// Character creation names its keepsakes from menu text of its own, so write
 /// what each now is, in the file the game reads (the last DLC's holds it all),
 /// in each language. The menu's one line of help is English in all of them.
-fn keepsake_text(files: &GameFiles, out: &Path, keepsakes: &[(i32, Item)]) -> Result<()> {
+fn keepsake_text(files: &GameFiles, out: &dyn Sink, keepsakes: &[(i32, Item)]) -> Result<()> {
     for language in LANGUAGES {
         let path = format!("/msg/{language}/menu_dlc02.msgbnd.dcx");
         if !files.exists(&path) {

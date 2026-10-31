@@ -21,7 +21,7 @@ pub mod bhd;
 pub mod key;
 pub mod name;
 
-pub use archive::{Archive, Dvd, EntryRef};
+pub use archive::{Archive, Bdt, Dvd, EntryRef};
 pub use bhd::{Bhd, Entry};
 pub use key::ArchiveKey;
 pub use name::hash_path;

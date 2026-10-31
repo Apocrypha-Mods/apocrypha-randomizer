@@ -15,13 +15,26 @@ use crate::key::ArchiveKey;
 /// hundred megabytes; an entry claiming more than this is a broken header.
 pub const MAX_ENTRY: u64 = 2 * 1024 * 1024 * 1024;
 
+/// Where a `.bdt`'s bytes come from: a file, or whatever hands them over where
+/// there are no files, as in the mod manager's add-on frame.
+pub trait Bdt: Send + Sync + std::fmt::Debug {
+    /// Fill `buf` from `offset`, or fail.
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> std::io::Result<()>;
+}
+
+impl Bdt for File {
+    fn read_at(&self, buf: &mut [u8], offset: u64) -> std::io::Result<()> {
+        read_exact_at(self, buf, offset)
+    }
+}
+
 /// One `.bhd`/`.bdt` pair.
 #[derive(Debug)]
 pub struct Archive {
     /// The file stem, e.g. `Data0`.
     pub name: String,
     pub bhd: Bhd,
-    bdt: File,
+    bdt: Box<dyn Bdt>,
     bdt_len: u64,
 }
 
@@ -31,19 +44,30 @@ impl Archive {
     pub fn open(dir: &Path, name: &str, keys: &[ArchiveKey]) -> Result<Self> {
         let bhd_path = dir.join(format!("{name}.bhd"));
         let encrypted = std::fs::read(&bhd_path).map_err(|e| Error::Io(with_path(e, &bhd_path)))?;
-        let key = keys
-            .iter()
-            .find(|k| k.opens(&encrypted))
-            .ok_or_else(|| Error::Crypto(format!("none of the exe's keys opens {name}.bhd")))?;
-        let bhd = Bhd::read(&key.decrypt(&encrypted)?)?;
         let bdt_path = dir.join(format!("{name}.bdt"));
         let bdt = File::open(&bdt_path).map_err(|e| Error::Io(with_path(e, &bdt_path)))?;
         let bdt_len = bdt.metadata()?.len();
+        Self::from_header(name, &encrypted, keys, Box::new(bdt), bdt_len)
+    }
+
+    /// An archive from its encrypted `.bhd` and its data, from wherever they are.
+    pub fn from_header(
+        name: &str,
+        encrypted: &[u8],
+        keys: &[ArchiveKey],
+        bdt: Box<dyn Bdt>,
+        bdt_len: u64,
+    ) -> Result<Self> {
+        let key = keys
+            .iter()
+            .find(|k| k.opens(encrypted))
+            .ok_or_else(|| Error::Crypto(format!("none of the exe's keys opens {name}.bhd")))?;
+        let bhd = Bhd::read(&key.decrypt(encrypted)?)?;
         Self::from_parts(name, bhd, bdt, bdt_len)
     }
 
     /// An archive from a parsed header and an open data file.
-    pub fn from_parts(name: &str, bhd: Bhd, bdt: File, bdt_len: u64) -> Result<Self> {
+    pub fn from_parts(name: &str, bhd: Bhd, bdt: Box<dyn Bdt>, bdt_len: u64) -> Result<Self> {
         for e in &bhd.entries {
             let end = e.offset.checked_add(u64::from(e.padded_size));
             if end.is_none_or(|end| end > bdt_len) {
@@ -81,7 +105,7 @@ impl Archive {
             )));
         }
         let mut data = vec![0u8; entry.padded_size as usize];
-        read_exact_at(&self.bdt, &mut data, entry.offset)?;
+        self.bdt.read_at(&mut data, entry.offset)?;
         if let Some(aes) = &entry.aes {
             let cipher = Aes128::new(GenericArray::from_slice(&aes.key));
             for r in &aes.ranges {
@@ -113,6 +137,11 @@ fn bytemuck_blocks(b: &mut [u8]) -> &mut [GenericArray<u8, aes::cipher::consts::
 
 fn with_path(e: std::io::Error, path: &Path) -> std::io::Error {
     std::io::Error::new(e.kind(), format!("{}: {e}", path.display()))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn read_exact_at(_: &File, _: &mut [u8], _: u64) -> std::io::Result<()> {
+    Err(std::io::ErrorKind::Unsupported.into())
 }
 
 #[cfg(unix)]

@@ -154,6 +154,26 @@ impl GameFiles {
         })
     }
 
+    /// Where a file lies in the archives: which one, at what offset, how long.
+    pub fn place(&self, path: &str) -> Option<(&str, u64, u32)> {
+        let r = self.dvd.find(path)?;
+        let entry = self.dvd.entry(r);
+        Some((
+            self.dvd.archives[r.archive].name.as_str(),
+            entry.offset,
+            entry.padded_size,
+        ))
+    }
+
+    /// The archives alone, with no mods over them.
+    pub fn over(dvd: Dvd) -> Self {
+        GameFiles {
+            dvd,
+            loose: HashMap::new(),
+            shadowed: Vec::new(),
+        }
+    }
+
     pub fn exists(&self, path: &str) -> bool {
         self.loose.contains_key(&path.to_lowercase()) || self.dvd.find(path).is_some()
     }
@@ -176,6 +196,31 @@ impl Sources {
     /// Read everything as `files` serves it. The tables stay the game's own:
     /// merging them is the caller's, as mods' tables combine and files do not.
     pub fn open_with(game: &std::path::Path, dvd: &GameFiles) -> Result<Self> {
+        Self::read(Regulation::open(game)?, dvd)
+    }
+
+    /// The files [`Sources::read`] reads from the archives, bar the English text.
+    pub fn paths(dvd: &GameFiles) -> Vec<String> {
+        let mut paths = vec![
+            "/event/common_func.emevd.dcx".to_string(),
+            "/event/common.emevd.dcx".to_string(),
+        ];
+        for m in map_ids(dvd) {
+            paths.push(format!("/map/mapstudio/{m}.msb.dcx"));
+            paths.push(format!("/event/{m}.emevd.dcx"));
+        }
+        let mut talk = named(dvd, |m| format!("/script/talk/{m}.talkesdbnd.dcx"));
+        talk.push(EVERYWHERE);
+        paths.extend(
+            talk.iter()
+                .map(|m| format!("/script/talk/{m}.talkesdbnd.dcx")),
+        );
+        paths.retain(|p| dvd.exists(p));
+        paths
+    }
+
+    /// Read everything as `dvd` serves it, around tables already read.
+    pub fn read(reg: Regulation, dvd: &GameFiles) -> Result<Self> {
         let read = |path: &str| -> Result<Vec<u8>> {
             let bytes = dvd
                 .read(path)
@@ -229,7 +274,7 @@ impl Sources {
             .flatten()
             .collect();
         Ok(Sources {
-            reg: Regulation::open(game)?,
+            reg,
             maps,
             scripts,
             common_func: Emevd::read(&read("/event/common_func.emevd.dcx")?)?,
