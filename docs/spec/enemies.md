@@ -78,6 +78,13 @@ Mausoleum, as it carries a shop.
 To be filled in as they are found. Not yet seen in the game:
 - **Arena scripts act on the newcomer.** They play the old boss's animation ids and
   effects on whoever stands there; what a body does with an id it lacks is unknown.
+  Read from the scripts: none of the waits on one body's own effects sits in an
+  event that shows a health bar or calls the defeat, and the defeat events wait only
+  on a fall, a death or no health, so no reading yet shows a fight that cannot end.
+  The likeliest fault left is a body that has the arena's start pose (ids 30000 up)
+  but not its wake (20000 up), and stands asleep. `apoc-fs boss-commands` lists what
+  each spot is told. Which ids a body has is a rough reading of its `.anibnd`: 106 of
+  340 commands were not found on the spot's own body, so some archives hold more.
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
 - **Cutscenes** show or expect the old boss.

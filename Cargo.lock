@@ -409,6 +409,7 @@ name = "fs-tool"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "enemies",
  "fs-bnd4",
  "fs-bytes",
  "fs-dcx",

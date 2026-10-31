@@ -13,6 +13,7 @@ name = "apoc-fs"
 path = "src/main.rs"
 
 [dependencies]
+enemies = { path = "../enemies" }
 fs-bytes.workspace = true
 fs-dvdbnd.workspace = true
 fs-dcx = { workspace = true, features = ["kraken"] }

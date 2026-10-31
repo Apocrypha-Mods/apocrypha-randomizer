@@ -158,6 +158,9 @@ enum Command {
     MsbModels { game: PathBuf, map: String },
     /// Every placed enemy with its NpcParam row in hex, a line each.
     EnemyDump { game: PathBuf, out: PathBuf },
+    /// Every command the scripts give each movable boss: map, spot, event,
+    /// instruction and arguments, a line each.
+    BossCommands { game: PathBuf, out: PathBuf },
     /// Every use of one instruction, with its arguments filled in.
     InstructionUses { game: PathBuf, bank: u32, id: u32 },
     /// The area graph checked against the game, and the vanilla game walked
@@ -240,6 +243,7 @@ fn main() {
         } => enemies::events(game, map, entities),
         Command::MsbModels { game, map } => enemies::models(game, map),
         Command::EnemyDump { game, out } => enemies::dump(game, out),
+        Command::BossCommands { game, out } => enemies::boss_commands(game, out),
         Command::InstructionUses { game, bank, id } => enemies::instruction_uses(game, bank, id),
         Command::Flags { game } => flags::run(game),
         Command::MsbColumns {

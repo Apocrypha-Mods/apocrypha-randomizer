@@ -229,6 +229,39 @@ pub fn dump(game: PathBuf, out: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// What each movable boss's script tells it to do, tab-separated, with the
+/// arguments filled in: what a newcomer on that spot would be told.
+pub fn boss_commands(game: PathBuf, out: PathBuf) -> Result<()> {
+    let s = Sources::open(&game)?;
+    let model = gamedata::elden_ring::extract(&s)?;
+    let pool = ::enemies::pool(&s, &model)?;
+    let mut text = String::new();
+    for spot in pool.bosses() {
+        let (Some(boss), Some(entity)) = (&spot.boss, spot.entity) else {
+            continue;
+        };
+        let Some((_, script)) = s.scripts.iter().find(|(m, _)| *m == boss.script) else {
+            continue;
+        };
+        for run in catalogue::runs(script, Some(&s.common_func)) {
+            for (n, i) in run.instructions.iter().enumerate() {
+                let words: Vec<i64> = (0..i.args.len() / 4)
+                    .filter_map(|w| catalogue::Entry::word(i, w))
+                    .map(|v| i64::from(v as i32))
+                    .collect();
+                if words.contains(&i64::from(entity)) {
+                    text += &format!(
+                        "{}\t{entity}\t{}\t{}\t{n}\t{}\t{}\t{words:?}\n",
+                        boss.script, spot.body.name, run.event.id, i.bank, i.id
+                    );
+                }
+            }
+        }
+    }
+    std::fs::write(out, text)?;
+    Ok(())
+}
+
 /// Every use of one instruction in every script: map, event, arguments.
 pub fn instruction_uses(game: PathBuf, bank: u32, id: u32) -> Result<()> {
     let s = Sources::open(&game)?;
