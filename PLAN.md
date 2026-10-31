@@ -152,8 +152,8 @@ mod. The existing add-ons (Bodyworks, Motion) show the pattern.
   ships. Fallbacks: run the game's own DLL under Wine through a tiny helper, or
   write a clean-room decoder. Writing can likely use zstd or uncompressed files; verify that the
   game accepts them through me3.
-- **Archive file names:** the archives store name hashes, not names. The name
-  list's licence and origin need checking.
+- **Archive file names:** the archives store name hashes, not names. We build our
+  own list from the game's files (`apoc-fs names`), so no outside list is needed.
 - **Param field layouts:** Paramdex has no licence, so layouts for the tables
   we touch must be learned from data and documented here.
 - **The logic graph:** the largest body of hand-authored facts in the project.
