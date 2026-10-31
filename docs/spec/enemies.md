@@ -52,10 +52,14 @@ seed and its options always give the same game.
 - **Cutscenes stay as they are** (Nova's choice). A boss's intro plays once, on the
   first visit, and shows the unmodded boss; when it ends, whoever the seed put there
   stands in the arena. Seen with Margit's intro and a Godskin Apostle.
-  A seed changes no cutscene (a test holds this). Of the 20 fights whose events hold
-  one, 15 go on to enable or show the spot's boss by its entity, so whoever stands
-  there should appear; Scion, Valiant Gargoyle, Fortissax, Placidusax and Radagon show
-  no such step in their cutscene's event, and were not read further. Only Margit's
+  A seed changes no cutscene (a test holds this). The scripts bring in whoever stands
+  on a boss's spot by its entity, not by who it was. Radagon's arrival cutscene touches
+  no boss; he appears when the player comes within 26 m. When he dies, the next
+  cutscene plays and the Elden Beast's spot appears. Placidusax's cutscene only
+  carries the player there: his spot is told a looping pose with its AI off, and
+  wakes when the player enters or strikes it. A body with that pose but not the wake
+  may stay in it. Scion, the Valiant Gargoyle and Fortissax appear from their own
+  fight events. Only Margit's
   is seen in play. Exceptions:
   Malenia's second-phase cutscene does not go with her, and one set off by a boss's
   own effect (Godrick's, on effect 14785) should not play for a newcomer.
