@@ -291,7 +291,7 @@ graces = [
     "Hermit Merchant's Shack", "Outer Wall Battleground", "Capital Rampart",
     "Shaded Castle Ramparts", "Shaded Castle Inner Gate", "Castellan's Hall",
 ]
-maps = [
+maps = ["m30_07", 
     "m30_08", # Sainted Hero's Grave
     "m30_10", # Auriza Hero's Grave
     "m30_12", # Unsightly Catacombs
@@ -309,16 +309,12 @@ name = "Mt. Gelmir"
 graces = [
     "Seethewater Terminus", "Craftsman's Shack", "Ninth Mt. Gelmir Campsite",
     "Road of Iniquity", "Seethewater River", "Primeval Sorcerer Azur",
-    "First Mt. Gelmir Campsite", "Bridge of Iniquity",
-]
-maps = [
-    "m30_07", # Wyndham Catacombs
+    "First Mt. Gelmir Campsite", "Bridge of Iniquity"]
+maps = [ # Wyndham Catacombs
     "m30_09", # Gelmir Hero's Grave
     "m31_07", # Seethewater Cave
     "m31_09", # Volcano Cave
 ]
-sure = false
-note = "Wyndham Catacombs and Craftsman's Shack are taken to be on Mt. Gelmir, not the plateau; check."
 
 [[area]]
 id = "volcano_manor"
@@ -415,18 +411,13 @@ graces = [
     "Gravesite Plain", "Cliffroad Terminus", "Main Gate Cross",
     "Three-Path Cross", "Scorched Ruins", "Ellac River Cave",
     "Ellac River Downstream", "Greatbridge, North", "Castle Front",
-    "Pillar Path Waypoint", "Pillar Path Cross",
-]
-maps = [
-    "m40_00", # Fog Rift Catacombs
-    "m40_02", # Darklight Catacombs
-    "m41_00", # Belurat Gaol
-    "m41_02", # Lamenter's Gaol
+    "Pillar Path Waypoint", "Pillar Path Cross"]
+maps = ["m43_01", 
+    "m40_00", # Fog Rift Catacombs # Darklight Catacombs
+    "m41_00", # Belurat Gaol # Lamenter's Gaol
     "m42_00", # Ruined Forge Lava Intake
     "m43_00", # Rivermouth Cave
 ]
-sure = false
-note = "Which of the expansion's dungeons open off the Gravesite Plain is a draft; check each."
 
 [[area]]
 id = "belurat"
@@ -450,10 +441,8 @@ graces = [
     "Scadu Altus, West", "Highroad Cross", "Moorth Ruins", "Moorth Highway, South",
     "Bonny Village", "Bridge Leading to the Village", "Recluses' River Upstream",
     "Recluses' River Downstream", "Cathedral of Manus Metyr",
-    "Church District Highroad", "Castle Watering Hole", "Fort of Reprimand",
-    "Behind the Fort of Reprimand", "Scaduview Cross", "Ravine North",
-    "Viaduct Minor Tower",
-]
+    "Church District Highroad", "Fort of Reprimand",
+    "Behind the Fort of Reprimand", "Scaduview Cross"]
 maps = [
     "m25_00", # Finger Birthing Grounds
     "m40_01", # Scorpion River Catacombs
@@ -461,54 +450,68 @@ maps = [
     "m42_01", # (no grace)
     "m42_02", # Ruined Forge of Starfall Past
 ]
-sure = false
 
 [[area]]
 id = "rauh"
 name = "Ancient Ruins of Rauh"
-graces = [
+graces = ["Viaduct Minor Tower", 
     "Ancient Ruins, Grand Stairway", "Church of the Bud",
     "Church of the Bud, Main Entrance", "Rauh Ancient Ruins, West",
-    "Rauh Ancient Ruins, East", "Temple Town Ruins", "Ancient Ruins Base",
-]
+    "Rauh Ancient Ruins, East"]
+
+[[area]]
+id = "rauh_base"
+name = "Rauh Base"
+graces = ["Ancient Ruins Base", "Temple Town Ruins", "Ravine North"]
 maps = ["m42_03"] # Taylew's Ruined Forge
-sure = false
+
+[[area]]
+id = "scaduview"
+name = "Scaduview"
+graces = ["Scaduview"]
+
+[[area]]
+id = "charos_hidden_grave"
+name = "Charo's Hidden Grave"
+graces = ["Charo's Hidden Grave"]
+maps = ["m41_02"] # Lamenter's Gaol
+
+[[area]]
+id = "stone_coffin_fissure"
+name = "Stone Coffin Fissure"
+maps = ["m22_00"]
 
 [[area]]
 id = "shadow_keep"
 name = "Shadow Keep"
-maps = ["m21_00", "m21_01", "m21_02"]
+maps = ["m40_02", "m21_00", "m21_01", "m21_02"]
+graces = ["Castle Watering Hole"]
 
 [[area]]
 id = "hinterland"
 name = "Hinterland and the Scadutree"
-graces = ["Scaduview", "Shadow Keep, Back Gate", "Hinterland", "Hinterland Bridge", "Fingerstone Hill", "Scadutree Base"]
-sure = false
+graces = [ "Shadow Keep, Back Gate", "Hinterland", "Hinterland Bridge", "Fingerstone Hill", "Scadutree Base"]
 
 [[area]]
 id = "cerulean_coast"
 name = "Cerulean Coast"
-graces = ["Cerulean Coast West", "Cerulean Coast Cross", "Cerulean Coast", "Charo's Hidden Grave", "The Fissure", "Finger Ruins of Rhia"]
-maps = ["m22_00"] # Stone Coffin Fissure
-sure = false
+graces = ["Cerulean Coast West", "Cerulean Coast Cross", "Cerulean Coast", "The Fissure", "Finger Ruins of Rhia"]
+maps = [] # Stone Coffin Fissure
 
 [[area]]
 id = "jagged_peak"
 name = "Jagged Peak"
 graces = [
-    "Foot of the Jagged Peak", "Forsaken Graveyard", "Church Ruins",
+    "Foot of the Jagged Peak",
     "Jagged Peak Mountainside", "Jagged Peak Summit", "Rest of the Dread Dragon",
-    "Grand Altar of Dragon Communion",
-]
-maps = ["m43_01"] # Dragon's Pit
-sure = false
+    "Grand Altar of Dragon Communion"]
+maps = [] # Dragon's Pit
 
 [[area]]
 id = "abyssal_woods"
 name = "Abyssal Woods"
-graces = ["Abyssal Woods", "Divided Falls", "Woodland Trail"]
+graces = ["Forsaken Graveyard", "Church Ruins", "Abyssal Woods", "Divided Falls", "Woodland Trail"]
 maps = ["m28_00"] # Midra's Manse
-sure = false
 
 # --- Edges: the base game -------------------------------------------------------
 
@@ -743,11 +746,11 @@ from = "gravesite_plain"
 to = "belurat"
 
 [[edge]]
-from = "belurat"
+from = "rauh"
 to = "enir_ilim"
 items = ["Messmer's Kindling"]
-sure = false
-note = "The Kindling is needed: m20_01 event 20010197 takes it. Which area the gate opens from is the open question: Belurat, or past Romina in Rauh."
+bosses = ["Romina, Saint of the Bud"]
+note = "The Sealing Tree stands past Romina at the Church of the Bud, and the Kindling burns it (m20_01 event 20010197 takes it); Fextralife, Beebom and others agree."
 
 [[edge]]
 from = "gravesite_plain"
@@ -765,35 +768,57 @@ note = "Along the Ellac River, skipping Castle Ensis (checked in play, 2026-10-2
 
 [[edge]]
 from = "scadu_altus"
+to = "rauh_base"
+note = "The tunnel from Moorth Ruins."
+
+[[edge]]
+from = "shadow_keep"
 to = "rauh"
-sure = false
+note = "From the Storehouse's West Rampart, across the long bridge and up the lift: the ruins and Church of the Bud. No source joins them to Rauh Base."
 
 [[edge]]
 from = "scadu_altus"
 to = "shadow_keep"
-sure = false
+note = "The main gate, or the Church District by way of Bonny Village."
 
 [[edge]]
 from = "shadow_keep"
 to = "hinterland"
-sure = false
+note = "The lift from the Storehouse's Loft to the Back Gate; the O Mother gesture, found at Bonny Village, opens the statue there. It needs no key item, and Bonny Village opens before the Keep."
+
+[[edge]]
+from = "hinterland"
+to = "scaduview"
+bosses = ["Commander Gaius"]
+note = "Gaius holds the field before Scaduview."
 
 [[edge]]
 from = "gravesite_plain"
 to = "cerulean_coast"
-sure = false
+note = "Down the Ellac River to its cave."
+
+[[edge]]
+from = "gravesite_plain"
+to = "charos_hidden_grave"
+bosses = ["Ancient Dragon-Man"]
+note = "Past the Dragon's Pit, across the stone dragon by Torrent. It may open sooner; this asks the most."
+
+[[edge]]
+from = "charos_hidden_grave"
+to = "stone_coffin_fissure"
+bosses = ["Golden Hippopotamus"]
+note = "The seal goes once Miquella has discarded his rune at the Shadow Keep, stood for here by the Keep's first boss. Sources put the hole on Charo's coast or the Cerulean Coast; this asks the most."
 
 [[edge]]
 from = "gravesite_plain"
 to = "jagged_peak"
-note = "Through the Dragon's Pit."
+bosses = ["Ancient Dragon-Man"]
+note = "Through the Dragon's Pit, past its boss."
 
 [[edge]]
-from = "gravesite_plain"
+from = "shadow_keep"
 to = "abyssal_woods"
-note = "Through the Darklight Catacombs."
-
-# --- Locations with no map ----------------------------------------------------------
+note = "The Storehouse's painting room, a coffin to Castle Watering Hole, then the Darklight Catacombs and Jori. His map tile counts as the woods', so he is not asked for here; fighting him takes no item."
 
 [[place]]
 item = "Spectral Steed Whistle"
@@ -853,21 +878,18 @@ note = "Altered garments and Ash of War duplication: they change items already h
 first = 0
 last = 99999
 unused = true
-sure = false
 note = "Five rows with no item name; taken to be unused."
 
 [[shop_rows]]
 first = 100000
 last = 100099
 unused = true
-sure = false
 note = "A Memory Stone and a Stonesword Key in Kalé's range but outside what his script opens; taken to be unused."
 
 [[shop_rows]]
 first = 600000
 last = 9999999
 unused = true
-sure = false
 note = "Plain starter weapons, armour, staves and dragon incantations (600000, 900000, 1600100, 1600400, 9000000, 9001000): lists no script opens, taken to be leftovers."
 
 # --- What puts shop rows on sale ------------------------------------------------------
@@ -1011,7 +1033,6 @@ note = "The Husks' Igon's Harpoon."
 [[on_sale]]
 flag = 11109798
 items = ["Spellmachinist's Bell Bearing"]
-sure = false
 note = "The Husks' Rabbath's Greatbolt: by the order of ids; the name does not say."
 
 [[on_sale]]

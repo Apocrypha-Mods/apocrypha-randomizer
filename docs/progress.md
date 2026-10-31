@@ -11,6 +11,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | started 2026-10-30; not seen in game | `apoc-rando gen --enemies` writes a seed, and the real-file test reads it back. No lab run was made, at Nova's request (below). Its gate, in-game hazard checks, is open. |
 | 6. Output and merging | done 2026-10-31 | A seed on Nightreign Movement and ELDEN VINS together ran in the lab: the seed's files served over both, the world loaded, and a moved boss fought under its own name (below). |
+| 7. Cross-platform | small CI 2026-10-31; release later | `.github/workflows/ci.yml` builds and tests on Linux, Windows and macOS, and lints on Linux. Tests that need the game skip there. By Nova's choice the byte-identical check and packaging wait until there is something to ship, after the add-on. |
 
 ## Phase 0: setup
 
@@ -1373,24 +1374,39 @@ and 9 boss rewards.
 
 #### Review of the marked claims (2026-10-31)
 
-18 of the 35 marked claims are settled, without play, and no longer marked. `apoc-fs
-script-find` and `script-dump` read what the scripts do with an item or flag.
-- **From the scripts:** the Carian Inverted Statue is taken in m34_11, and Messmer's Kindling in
-  m20_01, so both are needed. The Grand Cloister's coffin leads into Astel's arena (m12_01 event
-  12012506), which has two fog gates, so the Moonlight Altar now waits for Astel, a tightening.
-- **From general knowledge of the game, not checked in play:** the five graces (Behind Caria
-  Manor, Great Waterfall Basin, Deep Siofra Well, Capital Rampart, Church of Repose) and the other
-  edges: Roundtable Hold, the Divine Towers of Limgrave, Caelid, West and East Altus, the Isolated
-  Tower, Deeproot Depths, the academy's Abductor Virgin, Belurat, the Dragon's Pit and the Darklight
-  Catacombs.
-- **Still marked, 17:** Wyndham Catacombs and Craftsman's Shack; the expansion's regions; where
-  Enir-Ilim's gate opens from (Belurat, or past Romina in Rauh: flag 330 is tested in both Belurat's
-  and Enir-Ilim's scripts, which does not settle it); Scadu Altus to Rauh and to Shadow Keep, Shadow
-  Keep to the Hinterland, the Gravesite Plain to the Cerulean Coast; three lists of shop rows taken to be
-  leftovers; and one bell bearing.
+All 35 marked claims are now settled, none by play. `apoc-fs script-find` and `script-dump` read what
+the scripts do with an item or flag; the rest was looked up in public guides and compared across
+them (Fextralife, Gamepressure, PowerPyx, GGRecon, Game8, Beebom and others), with no randomizer's
+material read.
 
-Rerun on 2.7.2, three threads, beside two Cyberpunk labs: 2,000 seeds in 266 s, none failing, and the
-area map's real-file tests pass.
+Wrong in the draft, and corrected:
+- **Enir-Ilim** opens from the ruins of Rauh, past Romina, with the Kindling, not from Belurat.
+- **Rauh is two places.** The ruins and the Church of the Bud are reached through the Shadow Keep, and
+  Rauh Base from Scadu Altus. No source joins them, so they are two areas. Viaduct Minor Tower goes with
+  the ruins, and Ravine North with the base.
+- **The Abyssal Woods** open from the Shadow Keep, through the Darklight Catacombs. Forsaken Graveyard and
+  Church Ruins belong to them, not to the Jagged Peak; m40_02 and Castle Watering Hole go with the Keep.
+- **The Jagged Peak** waits for the Ancient Dragon-Man, whose Dragon's Pit now counts as the Gravesite Plain.
+- **Scaduview** waits for Commander Gaius. The Hinterland asks only for the O Mother gesture, found at
+  Bonny Village, which opens before the Keep.
+- **Charo's Hidden Grave and the Stone Coffin Fissure** are areas of their own. Guides differ on the way
+  in, so each asks the most any of them says. The Fissure's seal is stood for by the Golden Hippopotamus,
+  as what lifts it happens at the Keep.
+- **The Moonlight Altar** waits for Astel (m12_01 event 12012506 and his arena's two fog gates).
+- **Wyndham Catacombs** is on the Altus Plateau.
+
+Confirmed as drafted: the Kindling and the Carian Inverted Statue are needed (scripts); the Spellmachinist's
+Bell Bearing gives Rabbath's Greatbolt; Craftsman's Shack is on Mt. Gelmir; the Cerulean Coast is down the
+Ellac River; and the other graces and edges of the first pass.
+
+**Still resting on inference, not a source:** the three lists of shop rows are unused because no script
+opens them. The way into Charo's and the Fissure may be shorter than asked, which only narrows placement.
+Whether the Hippopotamus must fall to go deeper into the Keep, and how the Main Gate is reached, no source
+read says, so the Keep's edge asks nothing of them.
+
+Asking too little could make a seed unfinishable; asking too much only narrows where keys may land, so doubtful
+ways take the stricter reading. Jori alone is not asked for: his map tile counts as the woods', and a boss
+behind his own gate would shut them. Rerun on 2.7.2, three threads, beside two Cyberpunk labs: 10,000 seeds in 1401 s, none failing; the area map and item tests pass.
 
 #### To check in play
 
