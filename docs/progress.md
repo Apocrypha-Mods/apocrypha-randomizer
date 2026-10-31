@@ -949,6 +949,21 @@ Still to do:
   `eldenring.exe+0x475D2B` (r14 = 0x90000051). A limit of 20, 8 and 1 all fail, and at
   limit 1 with bosses left alone it failed twice; bosses only, from the same save, ran
   100 s. So it is not the number of models. Rows or a particular body remain, untested.
+- **What the crash is, from disassembly** (2026-10-31, no lab run; the cause is not settled):
+  - `+0x475CE0` updates a character's `CSChrRideModule`. At `+0x475D2B` it calls through the character's
+    manipulator (its controller), which is null. r14 is almost certainly a task group id, not about the character.
+  - The update runs only with the module's +0x31 set, which its constructor sets when RideParam names the
+    character's model as rider or mount; a second writer at `+0x4754C7` looks like network sync and was not traced.
+    So the character is almost certainly a rider or a mount.
+  - `+0x511103` reaches it through the characters skipped this frame for their distance.
+  - `stand_on` changes only the model, NpcParam, think, talk and chara fields, so fields left over from the old
+    body (squad, patrol, collision) are ruled out. `enemy-m1` has 2,307 moves involving ride-listed models,
+    separating riders from mounts, such as a horse on a foot soldier's spot in m10_00.
+  - **Not known:** why the manipulator is null, as the code read has no such path offline once its selector has
+    run, or why stock riders are safe. An earlier bosses-only seed also moved ride-listed bodies, with no known crash.
+  - **Next, one lab run:** either have `apoc_native` log the character's model, ride state and three manipulator
+    slots on that fault, which tells the routes apart and names the body; or filter RideParam's models, c0000
+    among them, from `body_ok` and see if the crash stops, a possible stopgap that says less.
 - **Machine checks again** (2026-10-31, 16:36). The PC went down some 25 s after a lab run was
   stopped, its scope having just timed out and been killed, nothing else running. The same
   fatal error: MC5, syndrome 0x4d000000, on another address (Ryzen 7 5700X). The last three
