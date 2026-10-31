@@ -31,7 +31,7 @@ pub fn is_home(spot: &Spot) -> bool {
 }
 
 /// An instruction that does nothing: wait for no frames.
-fn nothing() -> Instruction {
+pub fn nothing() -> Instruction {
     let wait = catalogue::named("wait_frames");
     Instruction {
         bank: wait.bank,

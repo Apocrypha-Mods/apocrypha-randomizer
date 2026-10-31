@@ -229,6 +229,93 @@ pub fn dump(game: PathBuf, out: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Map entries that hold a number, with where it sits and the plausible floats
+/// in the entry, for finding what lies where.
+pub fn find(game: PathBuf, map: String, values: Vec<u32>) -> Result<()> {
+    let s = Sources::open(&game)?;
+    let Some((_, msb)) = s.maps.iter().find(|(m, _)| m.to_string() == map) else {
+        return Err(fs_bytes::format_err("no such map"));
+    };
+    for t in &msb.tables {
+        for e in &t.entries {
+            let words: Vec<u32> = e
+                .chunks_exact(4)
+                .map(|w| u32::from_le_bytes(w.try_into().unwrap()))
+                .collect();
+            for v in &values {
+                if let Some(at) = words.iter().position(|w| w == v) {
+                    let floats: Vec<String> = words
+                        .iter()
+                        .enumerate()
+                        .take(64)
+                        .filter_map(|(i, w)| {
+                            let f = f32::from_bits(*w);
+                            (f.is_finite() && f.abs() > 0.01 && f.abs() < 5000.0)
+                                .then(|| format!("{:x}:{f:.1}", i * 4))
+                        })
+                        .collect();
+                    println!(
+                        "{v} {} {} at {:x}: {}",
+                        t.name,
+                        entry_name(e).unwrap_or_default(),
+                        at * 4,
+                        floats.join(" ")
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Every part and point of a map nearer than `radius` to a part with this entity.
+pub fn near(game: PathBuf, map: String, entity: u32, radius: f32) -> Result<()> {
+    let s = Sources::open(&game)?;
+    let Some((_, msb)) = s.maps.iter().find(|(m, _)| m.to_string() == map) else {
+        return Err(fs_bytes::format_err("no such map"));
+    };
+    let pos = |e: &[u8], at: usize| -> Option<[f32; 3]> {
+        let f = |o: usize| Some(f32::from_le_bytes(e.get(o..o + 4)?.try_into().ok()?));
+        Some([f(at)?, f(at + 4)?, f(at + 8)?])
+    };
+    let parts = msb.table(PARTS);
+    let here = parts
+        .entries
+        .iter()
+        .find(|e| get_entity(e) == entity)
+        .and_then(|e| pos(e, 0x20))
+        .ok_or_else(|| fs_bytes::format_err("no such entity"))?;
+    let mut rows: Vec<(f32, String)> = Vec::new();
+    for (table, at) in [(PARTS, 0x20), ("POINT_PARAM_ST", 0x14)] {
+        for e in &msb.table(table).entries {
+            let Some(p) = pos(e, at) else { continue };
+            let d = (0..3).map(|i| (p[i] - here[i]).powi(2)).sum::<f32>().sqrt();
+            rows.push((
+                d,
+                format!("{table} {} {p:?}", entry_name(e).unwrap_or_default()),
+            ));
+        }
+    }
+    rows.sort_by(|a, b| a.0.total_cmp(&b.0));
+    println!("{} entries; nearest beyond {radius}:", rows.len());
+    for (d, r) in rows.iter().filter(|(d, _)| *d >= radius).take(12) {
+        println!("  {d:.0} m {r}");
+    }
+    let within = rows.iter().filter(|(d, _)| *d < radius);
+    let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+    for (_, r) in within {
+        let name = r.split_whitespace().nth(1).unwrap_or("");
+        let k = name.split(['_', '-']).next().unwrap_or("").to_string();
+        *kinds.entry(k).or_default() += 1;
+    }
+    println!("within {radius} m: {kinds:?}");
+    Ok(())
+}
+
+fn get_entity(e: &[u8]) -> u32 {
+    field(PARTS, "entity_id").get(e, 0).unwrap_or(-1) as u32
+}
+
 /// What each movable boss's script tells it to do, tab-separated, with the
 /// arguments filled in: what a newcomer on that spot would be told.
 pub fn boss_commands(game: PathBuf, out: PathBuf) -> Result<()> {

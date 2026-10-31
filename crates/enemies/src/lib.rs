@@ -11,6 +11,7 @@
 //!   rest: Margit's health is his row's 2521 times his tier's 1.656.
 
 pub mod malenia;
+pub mod placidusax;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -713,7 +714,8 @@ pub fn apply(
     for msb in maps.values_mut() {
         recount_models(msb)?;
     }
-    let scripts = malenia::scripts(s, pool, plan)?;
+    let mut scripts = malenia::scripts(s, pool, plan)?;
+    placidusax::apply(s, pool, plan, &mut scripts)?;
     Ok(Applied {
         maps: maps.into_iter().map(|(i, m)| (s.maps[i].0, m)).collect(),
         scripts,

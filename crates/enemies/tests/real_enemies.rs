@@ -208,7 +208,12 @@ fn a_written_seed_reads_back_with_each_part_standing_as_planned() {
         .enumerate()
         .any(|(i, &f)| i != f && malenia::is_home(&p.spots[f]))
     {
-        assert_eq!(applied.scripts.len(), 2, "her arena and her new one");
+        let others = applied
+            .scripts
+            .iter()
+            .filter(|(m, _)| m.to_string() != "m13_00_00_00")
+            .count();
+        assert_eq!(others, 2, "her arena and her new one, beside Placidusax's");
     }
 }
 
@@ -237,4 +242,36 @@ fn no_cutscene_is_changed() {
         let (_, stock) = s.scripts.iter().find(|(id, _)| id == m).unwrap();
         assert_eq!(cutscenes(script), cutscenes(stock), "{m}");
     }
+}
+
+/// A newcomer on Placidusax's spot stands awake, and the fight starts on arrival.
+#[test]
+fn placidusaxs_arena_has_no_sleep() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let options = all();
+    let plan = shuffle(&p, 1, &options);
+    let mut reg = s.reg.clone();
+    let written = apply(&mut reg, &s, &p, &plan, &options).unwrap();
+    let (_, script) = written
+        .scripts
+        .iter()
+        .find(|(m, _)| m.to_string() == "m13_00_00_00")
+        .expect("his arena's script changes");
+    let event = script.events.iter().find(|e| e.id == 13_002_835).unwrap();
+    let spot = 13_000_830u32.to_le_bytes();
+    let animations = event
+        .instructions
+        .iter()
+        .filter(|i| (i.bank, i.id) == (2003, 18) && i.args[..4] == spot)
+        .count();
+    assert_eq!(animations, 0, "no pose and no wake");
+    assert!(
+        event
+            .instructions
+            .iter()
+            .any(|i| (i.bank, i.id) == (3, 3) && i.args[8..12] == spot),
+        "the fight starts by distance"
+    );
 }

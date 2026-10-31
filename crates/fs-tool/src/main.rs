@@ -156,6 +156,19 @@ enum Command {
     },
     /// A map's creature models as bytes.
     MsbModels { game: PathBuf, map: String },
+    /// Every map entry holding one of these numbers, with the floats near its start.
+    MsbFind {
+        game: PathBuf,
+        map: String,
+        values: Vec<u32>,
+    },
+    /// What in a map lies near an entity, and what lies just beyond a distance.
+    MsbNear {
+        game: PathBuf,
+        map: String,
+        entity: u32,
+        radius: f32,
+    },
     /// Every placed enemy with its NpcParam row in hex, a line each.
     EnemyDump { game: PathBuf, out: PathBuf },
     /// Every command the scripts give each movable boss: map, spot, event,
@@ -245,6 +258,13 @@ fn main() {
             entities,
         } => enemies::events(game, map, entities),
         Command::MsbModels { game, map } => enemies::models(game, map),
+        Command::MsbFind { game, map, values } => enemies::find(game, map, values),
+        Command::MsbNear {
+            game,
+            map,
+            entity,
+            radius,
+        } => enemies::near(game, map, entity, radius),
         Command::EnemyDump { game, out } => enemies::dump(game, out),
         Command::BossCommands { game, out } => enemies::boss_commands(game, out),
         Command::InstructionUses { game, bank, id } => enemies::instruction_uses(game, bank, id),

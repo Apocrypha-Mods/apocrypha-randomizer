@@ -56,9 +56,9 @@ seed and its options always give the same game.
   on a boss's spot by its entity, not by who it was. Radagon's arrival cutscene touches
   no boss; he appears when the player comes within 26 m. When he dies, the next
   cutscene plays and the Elden Beast's spot appears. Placidusax's cutscene only
-  carries the player there: his spot is told a looping pose with its AI off, and
-  wakes when the player enters or strikes it. A body with that pose but not the wake
-  may stay in it. Scion, the Valiant Gargoyle and Fortissax appear from their own
+  carries the player there. A newcomer on his spot stands awake, with no pose, no
+  wake and its AI on (Nova's choice), and the fight starts when the player comes
+  within 125 m, which takes in both landing points and nothing outside the arena. Scion, the Valiant Gargoyle and Fortissax appear from their own
   fight events. Only Margit's
   is seen in play. Exceptions:
   Malenia's second-phase cutscene does not go with her, and one set off by a boss's
