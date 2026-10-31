@@ -1371,6 +1371,27 @@ After this, 560 locations are unused (559 shop rows and the Leyndell
 medallion half). Only 24 are left "anywhere": 10 classes, 5 script awards
 and 9 boss rewards.
 
+#### Review of the marked claims (2026-10-31)
+
+18 of the 35 marked claims are settled, without play, and no longer marked. `apoc-fs
+script-find` and `script-dump` read what the scripts do with an item or flag.
+- **From the scripts:** the Carian Inverted Statue is taken in m34_11, and Messmer's Kindling in
+  m20_01, so both are needed. The Grand Cloister's coffin leads into Astel's arena (m12_01 event
+  12012506), which has two fog gates, so the Moonlight Altar now waits for Astel, a tightening.
+- **From general knowledge of the game, not checked in play:** the five graces (Behind Caria
+  Manor, Great Waterfall Basin, Deep Siofra Well, Capital Rampart, Church of Repose) and the other
+  edges: Roundtable Hold, the Divine Towers of Limgrave, Caelid, West and East Altus, the Isolated
+  Tower, Deeproot Depths, the academy's Abductor Virgin, Belurat, the Dragon's Pit and the Darklight
+  Catacombs.
+- **Still marked, 17:** Wyndham Catacombs and Craftsman's Shack; the expansion's regions; where
+  Enir-Ilim's gate opens from (Belurat, or past Romina in Rauh: flag 330 is tested in both Belurat's
+  and Enir-Ilim's scripts, which does not settle it); Scadu Altus to Rauh and to Shadow Keep, Shadow
+  Keep to the Hinterland, the Gravesite Plain to the Cerulean Coast; three lists of shop rows taken to be
+  leftovers; and one bell bearing.
+
+Rerun on 2.7.2, three threads, beside two Cyberpunk labs: 2,000 seeds in 266 s, none failing, and the
+area map's real-file tests pass.
+
 #### To check in play
 
 Every claim below is marked `sure = false` in the data file. Most of the

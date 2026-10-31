@@ -239,6 +239,18 @@ enum Command {
         #[arg(long)]
         freeze: bool,
     },
+    /// Every instruction in every map's script holding one of these numbers.
+    ScriptFind { game: PathBuf, values: Vec<i32> },
+    /// Whole events, by id, and every use of instructions given as `bank:id`.
+    ScriptDump {
+        game: PathBuf,
+        /// Event ids to print whole.
+        #[arg(long, value_delimiter = ',')]
+        events: Vec<i64>,
+        /// Instructions to list, as `2003:14`.
+        #[arg(long, value_delimiter = ',')]
+        uses: Vec<String>,
+    },
     /// Write one file out of the archives, by path or by hash.
     Extract {
         game: PathBuf,
@@ -260,6 +272,58 @@ fn number(s: &str) -> Result<usize, String> {
         None => s.parse(),
     }
     .map_err(|e| e.to_string())
+}
+
+/// Print events whole, and each use of some instructions, with the raw bytes.
+fn script_dump(game: PathBuf, events: &[i64], uses: &[String]) -> fs_bytes::Result<()> {
+    let s = gamedata::Sources::open(&game)?;
+    for (map, script) in &s.scripts {
+        for event in &script.events {
+            let whole = events.contains(&(event.id as i64));
+            for i in &event.instructions {
+                let key = format!("{}:{}", i.bank, i.id);
+                if whole || uses.contains(&key) {
+                    let words: Vec<i32> = i
+                        .args
+                        .chunks_exact(4)
+                        .map(|c| i32::from_le_bytes(c.try_into().unwrap()))
+                        .collect();
+                    println!(
+                        "{map} event {} {}[{}] {:?} {words:?}",
+                        event.id,
+                        i.bank,
+                        i.id,
+                        &i.args[..i.args.len().min(4)]
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Which map, event and instruction hold these numbers as whole words.
+fn script_find(game: PathBuf, values: &[i32]) -> fs_bytes::Result<()> {
+    let s = gamedata::Sources::open(&game)?;
+    let scripts = s.scripts.iter().map(|(m, e)| (m.to_string(), e)).chain([
+        ("common".to_string(), &s.common),
+        ("common_func".to_string(), &s.common_func),
+    ]);
+    for (map, script) in scripts {
+        for event in &script.events {
+            for i in &event.instructions {
+                let words: Vec<i32> = i
+                    .args
+                    .chunks_exact(4)
+                    .map(|c| i32::from_le_bytes(c.try_into().unwrap()))
+                    .collect();
+                if words.iter().any(|w| values.contains(w)) {
+                    println!("{map} event {} {}[{}] {words:?}", event.id, i.bank, i.id);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn main() {
@@ -345,6 +409,8 @@ fn main() {
             over,
             freeze,
         } => test_kit::kill(game, out, &map, entity, after, over, freeze),
+        Command::ScriptFind { game, values } => script_find(game, &values),
+        Command::ScriptDump { game, events, uses } => script_dump(game, &events, &uses),
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::TestWarp {
             game,

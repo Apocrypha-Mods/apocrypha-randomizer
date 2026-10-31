@@ -177,8 +177,7 @@ note = "Royal Moongazing Grounds is Loretta's arena, so it is on this side of he
 id = "three_sisters"
 name = "Three Sisters"
 graces = ["Behind Caria Manor", "Ranni's Rise", "Ranni's Chamber"]
-sure = false
-note = "Behind Caria Manor is taken to be past Loretta, with the Three Sisters; check."
+note = "Behind Caria Manor is taken to be past Loretta, with the Three Sisters."
 
 [[area]]
 id = "moonlight_altar"
@@ -209,8 +208,7 @@ graces = [
     "Nokron, Eternal City", "Great Waterfall Basin", "Mimic Tear",
     "Ancestral Woods", "Aqueduct-Facing Cliffs", "Night's Sacred Ground",
 ]
-sure = false
-note = "Great Waterfall Basin is taken to be in Nokron rather than open Siofra; check."
+note = "Great Waterfall Basin is taken to be in Nokron rather than open Siofra."
 
 [[area]]
 id = "deeproot_depths"
@@ -261,8 +259,7 @@ maps = [
     "m32_07", # Gael Tunnel
     "m32_08", # Sellia Crystal Tunnel
 ]
-sure = false
-note = "Deep Siofra Well is taken to be in Caelid, not Dragonbarrow; check."
+note = "Deep Siofra Well is taken to be in Caelid, not Dragonbarrow."
 
 [[area]]
 id = "dragonbarrow"
@@ -304,8 +301,7 @@ maps = [
     "m32_04", # Old Altus Tunnel
     "m32_05", # Altus Tunnel
 ]
-sure = false
-note = "Capital Rampart is taken to be outside Leyndell's walls; check."
+note = "Capital Rampart is taken to be outside Leyndell's walls."
 
 [[area]]
 id = "mt_gelmir"
@@ -375,8 +371,7 @@ maps = [
     "m30_18", # Giants' Mountaintop Catacombs
     "m31_22", # Spiritcaller Cave
 ]
-sure = false
-note = "Church of Repose is taken to be in the Mountaintops; check."
+note = "Church of Repose is taken to be in the Mountaintops."
 
 [[area]]
 id = "consecrated_snowfield"
@@ -529,7 +524,6 @@ to = "weeping_peninsula"
 [[edge]]
 from = "limgrave"
 to = "roundtable_hold"
-sure = false
 note = "Melina brings you once you have rested at enough graces or reached Stormveil's gate; nothing to hold."
 
 [[edge]]
@@ -550,7 +544,6 @@ note = "A side path through the castle reaches Liurnia without Godrick (checked 
 from = "stormveil"
 to = "divine_tower_limgrave"
 bosses = ["Godrick the Grafted"]
-sure = false
 note = "The tower bridge leaves from the castle's ramparts after Godrick."
 
 [[edge]]
@@ -564,7 +557,6 @@ to = "dragonbarrow"
 [[edge]]
 from = "dragonbarrow"
 to = "divine_tower_caelid"
-sure = false
 
 [[edge]]
 from = "limgrave"
@@ -580,7 +572,6 @@ note = "The star that falls when Radahn dies opens the way to Nokron."
 [[edge]]
 from = "nokron"
 to = "deeproot_depths"
-sure = false
 note = "Through Night's Sacred Ground and the aqueduct."
 
 [[edge]]
@@ -592,7 +583,6 @@ items = ["Academy Glintstone Key"]
 from = "raya_lucaria"
 to = "volcano_manor"
 oneway = true
-sure = false
 note = "An Abductor Virgin in the academy carries you to Volcano Manor's dungeon."
 
 [[edge]]
@@ -608,8 +598,7 @@ bosses = ["Royal Knight Loretta"]
 from = "liurnia"
 to = "divine_tower_liurnia"
 items = ["Carian Inverted Statue"]
-sure = false
-note = "The statue turns the Carian Study Hall upside down, which leads to the tower."
+note = "m34_11 event 34112150 takes the statue and turns the Carian Study Hall over, which leads to the tower."
 
 [[edge]]
 from = "liurnia"
@@ -631,9 +620,9 @@ note = "Open without Ranni's quest (checked in play, 2026-10-29)."
 [[edge]]
 from = "lake_of_rot"
 to = "moonlight_altar"
+bosses = ["Astel, Naturalborn of the Void"]
 oneway = true
-sure = false
-note = "The coffin at the Grand Cloister."
+note = "The coffin at the Grand Cloister leads into Astel's arena (m12_01 event 12012506), whose two fog gates hold until the fight ends; the altar lies past it."
 
 [[edge]]
 from = "liurnia"
@@ -674,7 +663,6 @@ to = "subterranean_shunning_grounds"
 [[edge]]
 from = "leyndell"
 to = "divine_tower_west_altus"
-sure = false
 note = "Through the Sealed Tunnel under the Fortified Manor."
 
 [[edge]]
@@ -686,13 +674,11 @@ note = "Needs Morgott (checked in play, 2026-10-29)."
 [[edge]]
 from = "forbidden_lands"
 to = "divine_tower_east_altus"
-sure = false
 
 [[edge]]
 from = "divine_tower_east_altus"
 to = "isolated_divine_tower"
 oneway = true
-sure = false
 
 [[edge]]
 from = "forbidden_lands"
@@ -755,14 +741,13 @@ note = "Miquella's arm in Mohg's arena."
 [[edge]]
 from = "gravesite_plain"
 to = "belurat"
-sure = false
 
 [[edge]]
 from = "belurat"
 to = "enir_ilim"
 items = ["Messmer's Kindling"]
 sure = false
-note = "Messmer's fire burns the thorns at the Divine Gate."
+note = "The Kindling is needed: m20_01 event 20010197 takes it. Which area the gate opens from is the open question: Belurat, or past Romina in Rauh."
 
 [[edge]]
 from = "gravesite_plain"
@@ -801,13 +786,11 @@ sure = false
 [[edge]]
 from = "gravesite_plain"
 to = "jagged_peak"
-sure = false
 note = "Through the Dragon's Pit."
 
 [[edge]]
 from = "gravesite_plain"
 to = "abyssal_woods"
-sure = false
 note = "Through the Darklight Catacombs."
 
 # --- Locations with no map ----------------------------------------------------------
