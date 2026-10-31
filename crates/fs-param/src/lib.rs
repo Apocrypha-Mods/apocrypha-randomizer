@@ -2,6 +2,7 @@
 
 pub mod crypto;
 pub mod layout;
+pub mod merge;
 pub mod param;
 pub mod regulation;
 

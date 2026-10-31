@@ -6,7 +6,7 @@ Every dependency, its licence and why it is here.
 
 | Crate / source | Licence | Used by | For |
 | --- | --- | --- | --- |
-| apoc-fsparams (Apocrypha desktop) | proprietary, Nova's own | fs-bytes, fs-dcx, fs-param | `rd.rs`, `Error`, `dcx.rs`, `param.rs` and the regulation crypto lifted and widened; merge still to come |
+| apoc-fsparams (Apocrypha desktop) | proprietary, Nova's own | fs-bytes, fs-dcx, fs-param | `rd.rs`, `Error`, `dcx.rs`, `param.rs`, the regulation crypto and `merge.rs` lifted and widened |
 | aes 0.8 | MIT OR Apache-2.0 | fs-dvdbnd | AES-128-ECB of archive entries |
 | base64 0.22 | MIT OR Apache-2.0 | fs-dvdbnd | PEM bodies of the archive keys |
 | num-bigint 0.4 | MIT OR Apache-2.0 | fs-dvdbnd | raw RSA (modpow) of the `.bhd` headers |

@@ -81,6 +81,16 @@ impl Regulation {
         Ok(())
     }
 
+    /// A file made here, for tests.
+    #[cfg(test)]
+    pub(crate) fn from_parts(key: [u8; 32], bnd: Bnd4) -> Self {
+        Regulation {
+            key,
+            dcx: fs_dcx::Header::new(fs_dcx::Algorithm::Zstd),
+            bnd,
+        }
+    }
+
     /// Write the file back: BND4, zstd DCX, encrypted.
     pub fn write(&self) -> Result<Vec<u8>> {
         let packed = fs_dcx::compress(&self.dcx, &self.bnd.write()?)?;
@@ -91,4 +101,15 @@ impl Regulation {
 fn table_name(f: &fs_bnd4::File) -> Option<&str> {
     let short = f.short_name()?;
     Some(short.strip_suffix(".param").unwrap_or(short))
+}
+
+/// A version as people read it: `11711000` is 1.17.1. Anything not in that
+/// shape is shown as stored.
+pub fn display_version(stamp: &str) -> String {
+    let d: Vec<u32> = stamp.chars().filter_map(|c| c.to_digit(10)).collect();
+    if d.len() == 8 && stamp.len() == 8 && d[0] != 0 {
+        format!("{}.{}.{}", d[0], d[1] * 10 + d[2], d[3])
+    } else {
+        stamp.to_string()
+    }
 }

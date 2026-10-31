@@ -10,6 +10,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | started 2026-10-30; not seen in game | `apoc-rando gen --enemies` writes a seed, and the real-file test reads it back. No lab run was made, at Nova's request (below). Its gate, in-game hazard checks, is open. |
+| 6. Output and merging | merging built 2026-10-31; not seen in game | `--with-mod` builds a seed on other mods' `regulation.bin` (below). Its gate, two popular mods in the game, is open: one real mod tried, and no lab run. |
 
 ## Phase 0: setup
 
@@ -969,6 +970,45 @@ Still to do:
       a fight unwinnable. Left: Beast Clergyman, God-Devouring Serpent, Promised
       Consort Radahn, Messmer, Nox Swordstress, one Erdtree Avatar and the Scadutree
       Avatars, whose fights end some other way.
+
+## Phase 6: output and merging
+
+`apoc-rando gen` and `check` take `--with-mod <regulation.bin or folder>`, repeated,
+lowest priority first. The merge is `fs_param::merge`, lifted from `apoc-fsparams`
+without its loose Dark Souls III containers.
+
+- **Order.** The mods are merged onto the game's own file first, and the seed is
+  randomized on the result, so the proof, the scaling and the spoiler log all read
+  the tables that ship. A mod's new enemy strengths reach moved bodies too. The same
+  seed on different mods gives a different game.
+- **Merging** compares rows word by word. Mods that change different values
+  combine; where two set one value, the later wins and the spoiler log names both.
+- **Refusals.** A mod that cannot be merged stops the run with its reason, as the
+  player asked for it by name. So does one that takes away what the area map needs:
+  emptying the Rold Medallion's lot gives "no item Rold Medallion anywhere in the
+  model". A missing game file is named by path.
+- **What the proof cannot see:** a mod's maps, scripts and text. Only `regulation.bin`
+  is merged. The run warns of any other file both the mod and the seed write, and the
+  player must not let a mod's own `regulation.bin` load over the seed's.
+
+Tried on 2.7.2, 2026-10-31, not in the game:
+- **With no mods nothing changes:** seed 7's `regulation.bin` and spoiler log are
+  byte for byte those of the build before this.
+- **Nightreign Movement 1.2** (made for 1.17.1): 2 rows changed, 205 added, with the
+  warning that it is older than the game. Seeds generate with items alone and with
+  `--enemies bosses=100`. It also ships `msg/engus/menu_dlc02.msgbnd.dcx`, which the
+  seed writes for the keepsake names, so loading both loses one or the other.
+- **The proof on it:** `check --seeds 10000`, four threads: none failing, in 1,023 s.
+- `crates/rando/tests/real_merge.rs` holds: both mods' edits kept, and the disagreement
+  logged; one seed on one mod gives one file; the two refusals above.
+
+Still to do:
+- [ ] **The gate:** a seed on two popular regulation mods, in the game, once a lab run
+      is wanted.
+- [ ] **Merging text.** Starting from the mod's own `menu_dlc02` and `item_dlc02`
+      rather than the game's would keep both sets of changes.
+- [ ] **A me3 profile for the pair.** The profile is written only with `--auto-upgrade`,
+      and names only the seed's folder.
 
 ## Phase 3: game model
 
