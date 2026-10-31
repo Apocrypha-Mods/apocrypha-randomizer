@@ -211,3 +211,30 @@ fn a_written_seed_reads_back_with_each_part_standing_as_planned() {
         assert_eq!(applied.scripts.len(), 2, "her arena and her new one");
     }
 }
+
+/// Cutscenes stay as they are (docs/spec/enemies.md §3.1): a seed changes none,
+/// but for Malenia's second-phase event, which goes with her without its own.
+#[test]
+fn no_cutscene_is_changed() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let options = all();
+    let plan = shuffle(&p, 1, &options);
+    let mut reg = s.reg.clone();
+    let written = apply(&mut reg, &s, &p, &plan, &options).unwrap();
+    assert!(!written.scripts.is_empty(), "the seed moves Malenia");
+    let cutscenes = |e: &fs_emevd::Emevd| -> Vec<(i64, Vec<u8>)> {
+        e.events
+            .iter()
+            .filter(|ev| ev.id != 15_002_811)
+            .flat_map(|ev| ev.instructions.iter().map(move |i| (ev.id, i)))
+            .filter(|(_, i)| i.bank == 2002)
+            .map(|(id, i)| (id, i.args.clone()))
+            .collect()
+    };
+    for (m, script) in &written.scripts {
+        let (_, stock) = s.scripts.iter().find(|(id, _)| id == m).unwrap();
+        assert_eq!(cutscenes(script), cutscenes(stock), "{m}");
+    }
+}

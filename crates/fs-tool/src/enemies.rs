@@ -244,12 +244,16 @@ pub fn boss_commands(game: PathBuf, out: PathBuf) -> Result<()> {
             continue;
         };
         for run in catalogue::runs(script, Some(&s.common_func)) {
+            let named = run.instructions.iter().any(|i| {
+                (0..i.args.len() / 4).any(|w| catalogue::Entry::word(i, w) == Some(entity))
+            });
             for (n, i) in run.instructions.iter().enumerate() {
                 let words: Vec<i64> = (0..i.args.len() / 4)
                     .filter_map(|w| catalogue::Entry::word(i, w))
                     .map(|v| i64::from(v as i32))
                     .collect();
-                if words.contains(&i64::from(entity)) {
+                // Cutscenes too, in any event that deals with this boss.
+                if words.contains(&i64::from(entity)) || (named && i.bank == 2002) {
                     text += &format!(
                         "{}\t{entity}\t{}\t{}\t{n}\t{}\t{}\t{words:?}\n",
                         boss.script, spot.body.name, run.event.id, i.bank, i.id
