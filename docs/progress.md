@@ -1528,3 +1528,37 @@ expansion is drafted with less confidence than the base game.
 - [ ] **The play-through review** of the coverage report.
 - [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
       play, above). Naming the 99 maps would account for 20 of them.
+
+## The mod manager add-on
+
+The add-on is built as Bodyworks and Motion are: one `.apocaddon` file holding a page
+(`ui/`) and a WebAssembly module (`crates/addon`), which runs in a frame inside the mod
+manager and reaches only what the mod manager hands it. One file serves every system.
+
+- **The library has no folders in its core.** `rando::build` takes the game's files
+  and a `Sink`. `apoc-rando` still writes a folder, and seed 1 is byte for byte what it
+  was before the change, spoiler log included.
+- **The module asks, the page fetches**, with Motion's `until` loop: first the tables,
+  exe and archive headers, then the pieces of the archives a seed reads
+  (`Data0.bdt#offset+length`). Between seeds it keeps what it read.
+- **Proven outside the window.** `tools/addon-run.mjs` runs the module in Node against
+  the stock game, single-threaded: seed 1's 16 files and spoiler log are the same bytes
+  as `apoc-rando`'s, in 105 s with 1.29 GiB of module memory. A native single-threaded
+  run takes 61 s and 1.14 GiB, or 66 s and 1.97 GiB with enemies moved.
+- **The page follows Motion's layout and CSS**, the design system's §6.4ae, with
+  Bodyworks' sliders. A screenshot against a stand-in host matches Motion's page.
+- **One new request of the mod manager:** `files.part` with `own: true`, a piece of the
+  game's own loose file and never a mod's. It is on the branch `feat/randomizer-addon`
+  of `Apocrypha-Mods/apocrypha`.
+
+Left out of this first version, on purpose:
+
+- **Ordinary enemies** are not offered, as moving them crashes the game. Bosses are
+  offered and marked untested.
+- **Auto-upgrade** needs the native module loaded, which an add-on cannot place yet.
+- **Building on other mods.** The module reads the game's own copy only.
+
+Not yet done: the add-on has not run inside the real mod manager window, and no seed from
+it has been played. It must not be published before the legal opinion on `oozextract`
+(PLAN.md §6), which it needs to read the game's files. Publishing also needs the offline
+add-on publisher key.

@@ -71,7 +71,8 @@ can be reused here) already has:
   the regulation key.
 
 Copy what you need into this repo, or depend on it by path while it is
-private. Don't edit `apocrypha-desktop` from here.
+private. Changes to the mod manager go on a branch of its own repository
+(`Apocrypha-Mods/apocrypha`), as for the add-on's `files.part.own`.
 
 ## 4. Architecture
 
@@ -140,8 +141,9 @@ unknown patches or missing files.
 **7. Cross-platform release.** CI builds and tests on Linux, Windows and macOS.
 *Gate:* the same seed gives byte-identical output on all three.
 
-**8. Mod-manager add-on.** A tab in the Apocrypha mod manager, output placed as a
-mod. The existing add-ons (Bodyworks, Motion) show the pattern.
+**8. Mod-manager add-on.** An add-on in the Apocrypha mod manager's Tools, output
+placed as a mod, built as Bodyworks and Motion are: `ui/` and `crates/addon`, packed
+by `tools/pack.sh` (see docs/progress.md).
 
 ## 6. Biggest unknowns (attack first)
 
