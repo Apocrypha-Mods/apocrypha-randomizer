@@ -49,6 +49,10 @@ seed and its options always give the same game.
 - **Hostile humans swap** (Nova's choice), with their equipment: Millicent or
   Anastasia as invaders (team 27) are hostile, and go.
 
+- **Cutscenes stay as they are** (Nova's choice). A boss's intro plays once, on the
+  first visit, and shows the unmodded boss; when it ends, whoever the seed put there
+  stands in the arena. Seen with Margit's intro and a Godskin Apostle.
+
 ### 3.2 Malenia
 
 Her two phases stay together wherever she lands, even in a one-phase boss's
@@ -89,7 +93,6 @@ To be filled in as they are found. Not yet seen in the game:
   tried (`progress.md`). Bosses alone do not. Not yet safe to play.
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
-- **Cutscenes** show or expect the old boss.
 - **Quest humans.** A hostile human moved away may be part of a quest's event.
 - **The health bar** text is shared where two bosses use one id. The first wins.
 - **New rows.** A seed adds up to some 19,000 NpcParam rows, and whether the game
