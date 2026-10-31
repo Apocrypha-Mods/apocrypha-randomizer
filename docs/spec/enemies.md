@@ -24,6 +24,10 @@ seed and its options always give the same game.
   strength tier of whoever stood there, so Malenia in Margit's arena is about
   as tough as Margit. Off, it keeps its own.
 - **Base game and DLC.** `--dlc separate` keeps enemies on their own side too.
+- **Models per map:** `models=N`, 20 unless given, 0 for no limit. The most models
+  ordinary enemies' moves may add to one map; a boss's model does not count. Swaps
+  bring maps down to it, so every body still lands once, but where no swap fits a
+  map stays over: on seed 1 a limit of 8 reached 13, and 20 reached 23.
 
 ## 3. Rules
 
@@ -38,9 +42,12 @@ seed and its options always give the same game.
 - **Rewards stay with the place.** Whoever stands in Margit's arena gives
   Margit's reward, and an enemy's spot keeps its drops and runes, so the item
   plan and its proof hold.
-- **Friendly people stay:** anyone with a talk script who is not a boss, and
-  named characters not built like a player, such as Blaidd or Alexander.
-- **Hostile humans swap** (Nova's choice), with their equipment.
+- **Friendly people stay:** anyone with a talk script who is not a boss, anyone
+  on a team that does not fight the player unprompted (NpcParam `team` 0, 1, 2, 26
+  or 28: merchants, Millicent as an ally), and named characters not built like a
+  player, such as Blaidd or Alexander.
+- **Hostile humans swap** (Nova's choice), with their equipment: Millicent or
+  Anastasia as invaders (team 27) are hostile, and go.
 
 ### 3.2 Malenia
 
@@ -51,9 +58,15 @@ so that event goes with her, naming the entity she now stands as.
 ### 3.3 Left in place
 
 A boss stays put when:
-- no script waits on its death, as the fight might then never end. This holds
-  first stages that change some other way, such as the Beast Clergyman: Maliketh
-  can still be anyone, and appears when the Clergyman's stage ends;
+- no script waits on its death, as the fight might then never end. A fall that the
+  same event calls a defeat counts as its death (4[14] with 5 and 0: the Stonedigger
+  Trolls, Makar). This holds first stages that change some other way, such as the
+  Beast Clergyman: Maliketh can still be anyone, and appears when the Clergyman's
+  stage ends;
+- it gets up as a next stage (4[14] with 5 and 1: Godfrey's first form, and the
+  summoned bodies in map m14). It seems never to fall plainly, so in another arena
+  that arena's fight might never end. Malenia alone moves, with her script;
+- it is friendly until a script turns it (Gideon, the friendly Patches);
 - its talk script gives an item;
 - it is placed twice, or is a stand-in.
 
@@ -65,8 +78,8 @@ Mausoleum, as it carries a shop.
 To be filled in as they are found. Not yet seen in the game:
 - **Arena scripts act on the newcomer.** They play the old boss's animation ids and
   effects on whoever stands there; what a body does with an id it lacks is unknown.
-- **Models per map.** Moving enemies one by one can add many models to a map, and
-  the game's limit is unknown.
+- **Models per map.** The game's limit is unknown. Its largest map lists 50, the
+  median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
 - **Cutscenes** show or expect the old boss.
 - **Quest humans.** A hostile human moved away may be part of a quest's event.
 - **The health bar** text is shared where two bosses use one id. The first wins.

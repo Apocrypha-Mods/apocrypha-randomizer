@@ -17,7 +17,7 @@ use gamedata::{MapId, Sources};
 
 use crate::{Plan, Pool, Spot};
 
-const HER_ENTITY: u32 = 15_000_800;
+pub const HER_ENTITY: u32 = 15_000_800;
 const HER_STAND_IN: u32 = 15_000_801;
 const PHASE_EVENT: i64 = 15_002_811;
 const HOME: MapId = MapId([15, 0, 0, 0]);

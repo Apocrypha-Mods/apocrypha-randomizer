@@ -92,6 +92,8 @@ struct Sliders {
     /// Bosses trade with bosses, ordinary enemies with those of about their
     /// size, and `mix` is the share of bosses that trade with an ordinary enemy.
     /// Nothing moves unless this is given: it has not yet been seen in the game.
+    /// `models=N` limits the models ordinary enemies add to a map (default 20,
+    /// 0 for none).
     #[arg(long, default_value = "")]
     enemies: String,
     /// Leave moved enemies at their own strength, not that of where they land.

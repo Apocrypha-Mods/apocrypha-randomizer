@@ -188,6 +188,62 @@ pub fn events(game: PathBuf, map: String, entities: Vec<u32>) -> Result<()> {
     Ok(())
 }
 
+/// Every placed enemy, tab-separated: where it stands, what the map gives it,
+/// its name, and its NpcParam row in hex.
+pub fn dump(game: PathBuf, out: PathBuf) -> Result<()> {
+    let s = Sources::open(&game)?;
+    let get = |e: &[u8], n: &str| field(PARTS, n).get(e, 0).unwrap_or(-1);
+    let npcs: HashMap<i32, Vec<u8>> = s
+        .reg
+        .table("NpcParam")?
+        .rows
+        .into_iter()
+        .map(|r| (r.id, r.data))
+        .collect();
+    let mut text = String::new();
+    for (m, msb) in &s.maps {
+        for e in &msb.table(PARTS).entries {
+            let t = get(e, "type");
+            if t != 2 && t != 10 {
+                continue;
+            }
+            let n = get(e, "npc_param") as i32;
+            let Some(row) = npcs.get(&n) else { continue };
+            let name_id = i32::from_le_bytes(row[0x0C..0x10].try_into().unwrap());
+            let name = Some(name_id)
+                .filter(|&i| i > 0)
+                .and_then(|i| s.text("NpcName", i))
+                .unwrap_or("");
+            let hex: String = row.iter().map(|b| format!("{b:02x}")).collect();
+            text += &format!(
+                "{m}\t{}\t{t}\t{}\t{n}\t{}\t{}\t{}\t{name}\t{hex}\n",
+                entry_name(e).unwrap_or_default(),
+                get(e, "entity_id"),
+                get(e, "think"),
+                get(e, "talk_id"),
+                get(e, "chara_init"),
+            );
+        }
+    }
+    std::fs::write(out, text)?;
+    Ok(())
+}
+
+/// Every use of one instruction in every script: map, event, arguments.
+pub fn instruction_uses(game: PathBuf, bank: u32, id: u32) -> Result<()> {
+    let s = Sources::open(&game)?;
+    for (m, script) in &s.scripts {
+        for u in catalogue::uses(script, Some(&s.common_func), bank, id) {
+            let words: Vec<i64> = (0..u.args.len() / 4)
+                .filter_map(|w| u.word(w))
+                .map(|v| i64::from(v as i32))
+                .collect();
+            println!("{m} {} {words:?}", u.event);
+        }
+    }
+    Ok(())
+}
+
 /// A map's creature models as bytes, and how many parts use each.
 pub fn models(game: PathBuf, map: String) -> Result<()> {
     let s = Sources::open(&game)?;

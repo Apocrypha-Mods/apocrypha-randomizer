@@ -932,15 +932,26 @@ data this came from. `crates/enemies/tests/real_enemies.rs` holds it.
 
 Still to do:
 - [ ] **The gate:** the spec's hazards in the game, once a lab run is wanted.
-- [ ] **Malenia's trigger.** 4[14] with 5 sets off her phase, and what it tests is
-      not read; it may not fire on a body moved elsewhere, or may fire in her old
-      arena's death event. Only play will tell.
+- [ ] **Malenia's trigger.** Read from the scripts, not yet seen in play. 4[14] with
+      5 and 0 waits on a body's fall, and 286 uses across bosses run into its death;
+      with 5 and 1 only nine exist, on bodies that get up again. No NpcParam field
+      sets the nine apart, so what puts a body in that state is not read: it may
+      come from something her arena does. Only play will tell.
 - [ ] **Other bosses' own phases.** One-body bosses with scripted phases (Godrick,
       say) lose them when moved, as those events stay in the old arena. Only
       Malenia's moves, by Nova's choice.
-- [ ] **Hostile or friendly.** NpcParam's team is not read, so "friendly" means has
-      talk, or is named and not built like a player. Named humans with no talk swap,
-      and that includes rows of Millicent, Anastasia and D used in quest events.
+- [x] **Hostile or friendly.** NpcParam `team`, byte 0x133: teams 0, 1, 2, 26 and 28
+      stay. Gideon and the friendly Patches left the boss pool, as they fight only by
+      script. Named invaders on 27 still swap.
+- [x] **A limit on models per map** (`models=N`, default 20). Seed 1 all moving: 468
+      maps gain 7,761 models, at most 24 in one, against 101 with no limit. What the
+      game can take is still for the lab.
+- [x] **Fixed bosses read.** The Stonedigger Trolls and Makar now move: their scripts
+      end the fight on a fall. Bodies that get up as a next stage (Godfrey's first
+      form; the summoned ones in map m14) no longer move at all, as they could have left
+      a fight unwinnable. Left: Beast Clergyman, God-Devouring Serpent, Promised
+      Consort Radahn, Messmer, Nox Swordstress, one Erdtree Avatar and the Scadutree
+      Avatars, whose fights end some other way.
 
 ## Phase 3: game model
 

@@ -156,6 +156,10 @@ enum Command {
     },
     /// A map's creature models as bytes.
     MsbModels { game: PathBuf, map: String },
+    /// Every placed enemy with its NpcParam row in hex, a line each.
+    EnemyDump { game: PathBuf, out: PathBuf },
+    /// Every use of one instruction, with its arguments filled in.
+    InstructionUses { game: PathBuf, bank: u32, id: u32 },
     /// The area graph checked against the game, and the vanilla game walked
     /// from the start.
     Logic { game: PathBuf },
@@ -235,6 +239,8 @@ fn main() {
             entities,
         } => enemies::events(game, map, entities),
         Command::MsbModels { game, map } => enemies::models(game, map),
+        Command::EnemyDump { game, out } => enemies::dump(game, out),
+        Command::InstructionUses { game, bank, id } => enemies::instruction_uses(game, bank, id),
         Command::Flags { game } => flags::run(game),
         Command::MsbColumns {
             game,

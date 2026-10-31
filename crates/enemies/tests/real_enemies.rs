@@ -57,6 +57,36 @@ fn the_pool_holds_what_the_spec_says() {
     for s in &p.spots {
         assert!(!s.body.name.contains("Kal"), "no merchant: {}", s.body.name);
     }
+    assert!(!names.contains("Sir Gideon Ofnir, the All-Knowing"));
+    // Patches the friend stays; the row that fights at Murkwater is hostile and moves.
+    assert!(p.spots.iter().all(|s| s.entity != Some(31_000_850)));
+    for s in p.spots.iter().filter(|s| s.boss.is_none()) {
+        assert!(!s.body.name.contains("Millicent") || s.body.chara > 0);
+    }
+    for rises in [11_050_801, 14_000_840, 14_000_845] {
+        assert!(p.spots.iter().all(|s| s.entity != Some(rises)), "{rises}");
+    }
+    assert!(names.contains("Stonedigger Troll"));
+    assert!(names.contains("Magma Wyrm Makar"));
+    let options = Options {
+        models: 20,
+        ..all()
+    };
+    let plan = shuffle(&p, 1, &options);
+    let mut added: std::collections::BTreeMap<usize, HashSet<&str>> = Default::default();
+    for (i, spot) in p.spots.iter().enumerate() {
+        let body = &p.spots[plan.from[i]];
+        if body.boss.is_none() && !p.listed[spot.map_index].contains(&body.body.model) {
+            added
+                .entry(spot.map_index)
+                .or_default()
+                .insert(&body.body.model);
+        }
+    }
+    let most = added.values().map(HashSet::len).max().unwrap_or(0);
+    println!("ordinary models added: at most {most} to a map");
+    // Only swaps hold the limit, so a map can stay a little over.
+    assert!(most <= 30, "the default limit is far off on seed 1: {most}");
     let ordinary = p.spots.iter().filter(|s| s.boss.is_none()).count();
     assert!(ordinary > 10_000, "only {ordinary} ordinary enemies");
     println!("bosses {} fixed {}", p.bosses().count(), p.fixed.len());

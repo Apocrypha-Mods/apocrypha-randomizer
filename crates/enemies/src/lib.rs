@@ -37,6 +37,9 @@ const NOT_BODIES: [&str; 1] = ["c1000"];
 /// Enemies the area map counts on doing what they do: an Abductor Virgin's
 /// grab is a way to the Volcano Manor. A Walking Mausoleum carries a shop.
 const STAY: [&str; 3] = ["Abductor Virgin", "Walking Mausoleum", "dummy"];
+/// NpcParam teams of those who do not fight the player until a script says so:
+/// no team (Gideon), friends (Patches, merchants) and summonable allies (Millicent).
+const NOT_HOSTILE: [i64; 5] = [0, 1, 2, 26, 28];
 
 /// What the player sets (docs/spec/enemies.md §2). All at 0 changes nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,6 +54,10 @@ pub struct Options {
     pub scale: bool,
     /// Whether base-game and DLC bodies stay on their own side.
     pub dlc_separate: bool,
+    /// The most models ordinary enemies' moves may add to a map, 0 for no limit.
+    /// Bosses are not counted. The game's own limit is not known: its largest
+    /// map lists 50, and with no limit a seed adds up to 101 to one.
+    pub models: u16,
 }
 
 impl Default for Options {
@@ -61,6 +68,7 @@ impl Default for Options {
             mix: 0,
             scale: true,
             dlc_separate: false,
+            models: 20,
         }
     }
 }
@@ -76,6 +84,12 @@ impl Options {
             let (name, value) = part
                 .split_once('=')
                 .ok_or_else(|| format!("'{part}': expected name=percent"))?;
+            if name == "models" {
+                self.models = value
+                    .parse()
+                    .map_err(|_| format!("'{part}': models takes a count"))?;
+                continue;
+            }
             let percent: u8 = value
                 .trim_end_matches('%')
                 .parse()
@@ -86,7 +100,11 @@ impl Options {
                 "bosses" => self.bosses = percent,
                 "ordinary" => self.ordinary = percent,
                 "mix" => self.mix = percent,
-                _ => return Err(format!("'{name}': expected bosses, ordinary or mix")),
+                _ => {
+                    return Err(format!(
+                        "'{name}': expected bosses, ordinary, mix or models"
+                    ));
+                }
             }
         }
         Ok(())
@@ -158,6 +176,8 @@ pub struct Fixed {
 pub struct Pool {
     pub spots: Vec<Spot>,
     pub fixed: Vec<Fixed>,
+    /// The creature models each map lists, by `Spot::map_index`.
+    pub listed: Vec<BTreeSet<String>>,
 }
 
 impl Pool {
@@ -194,6 +214,11 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     let bar = catalogue::named("boss_health_bar");
     let mut bars: BTreeMap<u32, (MapId, i32)> = BTreeMap::new();
     let mut waited: HashSet<u32> = HashSet::new();
+    // Bodies that fall and get up as a next stage: 4[14] with 5 then 1. The plain
+    // fall is 5 then 0. Such a body never falls plainly, so it moves only with
+    // its script, as Malenia's does, and only its own body starts that script.
+    let mut rises: HashSet<u32> = HashSet::new();
+    let defeat = catalogue::named("boss_defeated");
     for (m, script) in &s.scripts {
         for u in catalogue::uses(script, Some(&s.common_func), bar.bank, bar.id) {
             if let (Some(b), Some(t)) = (u.word(bar.arg("boss").word), u.word(bar.arg("name").word))
@@ -207,6 +232,22 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                     let w: Vec<u32> = words(i).collect();
                     if w.len() >= 3 && w[2] == 1 {
                         waited.insert(w[1]);
+                    }
+                }
+                if (i.bank, i.id) == (4, 14) {
+                    let w: Vec<u32> = words(i).collect();
+                    if w.len() >= 4 && w[2] == 5 && w[3] == 1 && w[1] != malenia::HER_ENTITY {
+                        rises.insert(w[1]);
+                    }
+                    // A fall the same event then calls a defeat ends a fight too.
+                    if w.len() >= 4 && w[2] == 5 && w[3] == 0 {
+                        let ends = run.instructions.iter().any(|d| {
+                            (d.bank, d.id) == (defeat.bank, defeat.id)
+                                && words(d).next() == Some(w[1])
+                        });
+                        if ends {
+                            waited.insert(w[1]);
+                        }
                     }
                 }
             }
@@ -223,6 +264,18 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
 
     let mut out = Pool::default();
     let mut placed: HashMap<u32, usize> = HashMap::new();
+    out.listed = s
+        .maps
+        .iter()
+        .map(|(_, msb)| {
+            msb.table(MODELS)
+                .entries
+                .iter()
+                .filter_map(|e| entry_name(e))
+                .filter(|n| n.starts_with('c'))
+                .collect()
+        })
+        .collect();
     for (map_index, (m, msb)) in s.maps.iter().enumerate() {
         let models = &msb.table(MODELS).entries;
         for (part, e) in msb.table(PARTS).entries.iter().enumerate() {
@@ -262,6 +315,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 npc.field("height").get_f32(&row.data, 0),
                 npc.field("radius").get_f32(&row.data, 0),
             );
+            let hostile = !NOT_HOSTILE.contains(&npc.field("team").get(&row.data, 0));
             let spot = |boss| Spot {
                 map_index,
                 part,
@@ -277,6 +331,10 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 let shown = s.text("NpcName", *bar_text).unwrap_or(&name).to_string();
                 let refuse = if shown.contains("dummy") {
                     Some("a stand-in with no fight of its own")
+                } else if rises.contains(&en) {
+                    Some("it gets up as a next stage, and its script stays here")
+                } else if !hostile {
+                    Some("friendly until a script turns it, which would not happen elsewhere")
                 } else if placed.contains_key(&en) {
                     Some("placed twice")
                 } else if !waited.contains(&en) {
@@ -307,6 +365,8 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 && npc.field("hp").get(&row.data, 0) > 1
                 && body.think > 1
                 && talk <= 0
+                && hostile
+                && !entity.is_some_and(|en| rises.contains(&en))
                 && !entity.is_some_and(|en| area_bosses.contains(&en))
                 && !STAY.iter().any(|n| name.contains(n))
                 // A named character who is not built like a player is someone's
@@ -385,7 +445,102 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
             from.swap(b, f);
         }
     }
+    if options.ordinary > 0 && options.models > 0 {
+        cap_models(pool, &mut from, usize::from(options.models));
+    }
     Plan { from }
+}
+
+/// The models each map must add for the bodies that now stand in it.
+pub fn new_models<'a>(pool: &'a Pool, from: &[usize]) -> BTreeMap<usize, BTreeMap<&'a str, usize>> {
+    let mut out: BTreeMap<usize, BTreeMap<&str, usize>> = BTreeMap::new();
+    for (i, s) in pool.spots.iter().enumerate() {
+        let model = pool.spots[from[i]].body.model.as_str();
+        if !pool.listed[s.map_index].contains(model) {
+            *out.entry(s.map_index)
+                .or_default()
+                .entry(model)
+                .or_default() += 1;
+        }
+    }
+    out
+}
+
+/// Bring every map down to `cap` added models where swaps can. A map keeps the
+/// models it has most of; an ordinary enemy of any other trades with one of its
+/// own size elsewhere whose model this map can take, if the other map can take
+/// this one. Swaps keep every body landing once. Bosses are not touched.
+fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
+    let mut by_group: BTreeMap<(bool, Size), Vec<usize>> = BTreeMap::new();
+    let mut by_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for (i, s) in pool.spots.iter().enumerate() {
+        if s.boss.is_none() {
+            by_group.entry((s.dlc, s.size)).or_default().push(i);
+            by_map.entry(s.map_index).or_default().push(i);
+        }
+    }
+    let mut added = new_models(pool, from);
+    // A swap can open room for a later one, so go round while any helps.
+    for _ in 0..4 {
+        let mut swapped = false;
+        for (&m, spots) in &by_map {
+            if added.get(&m).map_or(0, BTreeMap::len) <= cap {
+                continue;
+            }
+            let mut sizes: Vec<(&str, usize)> = added[&m].iter().map(|(&k, &n)| (k, n)).collect();
+            sizes.sort_by_key(|&(k, n)| (std::cmp::Reverse(n), k));
+            let kept: BTreeSet<&str> = sizes.iter().take(cap).map(|&(k, _)| k).collect();
+            for &i in spots {
+                let body = pool.spots[from[i]].body.model.as_str();
+                if pool.listed[m].contains(body)
+                    || kept.contains(body)
+                    || pool.spots[from[i]].boss.is_some()
+                {
+                    continue;
+                }
+                let s = &pool.spots[i];
+                let Some(&j) = by_group[&(s.dlc, s.size)].iter().find(|&&j| {
+                    let other = pool.spots[j].map_index;
+                    let theirs = pool.spots[from[j]].body.model.as_str();
+                    let there = added.get(&other);
+                    other != m
+                        && pool.spots[from[j]].boss.is_none()
+                        && (pool.listed[m].contains(theirs) || kept.contains(theirs))
+                        && (pool.listed[other].contains(body)
+                            || there.is_none_or(|a| a.contains_key(body) || a.len() < cap))
+                }) else {
+                    continue;
+                };
+                let other = pool.spots[j].map_index;
+                let theirs = pool.spots[from[j]].body.model.as_str();
+                take(added.entry(m).or_default(), body);
+                if !pool.listed[m].contains(theirs) {
+                    *added.entry(m).or_default().entry(theirs).or_default() += 1;
+                }
+                if !pool.listed[other].contains(theirs) {
+                    take(added.entry(other).or_default(), theirs);
+                }
+                if !pool.listed[other].contains(body) {
+                    *added.entry(other).or_default().entry(body).or_default() += 1;
+                }
+                from.swap(i, j);
+                swapped = true;
+            }
+        }
+        if !swapped {
+            break;
+        }
+    }
+}
+
+/// One fewer of `model`, forgetting it at none.
+fn take(counts: &mut BTreeMap<&str, usize>, model: &str) {
+    if let Some(n) = counts.get_mut(model) {
+        *n -= 1;
+        if *n == 0 {
+            counts.remove(model);
+        }
+    }
 }
 
 /// What every moved body's new row and map edits came to.
@@ -590,6 +745,18 @@ pub fn spoiler(pool: &Pool, plan: &Plan, options: &Options) -> String {
         "\n  {moved} of {} spots hold someone new\n",
         pool.spots.len()
     );
+    let added = new_models(pool, &plan.from);
+    let most = added.values().map(BTreeMap::len).max().unwrap_or(0);
+    let total: usize = added.values().map(BTreeMap::len).sum();
+    out += &format!(
+        "  {} maps gain {total} models, at most {most} in one map; limit {}\n",
+        added.len(),
+        if options.models == 0 {
+            "none".to_string()
+        } else {
+            options.models.to_string()
+        }
+    );
     if !pool.fixed.is_empty() {
         out += "\n  Bosses left in place\n";
         let mut seen = BTreeSet::new();
@@ -640,6 +807,7 @@ mod tests {
         Pool {
             spots,
             fixed: vec![],
+            listed: vec![BTreeSet::new()],
         }
     }
 
@@ -699,6 +867,48 @@ mod tests {
                 assert!(p.spots[i].map.is_open_world());
             }
         }
+    }
+
+    #[test]
+    fn a_limit_on_models_holds_and_every_body_still_lands_once() {
+        let mut spots = Vec::new();
+        let mut listed = Vec::new();
+        for m in 0..10usize {
+            listed.push(BTreeSet::from([format!("c{m}")]));
+            for _ in 0..20 {
+                let mut s = at(spots.len(), false, [60, 40, m as u8, 0], Size::Small);
+                s.map_index = m;
+                s.body.model = format!("c{m}");
+                spots.push(s);
+            }
+        }
+        let p = Pool {
+            spots,
+            fixed: vec![],
+            listed,
+        };
+        let free = shuffle(
+            &p,
+            5,
+            &Options {
+                models: 0,
+                ..opts(0, 100, 0)
+            },
+        );
+        let most = |f: &[usize]| new_models(&p, f).values().map(BTreeMap::len).max().unwrap();
+        assert!(most(&free.from) > 2);
+        let capped = shuffle(
+            &p,
+            5,
+            &Options {
+                models: 2,
+                ..opts(0, 100, 0)
+            },
+        );
+        assert!(most(&capped.from) <= 2);
+        let mut seen = capped.from.clone();
+        seen.sort_unstable();
+        assert_eq!(seen, (0..p.spots.len()).collect::<Vec<_>>());
     }
 
     #[test]

@@ -267,6 +267,17 @@ confidence = "probable"
 evidence = "0 in 4,306 rows, otherwise mostly round numbers such as 500, 1000 and 3000."
 
 [[layout.field]]
+name = "team"
+offset = 0x133
+kind = "u8"
+confidence = "probable"
+evidence = """
+Separates who talks from who fights: 176 of 211 parts on 26 have a talk script, and
+all 18,437 on 6 are enemies but 30. Merchants and friends are 26, summonable allies
+2, invaders 27; bosses are 6, 7, 33 and the like; Patches and Gideon, who turn only
+by script, are 26 and 0."""
+
+[[layout.field]]
 name = "scale_a"
 offset = 0x58
 kind = "i32"
