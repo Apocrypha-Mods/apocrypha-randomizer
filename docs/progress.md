@@ -798,6 +798,11 @@ check, on a small made-up map, that the key never lands behind its own door,
 that a seed always gives the same plan with every item placed once, and that
 a key with nowhere to go fails the seed.
 
+- **Languages** (2026-10-31). Keepsake names and health bars are written in all 15 languages the game
+  ships, each from its own item and name text, English where it has none. The keepsake menu's one line
+  of help is English in all. Seed 7 with bosses moved adds 28 text files and 16 MB in all; its other files
+  and spoiler log are byte for byte those of the build before. Other languages have not been seen in the game.
+
 ### The native module (auto-upgrade)
 
 The spec's auto-upgrade (`docs/spec/items.md` §2.7) depends on what the player
@@ -1045,19 +1050,24 @@ load other mods under the seed; `ER_CPU=300`, two Cyberpunk labs beside for the 
   against 0.89; `c0000.anibnd`, 7.4 MB against 20.8). So these two mods cannot both have their
   moves: the later's are the character's, and the earlier's DLL runs beside files not its own.
   Whether Nightreign's moves feel right was not judged: a 10 fps lab cannot tell.
-- **The profile:** `me3 launch -p`, 0.13, headless and boxed, read `<out>.me3` and wrote the
-  attach config the lab builds by hand: the two mods in order, the seed after them, and
-  `savefile = "prof-seed1.sl2"`. The game itself did not start that way: the Steam Linux
-  Runtime's container (`srt-bwrap`) died before it, in this headless box, with nothing in
-  me3's log. So the profile's contents are proven and a launch from it on a desktop is not;
-  the same config does run the game when the lab launches it. `ER0000.sl2` was untouched.
-  A second try with the runtime's verbose logging said no more.
+- **The profile:** `me3 launch -p`, 0.13, read `<out>.me3` and wrote the attach config the lab
+  builds by hand: the mods in order, the seed after them, and `savefile = "prof-seed1.sl2"`. It has
+  not started the game, for a reason of ours: run from this repo, me3 takes `target/x86_64-pc-windows-gnu/release`
+  under its working folder as where its launcher is, finds none, and hangs with no message, its child
+  left defunct. Reproduced with a stand-in for Proton, on the plain desktop too, so it is not the
+  headless box, as first written here. Harmless commands ran in the same container under the scope and
+  gamescope. Run from elsewhere, or with `me3 --windows-binaries-dir <runtime> launch`, the right launcher
+  is found. A player is unlikely to meet this, as the app launches from the game's folder. A launch
+  with the right launcher has not been tried.
 - `test-warp` from a map to itself reloads for ever: a limit of that tool, not of mods.
 
 **Proof, four threads:** Nightreign Movement alone, 10,000 seeds in 1,023 s; both
 together, 10,000 seeds in 1,804 s; none failing on either. With no mods, seed 7's `regulation.bin` and spoiler log are byte
 for byte those of the build before merging. `crates/rando/tests/real_merge.rs` holds the
 merge, the refusals, the mod's files and rows, and the profile.
+
+`crates/rando` is now a library with `apoc-rando` a thin command line over it: `generate` and `check`
+return what they did, and messages go to a callback, for the mod manager to call.
 
 ## Phase 3: game model
 

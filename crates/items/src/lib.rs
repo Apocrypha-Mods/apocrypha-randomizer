@@ -981,6 +981,20 @@ pub fn keepsake_names(units: &[Unit], plan: &Plan) -> Vec<(i32, String)> {
         .collect()
 }
 
+/// What each keepsake now gives: its menu text's id, and the item, for naming it in
+/// any language.
+pub fn keepsake_items(units: &[Unit], plan: &Plan) -> Vec<(i32, Item)> {
+    KEEPSAKES
+        .iter()
+        .filter_map(|&(row, text)| {
+            let u = units
+                .iter()
+                .position(|u| matches!(u.place, Place::Start(_)) && u.row == row)?;
+            Some((text, item_at(units, plan, u)))
+        })
+        .collect()
+}
+
 /// A weapon's sort, from the millions of its id: an NPC keeps to what its AI
 /// knows how to use. 0 is everything swung or thrust.
 fn weapon_sort(id: i32) -> u8 {

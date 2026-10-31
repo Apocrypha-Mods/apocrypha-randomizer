@@ -271,3 +271,34 @@ fn a_seed_builds_on_a_mods_own_files_and_rows() {
     assert_eq!(packages.last().unwrap()["path"].as_str(), Some("seed"));
     assert_eq!(packages.len(), 2);
 }
+
+/// Keepsakes are named in each language from that language's own item text.
+#[test]
+fn keepsake_names_come_in_every_language() {
+    let Some(game) = stock() else { return };
+    let dir = work("languages");
+    let out = dir.join("seed");
+    let run = generate(&game, &out, &[]);
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let menu = |language: &str| {
+        std::fs::read(out.join(format!("msg/{language}/menu_dlc02.msgbnd.dcx"))).unwrap()
+    };
+    let name = |language: &str| menu_entry(&menu(language), "GR_MenuText.fmg", 297_151).unwrap();
+    let (english, german, japanese) = (name("engus"), name("deude"), name("jpnjp"));
+    assert_ne!(english, german);
+    assert_ne!(english, japanese);
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game).unwrap();
+    assert_ne!(
+        menu_entry(
+            &dvd.read_path("/msg/deude/menu_dlc02.msgbnd.dcx").unwrap(),
+            "GR_MenuText.fmg",
+            297_151
+        ),
+        Some(german),
+        "the German keepsake is the seed's"
+    );
+}

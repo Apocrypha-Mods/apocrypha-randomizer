@@ -143,6 +143,8 @@ pub struct Body {
     pub chara: i32,
     pub model: String,
     pub name: String,
+    /// The `NpcName` text it goes by, in every language; 0 if none.
+    pub name_text: i32,
 }
 
 /// A spot in a map that a body stands on.
@@ -301,7 +303,8 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             let chara = get(e, "chara_init") as i32;
             let talk = get(e, "talk_id");
             // Most rows have no name: their id is 0, whose text is a leftover.
-            let name = Some(npc.field("name_id").get(&row.data, 0) as i32)
+            let name_text = npc.field("name_id").get(&row.data, 0) as i32;
+            let name = Some(name_text)
                 .filter(|&id| id > 0)
                 .and_then(|id| s.text("NpcName", id))
                 .unwrap_or("")
@@ -312,6 +315,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 chara,
                 model: model_name.clone(),
                 name: name.clone(),
+                name_text: name_text.max(0),
             };
             let size = Size::of(
                 npc.field("height").get_f32(&row.data, 0),
@@ -359,6 +363,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                     script: *script,
                 }));
                 sp.body.name = shown;
+                sp.body.name_text = *bar_text;
                 out.spots.push(sp);
                 continue;
             }
@@ -553,6 +558,8 @@ pub struct Applied {
     pub scripts: Vec<(MapId, fs_emevd::Emevd)>,
     /// Health bar text to write: NpcName id and name.
     pub bar_names: BTreeMap<i32, String>,
+    /// For each of those, the text id its name comes from, for other languages.
+    pub bar_sources: BTreeMap<i32, i32>,
     pub new_rows: usize,
 }
 
@@ -683,6 +690,7 @@ pub fn apply(
     let mut new_rows: Vec<Row> = Vec::new();
     let mut maps: BTreeMap<usize, Msb> = BTreeMap::new();
     let mut bar_names: BTreeMap<i32, String> = BTreeMap::new();
+    let mut bar_sources: BTreeMap<i32, i32> = BTreeMap::new();
 
     for (i, spot) in pool.spots.iter().enumerate() {
         let body = &pool.spots[plan.from[i]].body;
@@ -712,6 +720,7 @@ pub fn apply(
             bar_names
                 .entry(b.bar_text)
                 .or_insert_with(|| body.name.clone());
+            bar_sources.entry(b.bar_text).or_insert(body.name_text);
         }
     }
     let new_rows_count = new_rows.len();
@@ -727,6 +736,7 @@ pub fn apply(
         maps: maps.into_iter().map(|(i, m)| (s.maps[i].0, m)).collect(),
         scripts,
         bar_names,
+        bar_sources,
         new_rows: new_rows_count,
     })
 }
@@ -794,6 +804,7 @@ mod tests {
                 chara: -1,
                 model: format!("c{i}"),
                 name: format!("n{i}"),
+                name_text: 0,
             },
             size,
             dlc: false,

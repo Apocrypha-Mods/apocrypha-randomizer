@@ -275,7 +275,7 @@ pub fn text(dvd: &Dvd) -> Result<Text> {
 }
 
 /// [`text`], from the item text file's bytes.
-fn text_of(file: &[u8]) -> Result<Text> {
+pub fn text_of(file: &[u8]) -> Result<Text> {
     let (_, plain) = fs_dcx::decompress(file)?;
     let bnd = Bnd4::read(&plain)?;
     let mut out = Text::new();
