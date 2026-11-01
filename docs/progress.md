@@ -972,8 +972,13 @@ Still to do:
   bodies on those parts and left the event, so the game set up a ride between bodies that have none. Parts in a mount
   event no longer move, as ordinary enemies or as bosses, which keeps Night's Cavalry and their horses in place (three boss
   names leave the boss pool, so seeds that move bosses change). 21,572 spots remain. `real_enemies.rs` holds it. This fits
-  the crash but does not explain why the manipulator is null. The next lab run, a seed with ordinary enemies around
-  Stormveil on the save that crashed, should pass the 30 s where it always closed. The add-on keeps ordinary enemies off until then.
+  the crash but does not explain why the manipulator is null. The add-on keeps ordinary enemies off for now.
+- **The crash no longer comes, seen in the lab** (2026-11-01, 2.7.2, one run of each, `ER_CPU=300`, a copy of the same save at
+  Margit's fog). Seed 1 with ordinary enemies moved and riders tied in place (default limit of 20 models) ran over 5 minutes,
+  3 of them standing and about a minute after walking 6 s away, at 5.8 GB, until stopped. The control, `enemy-m1`, built before the
+  fix (limit 1), closed about 35 s after Continue, as before. Its fault address was not captured, and the two seeds differ in
+  limit and in item placement as well. Only Stormveil's gate and the nearby open world were loaded, no moved enemy was seen or
+  fought, and the rest of the world was not visited, so other crashes there are not ruled out.
 - **Machine checks again** (2026-10-31, 16:36). The PC went down some 25 s after a lab run was
   stopped, its scope having just timed out and been killed, nothing else running. The same
   fatal error: MC5, syndrome 0x4d000000, on another address (Ryzen 7 5700X). The last three
