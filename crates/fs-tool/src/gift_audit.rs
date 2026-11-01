@@ -114,6 +114,24 @@ pub fn blockers(game: PathBuf, flags: &[u32]) -> Result<()> {
             let uses = esd.expressions.windows(4).filter(|w| *w == bytes).count();
             if uses > 0 {
                 println!("  talk {name}: {uses} uses in expressions");
+                for c in &esd.commands {
+                    let args = esd.command_args(c);
+                    let values: Vec<_> = args
+                        .iter()
+                        .map(|a| a.and_then(fs_esd::expr::constant))
+                        .collect();
+                    if values.contains(&Some(f as i32)) {
+                        println!("    command {}:{:#x} {values:?}", c.bank, c.id);
+                    }
+                }
+                for r in fs_esd::calls::resolve(esd) {
+                    if r.args.contains(&Some(f as i32)) {
+                        println!(
+                            "    call {}:{} {:?} needs {:?}",
+                            r.bank, r.id, r.args, r.needs
+                        );
+                    }
+                }
             }
         }
         for (map, script) in &scripts {

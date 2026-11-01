@@ -1680,3 +1680,12 @@ ranges would have let key items onto gifts that a quest stage can shut.
 those appear in talk or params. The rest stand on `4[0]`, `3[10]`, `3[12]` and a few others.
 
 Proven with `apoc-rando check` on 2.7.2, seeds 0 to 9,999, none failing, in 1,347 s.
+
+**22 of the 39 rest on flag 4323** (lots 107600 to 107900). It is in no param and is never set by an
+event: scripts only test it, and clear it as part of the range 4320 to 4323 or 4324. In talk it is
+only the first argument of a call to a shared routine (`t409006100`, `t409106100`), and no game
+command receives it. Their other ways come back to it: 2051459743 is set in talk on 4326 and
+2051459205, and 4326 is set by event only on 4323. 2051459205 and 2051459740 were found in talk
+only. Whatever sets 4323 is outside the files read, so these stay shut; the game running, or more of
+the exe, would show it. The other 17 were not each traced this far. `apoc-fs gift-blockers` now
+prints the talk commands holding a flag.
