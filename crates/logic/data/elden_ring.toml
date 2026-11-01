@@ -33,6 +33,21 @@ goal = { bosses = ["Elden Beast"] }
 # out of a quest item's slots only ever costs choice, never a finishable seed.
 no_return = ["farum_azula", "ashen_capital", "elden_throne"]
 
+# Shut for good while the game goes on, so nothing that must be had is put there.
+# Burning the Erdtree replaces the capital, and what is reached through it goes with
+# it. The East Altus tower's door (m34_14 event 34142550) and a door in the
+# Shunning-Grounds (m35_00 event 35002504) test flag 400001, the pick-up flag of
+# Melina's gift, which she can no longer give once the tree has burned. That flag
+# stays with her slot, whatever the slot now gives. Doubtful ways take the stricter
+# reading: this only narrows where keys may land.
+# The Divine Towers' restored runes (event 90005110) wait on the tower's boss beaten
+# and name the rune; the area map sees neither, so nothing that must be had goes there.
+uncertain_sources = ["event 90005110"]
+closes = [
+    "leyndell", "subterranean_shunning_grounds", "divine_tower_west_altus",
+    "divine_tower_east_altus", "isolated_divine_tower",
+]
+
 # The chapel's door opens only to those carrying this finger, and the body
 # beside the start is the one slot before that door. Seen in play, 2026-10-30:
 # seed 1 moved it away and the character could not leave the chapel.
@@ -653,11 +668,17 @@ to = "volcano_manor"
 [[edge]]
 from = "altus"
 to = "leyndell"
-any = { n = 2, items = [
-    "Godrick's Great Rune", "Great Rune of the Unborn", "Radahn's Great Rune",
-    "Rykard's Great Rune", "Mohg's Great Rune", "Malenia's Great Rune",
+any = { n = 2, bosses = [
+    "Godrick the Grafted", "Rennala, Queen of the Full Moon", "Starscourge Radahn",
+    "Rykard, Lord of Blasphemy", "Mohg, Lord of Blood", "Malenia, Blade of Miquella",
 ] }
-note = "The capital's gate wants two Great Runes held."
+note = """
+The gate (m60_45_52 event 1045522500) tests flag 182, which common event 730 turns on
+when two of flags 170 to 179 are on, and flag 105, set on entering the Roundtable Hold.
+Flags 171 to 175 are on these bosses' reward rows (ItemLotParam_map 10010, 10301, 10041,
+10221, 10121), and common event 6905 sets 171 to 177 from the rewards' flags: 176 for Malenia
+(510200), 177 for Rennala (197). All stay with the reward, not with a moved rune, and no
+script tests a rune held. 173 is Morgott's, who stands behind this gate."""
 
 [[edge]]
 from = "leyndell"

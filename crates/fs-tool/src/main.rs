@@ -16,9 +16,11 @@ mod boot_test;
 mod check;
 mod columns;
 mod enemies;
+mod flag_readers;
 mod flags;
 mod gift_audit;
 mod instructions;
+mod item_readers;
 mod labels;
 mod logic;
 mod model;
@@ -162,6 +164,10 @@ enum Command {
     Enemies { game: PathBuf },
     /// The maps' mount events: which parts they tie together, and on what models.
     Mounts { game: PathBuf },
+    /// What reads the pick-up flag of each key or quest item.
+    FlagReaders { game: PathBuf },
+    /// What holds the id of each key item: a door asking for the item itself.
+    ItemReaders { game: PathBuf },
     /// How NpcParam rows differ, word by word.
     NpcDiff { game: PathBuf, rows: Vec<i32> },
     /// How SpEffectParam rows differ, word by word.
@@ -304,7 +310,11 @@ fn number(s: &str) -> Result<usize, String> {
 /// Print events whole, and each use of some instructions, with the raw bytes.
 fn script_dump(game: PathBuf, events: &[i64], uses: &[String]) -> fs_bytes::Result<()> {
     let s = gamedata::Sources::open(&game)?;
-    for (map, script) in &s.scripts {
+    let scripts = s.scripts.iter().map(|(m, e)| (m.to_string(), e)).chain([
+        ("common".to_string(), &s.common),
+        ("common_func".to_string(), &s.common_func),
+    ]);
+    for (map, script) in scripts {
         for event in &script.events {
             let whole = events.contains(&{ event.id });
             for i in &event.instructions {
@@ -376,6 +386,8 @@ fn main() {
         Command::Logic { game } => logic::run(game),
         Command::Enemies { game } => enemies::run(game),
         Command::Mounts { game } => mounts::run(game),
+        Command::FlagReaders { game } => flag_readers::run(game),
+        Command::ItemReaders { game } => item_readers::run(game),
         Command::NpcDiff { game, rows } => enemies::diff(game, rows),
         Command::SpDiff { game, rows } => enemies::sp_diff(game, rows),
         Command::EntityEvents {

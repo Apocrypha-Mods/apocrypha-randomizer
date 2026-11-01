@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
+use std::collections::BTreeSet;
+
 use fs_bytes::{Result, format_err};
 use fs_param::merge::{self, Contribution};
 use gamedata::model::{Item, ItemKind};
@@ -25,16 +27,74 @@ pub trait Sink: Sync {
     fn put(&self, path: &str, bytes: Vec<u8>) -> Result<()>;
 }
 
-/// A mod folder.
-pub struct Folder<'a>(pub &'a Path);
+/// A mod folder, remembering what it was given.
+pub struct Folder<'a>(pub &'a Path, pub std::sync::Mutex<BTreeSet<String>>);
 
 impl Sink for Folder<'_> {
     fn put(&self, path: &str, bytes: Vec<u8>) -> Result<()> {
         let to = self.0.join(path);
         std::fs::create_dir_all(to.parent().unwrap_or(self.0))?;
         std::fs::write(to, bytes)?;
+        if let Ok(mut written) = self.1.lock() {
+            written.insert(path.replace('\\', "/"));
+        }
         Ok(())
     }
+}
+
+/// Delete what the last seed wrote to this folder and this one did not, as me3
+/// would serve it over the game, and list what this one wrote for the next. The
+/// list sits beside the folder. Files not on the list are never touched, but a
+/// folder with no list that already holds a game path is warned about.
+fn tidy(out: &Path, mut written: BTreeSet<String>, say: Say) -> Result<()> {
+    if out.join("apoc_native.dll").is_file() {
+        written.insert("apoc_native.dll".to_string());
+    }
+    let list = out.with_extension("files");
+    match std::fs::read_to_string(&list) {
+        Ok(old) => {
+            let stale: Vec<&str> = old
+                .lines()
+                .filter(|l| !written.contains(*l))
+                .filter(|l| {
+                    !l.is_empty() && !l.starts_with('/') && !l.split('/').any(|c| c == "..")
+                })
+                .collect();
+            for path in &stale {
+                let to = out.join(path);
+                match std::fs::remove_file(&to) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => return Err(e.into()),
+                }
+                // Folders left empty go too; one still in use refuses, and stays.
+                let mut dir = to.parent();
+                while let Some(d) = dir.filter(|d| *d != out) {
+                    if std::fs::remove_dir(d).is_err() {
+                        break;
+                    }
+                    dir = d.parent();
+                }
+            }
+            if !stale.is_empty() {
+                say(&format!("removed {} files of the last seed", stale.len()));
+            }
+        }
+        Err(_) => {
+            for dir in ["map", "event", "script", "msg", "chr"] {
+                if !written.iter().any(|w| w.starts_with(dir)) && out.join(dir).is_dir() {
+                    say(&format!(
+                        "warning: {} holds a {dir} folder this seed did not write; it may be from an older seed",
+                        out.display()
+                    ));
+                }
+            }
+        }
+    }
+    let mut body = written.into_iter().collect::<Vec<_>>().join("\n");
+    body.push('\n');
+    std::fs::write(list, body)?;
+    Ok(())
 }
 
 /// What a seed is, whatever it is built from and wherever it goes.
@@ -72,7 +132,7 @@ pub struct Outcome {
     pub slots: usize,
     pub folder: PathBuf,
     pub spoiler: PathBuf,
-    /// The me3 profile that loads it all, when it takes more than the folder.
+    /// The me3 profile that loads it all, with a save of the seed's own.
     pub profile: Option<PathBuf>,
 }
 
@@ -396,6 +456,7 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
     if options.auto_upgrade {
         native_module(out, native.as_deref())?;
     }
+    let folder = Folder(out, Default::default());
     let built = build(
         &files,
         &sources,
@@ -405,9 +466,10 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
             options,
             enemies: foes,
         },
-        &Folder(out),
+        &folder,
         say,
     )?;
+    tidy(out, folder.1.into_inner().unwrap_or_default(), say)?;
     let spoiler = out.with_extension("spoiler.txt");
     std::fs::write(&spoiler, merged + &built.spoiler)?;
     for file in &files.shadowed {
@@ -415,11 +477,8 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
             "warning: more than one mod has {file}; the later one is used"
         ));
     }
-    let profile = if options.auto_upgrade || !mods.is_empty() {
-        Some(write_profile(out, mods, options.auto_upgrade, say)?)
-    } else {
-        None
-    };
+    // Always: the profile is what gives a seed a save of its own.
+    let profile = Some(write_profile(out, mods, options.auto_upgrade, say)?);
     Ok(Outcome {
         slots: built.slots,
         folder: out.clone(),
@@ -453,6 +512,9 @@ pub fn build(
         )));
     }
     let units = items::units(model, &bound, &sources.reg)?;
+    let mut options = options.clone();
+    options.enemies_move = !foes.is_off();
+    let options = &options;
     let plan = items::shuffle(&bound, &units, seed, options).map_err(format_err)?;
     let mut reg = sources.reg.clone();
     items::apply(&mut reg, &units, &plan)?;

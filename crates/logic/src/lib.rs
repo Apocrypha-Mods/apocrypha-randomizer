@@ -53,7 +53,11 @@ pub struct Need {
 #[serde(deny_unknown_fields)]
 pub struct AnyOf {
     pub n: usize,
+    #[serde(default)]
     pub items: Vec<String>,
+    /// Bosses to have beaten, as in [`Need::bosses`], each counting as one.
+    #[serde(default)]
+    pub bosses: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -185,6 +189,14 @@ pub struct Graph {
     /// quest's item is not put there, as the quest may be over by then.
     #[serde(default)]
     pub no_return: Vec<String>,
+    /// Areas that can shut for good while the game goes on, by id: what must be
+    /// had is not put there, as a player may pass it by and be shut out.
+    #[serde(default)]
+    pub closes: Vec<String>,
+    /// Locations, by source, that wait on more than the area map can see: the
+    /// same, for one location rather than an area.
+    #[serde(default)]
+    pub uncertain_sources: Vec<String>,
     /// Items that never move, by name: what the game asks for before any
     /// other item can be reached.
     #[serde(default)]
@@ -287,7 +299,7 @@ impl<'a> Bound<'a> {
             found
         };
         area(&graph.start, &mut problems);
-        for a in &graph.no_return {
+        for a in graph.no_return.iter().chain(&graph.closes) {
             area(a, &mut problems);
         }
         for name in &graph.fixed {
@@ -363,7 +375,7 @@ impl<'a> Bound<'a> {
                     problems.push(format!("no item {item} anywhere in the model"));
                 }
             }
-            for b in &n.bosses {
+            for b in n.bosses.iter().chain(n.any.iter().flat_map(|a| &a.bosses)) {
                 if let Err(p) = find_boss(model, b) {
                     problems.push(p);
                 }
@@ -764,6 +776,17 @@ impl<'a> Bound<'a> {
             .is_some_and(|a| self.graph.no_return.contains(&self.graph.areas[a].id))
     }
 
+    /// Whether a location lies somewhere that can shut for good while the game
+    /// goes on, so nothing that matters can be counted on there.
+    pub fn may_close(&self, location: usize) -> bool {
+        self.location_area[location]
+            .is_some_and(|a| self.graph.closes.contains(&self.graph.areas[a].id))
+            || self
+                .graph
+                .uncertain_sources
+                .contains(&self.model.locations[location].source)
+    }
+
     /// What each location gives in the game as it is.
     pub fn vanilla(&self) -> Vec<Vec<&str>> {
         self.model
@@ -800,18 +823,20 @@ impl<'a> Bound<'a> {
     }
 
     fn met(&self, need: &Need, items: &BTreeSet<&str>, reached: &[bool]) -> bool {
+        let beaten = |b: &String| {
+            find_boss(self.model, b)
+                .ok()
+                .and_then(|i| self.boss_area[i])
+                .is_some_and(|a| reached[a])
+        };
         need.items.iter().all(|i| items.contains(i.as_str()))
-            && need.bosses.iter().all(|b| {
-                find_boss(self.model, b)
-                    .ok()
-                    .and_then(|i| self.boss_area[i])
-                    .is_some_and(|a| reached[a])
-            })
+            && need.bosses.iter().all(beaten)
             && need.any.as_ref().is_none_or(|any| {
                 any.items
                     .iter()
                     .filter(|i| items.contains(i.as_str()))
                     .count()
+                    + any.bosses.iter().filter(|b| beaten(b)).count()
                     >= any.n
             })
     }

@@ -95,6 +95,7 @@ impl Sliders {
         o.set(true, &self.bias).map_err(format_err)?;
         o.dlc_separate = self.dlc == "separate";
         o.auto_upgrade = self.auto_upgrade;
+        o.enemies_move = !self.enemy_options()?.is_off();
         Ok(o)
     }
 

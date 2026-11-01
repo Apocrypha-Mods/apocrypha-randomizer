@@ -124,6 +124,9 @@ pub struct Options {
     /// Whether weapons arrive at the level the player has raised one to
     /// (§2.7). Done in play by our native module; placement ignores it.
     pub auto_upgrade: bool,
+    /// Whether enemies move in this seed, so no key or quest item is put on an
+    /// enemy's drop. Set by whoever knows the enemy options; not a slider.
+    pub enemies_move: bool,
 }
 
 impl Default for Options {
@@ -134,6 +137,7 @@ impl Default for Options {
             bias: [0; 15],
             dlc_separate: false,
             auto_upgrade: false,
+            enemies_move: false,
         }
     }
 }

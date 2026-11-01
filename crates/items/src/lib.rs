@@ -68,6 +68,9 @@ use rng::Rng;
 /// the low end stays gentle.
 const KEY_LEAN: f64 = 6.0;
 const REST_LEAN: f64 = 10.0;
+/// The most a shop row asking for a key or quest item may cost, in runes. Our own
+/// choice: most of what the first merchants sell is at or under it.
+const KEY_PRICE_CAP: i64 = 3000;
 /// Depth bands the other items are drawn through, for speed.
 const BANDS: usize = 20;
 
@@ -134,6 +137,9 @@ pub struct Unit {
     pub item: Item,
     /// The category of that item, for the sliders.
     pub category: Category,
+    /// For a shop row: its price in runes, and whether it never runs out.
+    pub price: i64,
+    pub unlimited: bool,
 }
 
 impl Unit {
@@ -368,6 +374,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                     slot,
                     category: category(&item, &goods_type, &keys),
                     item,
+                    price: 0,
+                    unlimited: false,
                 });
             }
         }
@@ -422,6 +430,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
             slot: 0,
             category: category(&item, &goods_type, &keys),
             item,
+            price: shop.field("value").get(data, 0),
+            unlimited: shop.field("sell_quantity").get(data, 0) == 255,
         });
     }
 
@@ -457,6 +467,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                     slot,
                     category: category(&item, &goods_type, &keys),
                     item,
+                    price: 0,
+                    unlimited: false,
                 });
             }
         }
@@ -491,6 +503,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                 slot,
                 category: category(&item, &goods_type, &keys),
                 item,
+                price: 0,
+                unlimited: false,
             });
         };
         for slot in 0..goods_slot.count {
@@ -521,11 +535,24 @@ pub struct Plan {
 }
 
 /// Whether a slot can be counted on: it always gives its item, at a location
-/// in an area, which no quest can move past.
-fn dependable(bound: &Bound, unit: &Unit) -> bool {
+/// in an area, which no quest can move past and which cannot shut for good. A
+/// shop row must sell out, so the item is sold once, at a price a player can
+/// meet when it is asked for. An enemy's drop will not do while enemies move.
+fn dependable(bound: &Bound, unit: &Unit, options: &Options) -> bool {
+    let location = &bound.model.locations[unit.location];
     unit.sure()
         && bound.location_area[unit.location].is_some()
-        && !bound.model.locations[unit.location].missable
+        && !location.missable
+        && !bound.may_close(unit.location)
+        && !unit.unlimited
+        && unit.price <= KEY_PRICE_CAP
+        && !(options.enemies_move && location.kind == Kind::EnemyDrop)
+}
+
+/// Whether there should be only one of an item, which a slot that may not give
+/// it would lose, and a row that never runs out would multiply.
+fn one_off(category: Category) -> bool {
+    !matches!(category, Category::Consumable | Category::Upgrade)
 }
 
 /// The quest items, as (kind, id), that some unit gives.
@@ -708,7 +735,7 @@ fn attempt(
         let free: Vec<usize> = (0..n)
             .filter(|&u| {
                 placed[u].is_none()
-                    && dependable(bound, &units[u])
+                    && dependable(bound, &units[u], options)
                     && fits(u, k)
                     && walk.taken[units[u].location]
                     && !(is_quest(k) && bound.past_no_return(units[u].location))
@@ -754,7 +781,7 @@ fn attempt(
         let free: Vec<usize> = (0..n)
             .filter(|&u| {
                 placed[u].is_none()
-                    && dependable(bound, &units[u])
+                    && dependable(bound, &units[u], options)
                     && fits(u, from)
                     && walk.taken[units[u].location]
                     && !bound.past_no_return(units[u].location)
@@ -787,6 +814,30 @@ fn attempt(
             ));
         }
         placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
+    }
+
+    // Slots that may not give their item, and rows that never run out, take what
+    // is plentiful first. If the sliders leave too little of that, they take what
+    // comes, as every item must still land.
+    let shy: Vec<usize> = (0..n)
+        .filter(|&u| {
+            placed[u].is_none()
+                && units[u].place != Place::Gather
+                && (units[u].unlimited || (units[u].place == Place::Lot && !units[u].sure()))
+        })
+        .collect();
+    for u in shy {
+        let ok: Vec<usize> = (0..rest.len())
+            .filter(|&i| {
+                let c = units[rest[i]].category;
+                fits(u, rest[i])
+                    && !one_off(c)
+                    && !(units[u].unlimited && c != Category::Consumable)
+            })
+            .collect();
+        if !ok.is_empty() {
+            placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
+        }
     }
 
     // Everything else, each item towards slots as deep as it is worth.
@@ -860,12 +911,25 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
             ));
         }
     }
+    for (u, unit) in units.iter().enumerate() {
+        let from = plan.placed[u];
+        if from != u
+            && units[from].category == Category::Key
+            && !dependable(bound, unit, &plan.options)
+        {
+            return Err(format!(
+                "seed {}: key item {} cannot be counted on where it landed",
+                plan.seed,
+                units[from].item.name.as_deref().unwrap_or("?")
+            ));
+        }
+    }
     for q in quest_items(bound, units) {
         let got = (0..units.len()).any(|u| {
             let from = plan.placed[u];
             (units[from].item.kind, units[from].item.id) == q
                 && (from == u
-                    || (dependable(bound, &units[u])
+                    || (dependable(bound, &units[u], &plan.options)
                         && walk.taken[units[u].location]
                         && !bound.past_no_return(units[u].location)))
         });
@@ -1283,6 +1347,8 @@ mod tests {
                 } else {
                     Category::Consumable
                 },
+                price: 0,
+                unlimited: false,
             })
             .collect()
     }

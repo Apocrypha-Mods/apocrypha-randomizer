@@ -349,3 +349,47 @@ fn npcs_are_dressed_from_the_seed() {
     still.set(false, "npc-gear=0").unwrap();
     assert!(run(&still).0.is_empty());
 }
+
+/// Key and quest items go nowhere they can be lost: an area that can shut, an
+/// unlimited or dear shop row, or, while enemies move, an enemy's drop.
+#[test]
+fn what_must_be_had_lands_where_it_stays_within_reach() {
+    let Some((s, model)) = sources() else { return };
+    let graph = logic::elden_ring();
+    let bound = Bound::new(&graph, model);
+    let us = items::units(model, &bound, &s.reg).unwrap();
+    let mut options = items::Options::default();
+    options.enemies_move = true;
+    let mut one_off_on_shy = 0;
+    for seed in 0..10 {
+        let plan = items::shuffle(&bound, &us, seed, &options).unwrap();
+        for (u, unit) in us.iter().enumerate() {
+            let from = &us[plan.placed[u]];
+            if plan.placed[u] != u && from.category == items::Category::Key {
+                assert!(!bound.may_close(unit.location), "{:?}", from.item.name);
+                assert!(
+                    !unit.unlimited && unit.price <= 3000,
+                    "{:?}",
+                    from.item.name
+                );
+                assert_ne!(
+                    model.locations[unit.location].kind,
+                    gamedata::model::Kind::EnemyDrop
+                );
+            }
+            let shy = unit.unlimited || (unit.place == items::Place::Lot && !unit.sure());
+            let plentiful = matches!(
+                from.category,
+                items::Category::Consumable | items::Category::Upgrade
+            );
+            if plan.placed[u] != u && shy && !plentiful {
+                one_off_on_shy += 1;
+                eprintln!(
+                    "seed {seed}: {:?} on {} row {}",
+                    from.item.name, unit.table, unit.row
+                );
+            }
+        }
+    }
+    assert_eq!(one_off_on_shy, 0);
+}

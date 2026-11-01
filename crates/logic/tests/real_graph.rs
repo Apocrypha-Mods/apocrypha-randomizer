@@ -298,3 +298,23 @@ fn gifts_read_one_at_a_time() {
     // Nor does the gift that starts it: events can turn on a flag it needs off.
     assert!(m.locations[by_lot(106600)].missable);
 }
+
+/// The capital's gate counts bosses' rewards by flag: holding no Great Rune does not
+/// keep it shut, and with none of the bosses reachable it stays shut.
+#[test]
+fn the_capitals_gate_asks_for_two_bosses_and_no_rune() {
+    let Some(model) = model() else { return };
+    let graph = graph();
+    let edge = graph
+        .edges
+        .iter()
+        .find(|e| e.from == "altus" && e.to == "leyndell")
+        .unwrap();
+    let any = edge.need.any.as_ref().unwrap();
+    assert_eq!(any.n, 2);
+    assert!(any.items.is_empty());
+    assert_eq!(any.bosses.len(), 6);
+    let bound = Bound::new(graph, model);
+    assert!(!bound.key_items().iter().any(|k| k.contains("Great Rune")));
+    assert!(bound.walk(&bound.vanilla()).goal);
+}

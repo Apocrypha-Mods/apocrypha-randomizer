@@ -302,3 +302,39 @@ fn keepsake_names_come_in_every_language() {
         "the German keepsake is the seed's"
     );
 }
+
+/// What the last seed wrote and this one did not leaves the folder, what is not
+/// ours stays, and every seed gets a profile with a save of its own.
+#[test]
+fn a_reused_folder_keeps_nothing_of_the_last_seed() {
+    let Some(game) = stock() else { return };
+    let out = work("reused").join("seed");
+    let build = |foes: &str| {
+        let mut enemies = rando::EnemyOptions::default();
+        enemies.set(foes).unwrap();
+        rando::generate(
+            &rando::Request {
+                game: game.clone(),
+                seed: 7,
+                out: out.clone(),
+                options: rando::ItemOptions::default(),
+                enemies,
+                native: None,
+                mods: vec![],
+            },
+            &|_| {},
+        )
+        .unwrap()
+    };
+    build("bosses=100");
+    let stormveil = out.join("map/mapstudio/m10_00_00_00.msb.dcx");
+    assert!(stormveil.is_file());
+    std::fs::write(out.join("mine.txt"), "not the seed's").unwrap();
+    let done = build("");
+    assert!(!stormveil.exists());
+    assert!(!out.join("map").exists(), "an empty folder stayed");
+    assert!(out.join("regulation.bin").is_file());
+    assert!(out.join("mine.txt").is_file());
+    let profile = std::fs::read_to_string(done.profile.unwrap()).unwrap();
+    assert!(profile.contains("savefile = \"seed.sl2\""), "{profile}");
+}
