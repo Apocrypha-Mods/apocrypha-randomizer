@@ -862,9 +862,9 @@ native next to the mod folder (`ER_NATIVE=<dll> tools/er-lab/run.sh`).
   holding one proves nothing. A held weapon counts only above the highest
   level any pick-up, shop row or class gives it at.
   - Custom-weapon lots (category 6, a weapon with a set level, e.g. custom
-    5010 is Rogier's Rapier +8) are not counted as given. This is what made
-    the lab test possible. It also means that picking up the Rapier raises
-    the regular level to +8.
+    5010 is Rogier's Rapier +8) were not counted as given when the lab test
+    above was made. Since 2026-11-02 they are, so that test now needs
+    `APOC_NATIVE_LEVELS` for its levels.
 - **What is upgraded:** item-lot slots that give a weapon (category 2), and
   rows of ShopLineupParam / ShopLineupParam_Recipe that sell a weapon for
   runes alone. Nova chose to include shops (spec §2.7). Rows paid for in
@@ -1800,4 +1800,29 @@ mean a human never turns up on a plain enemy's spot: the choice is reversible at
 spot costs little. A boss that moves still leaves its helpers behind in its arena, which is untested.
 
 **Places that close.** Volcano Manor and Farum Azula stay out of `closes`, from general knowledge and the edges, not a script read.
+
+## Gifts, other systems and the native module (2026-11-02)
+
+No game or lab run.
+
+**Gifts: none opened, 39 stay shut.** `3[10]` was followed as flags (at least some of a range, or none), and `gift-shut` stayed at 39 of 112, 96 missable, so it was
+not kept. The `3[12]` tests holding 1035449235 and 3646 read as values held in five flags, at least 3 and at least 4: word 2's low byte
+is the flags' number and its next byte the comparison, read from the shape of 249 uses, not the exe. A counter that must climb is a step repeated, which
+the area map cannot walk. Shut gifts only take key items away from those slots, so no seed is at risk. Flag 182 stays as read.
+
+**Other systems.** Seed 1, `bosses=100,ordinary=100,mix=10`: `apoc-rando` on Linux and `apoc-rando.exe` (windows-gnu) under Wine wrote the same 501 files and the same
+spoiler log, compared by `diff -r` and `cmp`. That is Wine on this machine, one seed. macOS has never seen game files; `a_plan_is_the_same_on_every_system`
+now holds one enemy plan on every system CI runs. `generate` also refuses an output folder inside the game's. A DLC check was not added.
+
+**`crates/native` against `items.md` §2.7**, now read through. Two faults, both fixed, neither yet run in the game:
+- A weapon given at +7 and then given an Ash of War counted as raised to +7, as levels given were kept per row. They are now per weapon.
+- A preset weapon from a lot counted as raised. 16 slots give 10 such rows, so Rogier's Rapier raised every later regular pick-up to +8. They now count as given.
+  This needs `EQUIP_PARAM_CUSTOM_WEAPON_ST` found in memory: check `upgrade: 1 EQUIP_PARAM_CUSTOM_WEAPON_ST table(s)` in its log in the next lab run. If it is not found, this fix does nothing and all else carries on.
+
+Checked and sound: ammunition, whose reinforce type has no levels, is never upgraded (353 lot slots); the two paths stay apart; a slot never goes below its own level.
+One gap left as it is: levels are read from what is held each time, so a raised weapon sold or dropped lowers them, where the spec says "highest reached". Whether
+the chest's contents count was not checked: the module reads seven inventories without knowing which each is. Keeping a high mark would need to survive reloads and change of character.
+
+**Proven.** With `APOC_ER_STOCK` on 2.7.2, the workspace's tests apart from `native` (261 passed, none failed) and `native`'s own 7; clippy and fmt clean; `apoc_native.dll` builds. `apoc-rando check`, `bosses=100,ordinary=100,mix=10`,
+2,000 seeds in 298 s, none failing. The default 10,000 were not rerun, as nothing here changes item placement or the area map's edges.
 

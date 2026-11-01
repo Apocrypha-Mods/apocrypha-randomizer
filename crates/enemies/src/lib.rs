@@ -326,7 +326,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 run.instructions
                     .iter()
                     .filter(|i| i.bank != 2000)
-                    .flat_map(|i| words(i))
+                    .flat_map(words)
             };
             if acts().any(|w| bars.contains_key(&w)) {
                 helpers.extend(acts().filter(|w| !bars.contains_key(w)));

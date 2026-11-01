@@ -11,7 +11,10 @@
 //! (25 map pick-ups give +1 to +10), so holding a weapon at a level proves
 //! nothing on its own. A held weapon counts only above the highest level any
 //! pick-up, shop or class in the loaded tables gives it at: that level can
-//! only have come from a smith.
+//! only have come from a smith. Levels given are kept for the weapon as a whole, since an
+//! Ash of War moves a weapon to another row at the same level: Longsword +7 from a chest,
+//! made Heavy, is Heavy Longsword +7, and no smith raised it. A preset weapon a lot gives
+//! (`EquipParamCustomWeapon`) counts as given at its own level too.
 
 use std::collections::HashMap;
 
@@ -94,6 +97,16 @@ impl Weapons {
     }
 }
 
+/// A base id's weapon whatever its Ash of War: rows run 1000000 (plain), 1000100 (Heavy) and
+/// so on. Ids below 10000 are test rows, each on its own.
+fn whole_weapon(base: i32) -> i32 {
+    if base < 10_000 {
+        base
+    } else {
+        base - base % 10_000
+    }
+}
+
 /// One weapon slot of a pick-up or shop row: the address of its item id, and
 /// the id the loaded tables put there.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -106,7 +119,7 @@ pub struct Slot {
 #[derive(Debug)]
 pub struct Upgrader {
     pub weapons: Weapons,
-    /// The highest level each base id is given at anywhere.
+    /// The highest level each weapon is given at anywhere, by [`whole_weapon`].
     given: HashMap<i32, i32>,
     pub slots: Vec<Slot>,
 }
@@ -118,7 +131,7 @@ impl Upgrader {
         let mut levels = HashMap::new();
         for id in given {
             if let Some((base, level)) = weapons.split(id) {
-                let e = levels.entry(base).or_insert(0);
+                let e = levels.entry(whole_weapon(base)).or_insert(0);
                 *e = (*e).max(level);
             }
         }
@@ -144,7 +157,7 @@ impl Upgrader {
             let Some((base, level)) = self.weapons.split(id) else {
                 continue;
             };
-            if level <= self.given.get(&base).copied().unwrap_or(0) {
+            if level <= self.given.get(&whole_weapon(base)).copied().unwrap_or(0) {
                 continue;
             }
             match self.weapons.path(base) {
@@ -209,6 +222,15 @@ mod tests {
         );
         // An unknown id and a weapon with no upgrades are ignored.
         assert_eq!(u.raised([123, TORCH + 5]), Levels::default());
+    }
+
+    #[test]
+    fn an_ash_of_war_does_not_make_a_given_level_raised() {
+        let reinforce: Vec<i32> = (0..=25).chain(100..=125).collect();
+        let weapons = Weapons::new([(LONGSWORD, 0), (LONGSWORD + 100, 100)], &reinforce);
+        let u = Upgrader::new(weapons, [LONGSWORD + 7], Vec::new());
+        assert_eq!(u.raised([LONGSWORD + 107]), Levels::default());
+        assert_eq!(u.raised([LONGSWORD + 108]).regular, 8);
     }
 
     #[test]

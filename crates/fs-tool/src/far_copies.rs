@@ -11,12 +11,15 @@ use gamedata::Sources;
 const PARTS: &str = "PARTS_PARAM_ST";
 const MODELS: &str = "MODEL_PARAM_ST";
 
+/// A model, and where it stands to the nearest 2 m.
+type Key = (String, i32, i32);
+
 pub fn run(game: PathBuf) -> Result<()> {
     let s = Sources::open(&game)?;
     let model = gamedata::elden_ring::extract(&s)?;
     let pool = enemies::pool(&s, &model)?;
     // Every enemy part of the open world, at its place on the world's ground.
-    let mut near: HashMap<(String, i32, i32), Vec<(u8, u32, i64)>> = HashMap::new();
+    let mut near: HashMap<Key, Vec<(u8, u32, i64)>> = HashMap::new();
     let mut coarse = Vec::new();
     for (i, (m, msb)) in s.maps.iter().enumerate() {
         if !m.is_open_world() {
@@ -195,7 +198,6 @@ pub fn helpers(game: PathBuf) -> Result<()> {
         .iter()
         .filter_map(|p| p.entity.map(|e| (e, p)))
         .collect();
-    let scripts: HashMap<_, _> = s.scripts.iter().map(|(m, x)| (*m, x)).collect();
     let mut runs_of = HashMap::new();
     for (m, script) in &s.scripts {
         runs_of.insert(*m, fs_emevd::catalogue::runs(script, Some(&s.common_func)));
@@ -277,6 +279,5 @@ pub fn helpers(game: PathBuf) -> Result<()> {
             );
         }
     }
-    let _ = scripts;
     Ok(())
 }

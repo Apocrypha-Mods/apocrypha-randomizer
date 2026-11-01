@@ -153,8 +153,9 @@ fn roots(image: &[u8], module: usize, regions: &[(usize, usize)], vtable: usize)
 }
 
 /// The tables auto-upgrade reads, by type name.
-const TABLES: [&str; 5] = [
+const TABLES: [&str; 6] = [
     "ITEMLOT_PARAM_ST",
+    "EQUIP_PARAM_CUSTOM_WEAPON_ST",
     "SHOP_LINEUP_PARAM",
     "CHARACTER_INIT_PARAM",
     "EQUIP_PARAM_WEAPON_ST",
@@ -256,6 +257,7 @@ fn upgrader(found: &[(&'static str, Table)]) -> Option<Upgrader> {
     // ItemLotParam: eight item ids from 0x00, their categories from 0x20
     // (2 is a weapon).
     let mut slots = Vec::new();
+    let mut presets = std::collections::HashSet::new();
     for t in &lots {
         for &(_, row) in &t.rows {
             let Some(b) = read(row, 0x40) else {
@@ -264,6 +266,9 @@ fn upgrader(found: &[(&'static str, Table)]) -> Option<Upgrader> {
             let word = |o: usize| i32::from_le_bytes(b[o..o + 4].try_into().unwrap());
             for i in 0..8 {
                 let (own, cat) = (word(i * 4), word(0x20 + i * 4));
+                if cat == 6 && own > 0 {
+                    presets.insert(own);
+                }
                 if cat == 2 && own > 0 {
                     slots.push(Slot {
                         at: row + i * 4,
@@ -278,6 +283,18 @@ fn upgrader(found: &[(&'static str, Table)]) -> Option<Upgrader> {
     // sold for runes alone is upgraded like a pick-up; one paid for in
     // items (a remembrance trade, Dragon Communion) is left as it is.
     let mut given: Vec<i32> = slots.iter().map(|s| s.own).collect();
+    // EquipParamCustomWeapon: base weapon at 0x00 and level at 0x08 (row 5010 is
+    // 5030000 and 8, the Rapier the lab saw arrive as 5030008). Picking one up raises nothing.
+    for t in of("EQUIP_PARAM_CUSTOM_WEAPON_ST") {
+        for &(id, row) in &t.rows {
+            if presets.contains(&id)
+                && let Some(b) = read(row, 9)
+            {
+                let base = i32::from_le_bytes(b[0..4].try_into().unwrap());
+                given.push(base + i32::from(b[8]));
+            }
+        }
+    }
     for t in &shops {
         for &(_, row) in &t.rows {
             let Some(b) = read(row, 0x19) else {
