@@ -43,6 +43,10 @@ no_return = ["farum_azula", "ashen_capital", "elden_throne"]
 # The Divine Towers' restored runes (event 90005110) wait on the tower's boss beaten
 # and name the rune; the area map sees neither, so nothing that must be had goes there.
 uncertain_sources = ["event 90005110"]
+# Not listed, from general knowledge and the edges below, with no script read for it:
+# Volcano Manor, whose way in from Mt. Gelmir needs nothing, so its quest's end can cost
+# talk gifts, which are marked missable, but not the area; and Farum Azula, reached once
+# the Forge is lit, whose graces stay. It is `no_return` for quest items all the same.
 closes = [
     "leyndell", "subterranean_shunning_grounds", "divine_tower_west_altus",
     "divine_tower_east_altus", "isolated_divine_tower",

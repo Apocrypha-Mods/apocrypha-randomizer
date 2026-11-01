@@ -50,6 +50,13 @@ seed and its options always give the same game.
   player, such as Blaidd or Alexander.
 - **Hostile humans swap** (Nova's choice), with their equipment: Millicent or
   Anastasia as invaders (team 27) are hostile, and go.
+- **Invaders trade only with invaders, and other hostile humans only with each other**
+  (2026-11-02). An invader's spot has events that bring its body in and keep it gone once
+  dead, so a body on a plain spot would come back at every rest. It also holds each map
+  to the human-built bodies it has unmodded: at most 5 ordinary ones, where trading with
+  everyone reached 7. A boss sent out by the mix takes a plain spot only.
+- **A fight's helpers stay** (2026-11-02): an ordinary spot that a boss's fight events act
+  on, such as Malenia's copies, Messmer's snakes or the Fire Giant's second body.
 
 - **Cutscenes stay as they are** (Nova's choice). A boss's intro plays once, on the
   first visit, and shows the unmodded boss; when it ends, whoever the seed put there
@@ -114,6 +121,8 @@ To be filled in as they are found. Not yet seen in the game:
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
 - **Quest humans.** A hostile human moved away may be part of a quest's event.
+- **Far copies.** None found on 2.7.2: no entity is on two open-world parts. 164 spots on
+  coarse tiles still move, as nothing ties them to a fine copy. Not seen in play.
 - **The health bar** text is shared where two bosses use one id. The first wins.
 - **New rows.** A seed adds up to some 19,000 NpcParam rows, and whether the game
   minds is unknown.

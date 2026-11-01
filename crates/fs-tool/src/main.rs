@@ -16,6 +16,7 @@ mod boot_test;
 mod check;
 mod columns;
 mod enemies;
+mod far_copies;
 mod flag_readers;
 mod flags;
 mod gift_audit;
@@ -164,6 +165,10 @@ enum Command {
     Enemies { game: PathBuf },
     /// The maps' mount events: which parts they tie together, and on what models.
     Mounts { game: PathBuf },
+    /// Open-world enemies on coarse tiles and the human-built bodies in the pool.
+    FarCopies { game: PathBuf },
+    /// Hostile humans' spots and the ordinary spots a boss's events name.
+    Helpers { game: PathBuf },
     /// What reads the pick-up flag of each key or quest item.
     FlagReaders { game: PathBuf },
     /// What holds the id of each key item: a door asking for the item itself.
@@ -386,6 +391,8 @@ fn main() {
         Command::Logic { game } => logic::run(game),
         Command::Enemies { game } => enemies::run(game),
         Command::Mounts { game } => mounts::run(game),
+        Command::FarCopies { game } => far_copies::run(game),
+        Command::Helpers { game } => far_copies::helpers(game),
         Command::FlagReaders { game } => flag_readers::run(game),
         Command::ItemReaders { game } => item_readers::run(game),
         Command::NpcDiff { game, rows } => enemies::diff(game, rows),

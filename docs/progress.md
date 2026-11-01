@@ -1782,3 +1782,22 @@ summons a boss relies on was not read; the defeat events wait on the spot's own 
 
 Nova's decisions: enemies stay on their own side unless `--enemy-dlc mixed`, in the add-on always; a shop row moves only if its
 item's category slider allows it as well as the merchants'.
+
+## Far copies, invaders and fights' helpers (2026-11-02)
+
+No game or lab run; the GPU is faulting, so this is read from the files. `apoc-fs far-copies` and `apoc-fs helpers` report it.
+
+**Far copies.** 193 open-world enemy parts sit on coarse tiles, 164 of them movable. No entity is on two open-world parts, and none
+has a finer part of its model within 2 m. 28 have one within 30 m, which was not looked at one by one; with no shared entity,
+nothing shows they are copies. So nothing is changed.
+
+**Humans and invaders.** Ordinary spots with a human-built body number 58, 32 of them invaders, at most 5 in a map. Trading with everyone reached 7 in
+200 seeds at `ordinary=100`. They now trade within their class, and all 200 seeds stay at 5. The game's real limit was not found. This also
+keeps invaders on spots whose events keep them gone once dead, which was read from event names and shapes, not from a death in play. It does
+mean a human never turns up on a plain enemy's spot: the choice is reversible at `Class` in `crates/enemies`.
+
+**Helpers.** 88 ordinary spots named by a boss's fight events no longer move (21,330 spots to 21,242). A few may only share a number with a flag; a pinned
+spot costs little. A boss that moves still leaves its helpers behind in its arena, which is untested.
+
+**Places that close.** Volcano Manor and Farum Azula stay out of `closes`, from general knowledge and the edges, not a script read.
+

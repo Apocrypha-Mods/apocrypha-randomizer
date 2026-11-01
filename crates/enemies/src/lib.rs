@@ -52,6 +52,12 @@ const STAY: [&str; 1] = ["dummy"];
 /// NpcParam teams of those who do not fight the player until a script says so:
 /// no team (Gideon), friends (Patches, merchants) and summonable allies (Millicent).
 const NOT_HOSTILE: [i64; 5] = [0, 1, 2, 26, 28];
+/// NpcParam team of invaders, when built like a player: Millicent or Anastasia come to fight.
+const INVADER_TEAM: i64 = 27;
+/// Events that name a boss's number and others' for reasons not to do with a fight:
+/// a start-up list (0, 50, 100), "stay gone once this flag is on" (90005300, whose flag can
+/// be the boss's number) and the invasion events shared by a map's invaders.
+const NOT_A_FIGHT: [i64; 8] = [0, 50, 100, 90005300, 90005790, 90005791, 90005792, 90005793];
 
 /// What the player sets (docs/spec/enemies.md §2). All at 0 changes nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,6 +152,18 @@ impl Size {
     }
 }
 
+/// Who a spot's body may trade with among ordinary enemies. An invader's spot has events
+/// that bring its body in and keep it gone once dead, which a plain spot lacks, so an
+/// invader elsewhere would come back at every rest. Humans apart from plain enemies keeps
+/// each map to the human-built bodies it has unmodded, whose number the game limits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum Class {
+    #[default]
+    Plain,
+    Human,
+    Invader,
+}
+
 /// What moves: everything that makes an enemy the enemy it is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Body {
@@ -170,6 +188,7 @@ pub struct Spot {
     pub entity: Option<u32>,
     pub body: Body,
     pub size: Size,
+    pub class: Class,
     pub dlc: bool,
     /// For a boss: the health bar's text, and the map whose script shows it.
     pub boss: Option<BossSpot>,
@@ -293,6 +312,27 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             }
         }
     }
+    // Those a fight's own events act on: Malenia's copies, Messmer's snakes, the Fire
+    // Giant's second body. Away from it they would stand about as strays, and a stranger
+    // in their place would be told what they were told.
+    let mut helpers: HashSet<u32> = HashSet::new();
+    for (_, script) in &s.scripts {
+        for run in catalogue::runs(script, Some(&s.common_func)) {
+            if NOT_A_FIGHT.contains(&run.event.id) {
+                continue;
+            }
+            // Bank 2000 starts other events, which are read on their own.
+            let acts = || {
+                run.instructions
+                    .iter()
+                    .filter(|i| i.bank != 2000)
+                    .flat_map(|i| words(i))
+            };
+            if acts().any(|w| bars.contains_key(&w)) {
+                helpers.extend(acts().filter(|w| !bars.contains_key(w)));
+            }
+        }
+    }
     let area_bosses: HashSet<u32> = model.bosses.iter().filter_map(|b| b.entity).collect();
     // A talk script that gives something can't lose its speaker.
     let giving: HashSet<&str> = model
@@ -359,7 +399,15 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 npc.field("height").get_f32(&row.data, 0),
                 npc.field("radius").get_f32(&row.data, 0),
             );
-            let hostile = !NOT_HOSTILE.contains(&npc.field("team").get(&row.data, 0));
+            let team = npc.field("team").get(&row.data, 0);
+            let hostile = !NOT_HOSTILE.contains(&team);
+            // Team 27 also holds plain creatures clustered in a few maps, so the model
+            // has to be a human's too.
+            let class = match (model_name == "c0000", team == INVADER_TEAM) {
+                (true, true) => Class::Invader,
+                (true, false) => Class::Human,
+                (false, _) => Class::Plain,
+            };
             let spot = |boss| Spot {
                 map_index,
                 part,
@@ -367,6 +415,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 entity,
                 body: body.clone(),
                 size,
+                class,
                 dlc: is_dlc(*m),
                 boss,
             };
@@ -417,6 +466,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 && hostile
                 && !entity.is_some_and(|en| rises.contains(&en))
                 && !entity.is_some_and(|en| area_bosses.contains(&en))
+                && !entity.is_some_and(|en| helpers.contains(&en))
                 && !STAY_MODELS.contains(&model_name.as_str())
                 && !STAY.iter().any(|n| name.contains(n))
                 // A named character who is not built like a player is someone's
@@ -462,12 +512,15 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     let side = |s: &Spot| options.dlc_separate && s.dlc;
 
     let mut bosses: BTreeMap<bool, Vec<usize>> = BTreeMap::new();
-    let mut ordinary: BTreeMap<(bool, Size), Vec<usize>> = BTreeMap::new();
+    let mut ordinary: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
     for (i, s) in pool.spots.iter().enumerate() {
         if s.boss.is_some() {
             bosses.entry(side(s)).or_default().push(i);
         } else {
-            ordinary.entry((side(s), s.size)).or_default().push(i);
+            ordinary
+                .entry((side(s), s.size, s.class))
+                .or_default()
+                .push(i);
         }
     }
     for group in bosses.values() {
@@ -485,7 +538,12 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
             .spots
             .iter()
             .enumerate()
-            .filter(|(_, s)| s.boss.is_none() && s.map.is_open_world() && side(s) == dlc)
+            .filter(|(_, s)| {
+                s.boss.is_none()
+                    && s.class == Class::Plain
+                    && s.map.is_open_world()
+                    && side(s) == dlc
+            })
             .map(|(i, _)| i)
             .collect();
         rng.shuffle(&mut fields);
@@ -527,11 +585,14 @@ pub fn new_models<'a>(pool: &'a Pool, from: &[usize]) -> BTreeMap<usize, BTreeMa
 /// own size elsewhere whose model this map can take, if the other map can take
 /// this one. Swaps keep every body landing once. Bosses are not touched.
 fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
-    let mut by_group: BTreeMap<(bool, Size), Vec<usize>> = BTreeMap::new();
+    let mut by_group: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
     let mut by_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for (i, s) in pool.spots.iter().enumerate() {
         if s.boss.is_none() {
-            by_group.entry((s.dlc, s.size)).or_default().push(i);
+            by_group
+                .entry((s.dlc, s.size, s.class))
+                .or_default()
+                .push(i);
             by_map.entry(s.map_index).or_default().push(i);
         }
     }
@@ -555,7 +616,7 @@ fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
                     continue;
                 }
                 let s = &pool.spots[i];
-                let Some(&j) = by_group[&(s.dlc, s.size)].iter().find(|&&j| {
+                let Some(&j) = by_group[&(s.dlc, s.size, s.class)].iter().find(|&&j| {
                     let other = pool.spots[j].map_index;
                     let theirs = pool.spots[from[j]].body.model.as_str();
                     let there = added.get(&other);
@@ -856,6 +917,7 @@ mod tests {
                 name_text: 0,
             },
             size,
+            class: Class::Plain,
             dlc: false,
             boss: boss.then_some(BossSpot {
                 bar_text: i as i32,
@@ -898,6 +960,30 @@ mod tests {
         assert_eq!(seen, (0..p.spots.len()).collect::<Vec<_>>());
         assert_eq!(plan, shuffle(&p, 7, &opts(100, 100, 30)));
         assert_ne!(plan, shuffle(&p, 8, &opts(100, 100, 30)));
+    }
+
+    #[test]
+    fn invaders_and_humans_trade_only_among_themselves() {
+        let mut p = sample();
+        for (i, s) in p.spots.iter_mut().enumerate().skip(20) {
+            s.class = [Class::Plain, Class::Human, Class::Invader][i % 3];
+        }
+        for seed in 0..20 {
+            let plan = shuffle(&p, seed, &opts(100, 100, 100));
+            let mut moved = 0;
+            for (i, &f) in plan.from.iter().enumerate() {
+                let (a, b) = (&p.spots[i], &p.spots[f]);
+                if a.boss.is_none() && b.boss.is_none() {
+                    assert_eq!(a.class, b.class);
+                    moved += usize::from(i != f && a.class != Class::Plain);
+                }
+                // A boss sent out takes a plain spot, so no invader ends up in an arena.
+                if a.boss.is_some() && b.boss.is_none() {
+                    assert_eq!(b.class, Class::Plain);
+                }
+            }
+            assert!(moved > 0);
+        }
     }
 
     #[test]
