@@ -1618,3 +1618,28 @@ Could not be settled from the code: whether slots that never give their item exi
 that results match across systems (the suite passes on Linux and under Wine);
 `crates/native` against the auto-upgrade rules, which was only partly read.
 
+## Failed branches, and what stays shut (2026-11-01)
+
+**Failed conditions are now read.** A talk state tries its conditions in order, so the
+one that passes says those before it failed. `fs_esd::reach::must_strictly` counts that,
+and `apoc-fs gift-audit` lists what can shut each gift that may take a key item. A gift
+that needs a flag off on every way, where an event can turn that flag on, is now
+`missable`, so no key item goes there. Six slots changed:
+Rold Medallion's (needs the Erdtree unburnt, flag 110, and a key placed elsewhere can let
+a player burn it first), Grace Mimic's, the Perfume Bottle's, the Hole-Laden Necklace's,
+and both Scorpion Stew gifts'. Flag 9001 is left out: events hold it on only while they run.
+Flags that talk turns on are not counted, as talk marks its own gifts given that way: in the
+audit's list, each such flag is set under the same conditions as its gift's award. That is a
+reading of the conditions, not of the game running.
+
+**Neutralizing Boluses is never given.** Flag 10009335 appears once, as a test in
+`t304001000`. No event, talk script or param row holds it (`apoc-fs gift-blockers`), so it
+is now `unused` and takes no item. Code in the exe setting it cannot be ruled out from
+these files. Nothing depends on it either way.
+
+**Five gifts open.** Following flags eight steps back, up from four, opens those whose every
+step is read. 49 stay shut, down from 54, all still missable, so none could take a key item.
+What holds them: `1003[3]`, `3[1]` and `3[26]`, range and state tests not settled, `3[12]`
+and `3[10]`, and flags nothing sets. They stay unread, as a wrong guess would count a
+gift the game withholds.
+

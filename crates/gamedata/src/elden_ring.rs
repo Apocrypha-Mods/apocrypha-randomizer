@@ -1023,8 +1023,10 @@ impl Names<'_> {
 
 /// How many ways to keep for one gift or flag: the shortest.
 const MAX_WAYS: usize = 8;
-/// How deep a flag set in talk is followed back to what that talk asks.
-const MAX_DEPTH: usize = 4;
+/// How deep a flag is followed back to what sets it. Long quests chain further than
+/// four steps, and at the limit a way stays shut, so a deeper one only opens gifts
+/// whose every step was read.
+const MAX_DEPTH: usize = 8;
 
 /// The Knights of the Great Jar (m60_47_41). Talking to the Jar turns on
 /// 1047419200; then entering the fight's region summons each knight not yet

@@ -860,6 +860,12 @@ kind = "gift"
 source = "talk t324001100"
 note = "A Leyndell talk script can award it (lot 102800), but nobody in Leyndell gives it: the left half is only in Castle Sol (checked in play, 2026-10-29)."
 
+[[unused]]
+item = "Neutralizing Boluses"
+kind = "gift"
+source = "talk t304001000"
+note = "Waits on flag 10009335, which its talk script tests once and no event, talk script or param row sets, so it is never given. Ruled out so no item is lost there."
+
 # --- Shop rows no merchant opens ---------------------------------------------------
 
 [[shop_rows]]

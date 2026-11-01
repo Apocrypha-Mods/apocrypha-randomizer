@@ -259,6 +259,8 @@ enum Command {
     /// For each gift that may take a key item: what its talk script asks once
     /// failed conditions count, and what can turn on a flag it needs off.
     GiftAudit { game: PathBuf },
+    /// Where flags appear, and what stands on each way an event turns them on.
+    GiftBlockers { game: PathBuf, flags: Vec<u32> },
     /// Whole events, by id, and every use of instructions given as `bank:id`.
     ScriptDump {
         game: PathBuf,
@@ -435,6 +437,7 @@ fn main() {
         } => test_kit::kill(game, out, &map, entity, after, over, freeze),
         Command::ScriptFind { game, values } => script_find(game, &values),
         Command::GiftAudit { game } => gift_audit::run(game),
+        Command::GiftBlockers { game, flags } => gift_audit::blockers(game, &flags),
         Command::ScriptDump { game, events, uses } => script_dump(game, &events, &uses),
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::TestWarp {

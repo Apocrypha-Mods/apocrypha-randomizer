@@ -13,6 +13,67 @@ use fs_esd::commands::{AWARD_ITEM_LOT, SET_EVENT_FLAG};
 use fs_esd::cond::Atom;
 use gamedata::model::Kind;
 
+/// Where each of `flags` appears in any form, and what stands on each way an event
+/// turns it on: what keeps a gift shut.
+pub fn blockers(game: PathBuf, flags: &[u32]) -> Result<()> {
+    let s = gamedata::Sources::open(&game)?;
+    let setters = [catalogue::named("set_flag"), catalogue::named("set_flag_b")];
+    let range = catalogue::named("set_flag_range");
+    let mut scripts: Vec<(String, &fs_emevd::Emevd)> =
+        s.scripts.iter().map(|(m, e)| (m.to_string(), e)).collect();
+    scripts.push(("common".to_string(), &s.common));
+    for &f in flags {
+        println!("\n== {f}");
+        let bytes = f.to_le_bytes();
+        let has = |b: &[u8]| b.windows(4).any(|w| w == bytes);
+        for name in s.reg.table_names().map(String::from).collect::<Vec<_>>() {
+            if let Ok(t) = s.reg.table(&name) {
+                for r in t.rows.iter().filter(|r| has(&r.data)) {
+                    println!("  param {name} row {}", r.id);
+                }
+            }
+        }
+        for (_, name, esd) in &s.talk {
+            let uses = esd.expressions.windows(4).filter(|w| *w == bytes).count();
+            if uses > 0 {
+                println!("  talk {name}: {uses} uses in expressions");
+            }
+        }
+        for (map, script) in &scripts {
+            for run in catalogue::runs(script, Some(&s.common_func)) {
+                for i in &run.instructions {
+                    if (i.bank, i.id) == (range.bank, range.id) {
+                        let word = |name| catalogue::Entry::word(i, range.arg(name).word);
+                        if let (Some(a), Some(b), Some(1)) =
+                            (word("first"), word("last"), word("state"))
+                            && (a..=b).contains(&f)
+                        {
+                            println!("  {map}: range {a}..{b} set on");
+                        }
+                    }
+                }
+                let sets = |i: &fs_emevd::Instruction| {
+                    setters.iter().any(|e| {
+                        (e.bank, e.id) == (i.bank, i.id)
+                            && catalogue::Entry::word(i, e.arg("flag").word) == Some(f)
+                            && catalogue::Entry::word(i, e.arg("state").word) == Some(1)
+                    })
+                };
+                for (_, ways) in fs_emevd::flow::ways_to(&run.instructions, sets) {
+                    for way in ways.iter().take(3) {
+                        let tests: Vec<String> = way
+                            .iter()
+                            .map(|l| format!("{}{:?}", if l.holds { "" } else { "!" }, l.test))
+                            .collect();
+                        println!("  {map}: set after {}", tests.join(" & "));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 pub fn run(game: PathBuf) -> Result<()> {
     let s = gamedata::Sources::open(&game)?;
     let model = gamedata::elden_ring::extract(&s)?;

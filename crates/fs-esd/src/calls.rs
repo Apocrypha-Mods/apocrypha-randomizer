@@ -58,13 +58,13 @@ pub fn resolve_strictly(esd: &Esd) -> Vec<StrictWay> {
     let mut must: HashMap<i64, Vec<Option<BTreeSet<Atom>>>> = HashMap::new();
     let mut seen: HashSet<Call> = HashSet::new();
     let mut out = Vec::new();
-    let mut todo: Vec<(i64, Vec<Option<i32>>, BTreeSet<Atom>, usize)> = esd
+    let mut todo: Vec<(Call, usize)> = esd
         .groups
         .iter()
         .filter(|g| !called.contains(&g.id))
-        .map(|g| (g.id, Vec::new(), BTreeSet::new(), 0))
+        .map(|g| ((g.id, Vec::new(), BTreeSet::new()), 0))
         .collect();
-    while let Some((id, passed, held, depth)) = todo.pop() {
+    while let Some(((id, passed, held), depth)) = todo.pop() {
         let g = groups[&id];
         let here = must
             .entry(id)
@@ -90,7 +90,7 @@ pub fn resolve_strictly(esd: &Esd) -> Vec<StrictWay> {
                         && depth < MAX_DEPTH
                         && seen.insert((target, args.clone(), needs.clone()))
                     {
-                        todo.push((target, args, needs, depth + 1));
+                        todo.push(((target, args, needs), depth + 1));
                     }
                     continue;
                 }
