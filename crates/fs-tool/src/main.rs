@@ -22,6 +22,7 @@ mod instructions;
 mod labels;
 mod logic;
 mod model;
+mod mounts;
 mod msb_columns;
 mod names;
 mod scripts;
@@ -159,6 +160,8 @@ enum Command {
     },
     /// How the placed enemies divide, and each boss as the scripts name it.
     Enemies { game: PathBuf },
+    /// The maps' mount events: which parts they tie together, and on what models.
+    Mounts { game: PathBuf },
     /// How NpcParam rows differ, word by word.
     NpcDiff { game: PathBuf, rows: Vec<i32> },
     /// How SpEffectParam rows differ, word by word.
@@ -372,6 +375,7 @@ fn main() {
         Command::Model { game, dump } => model::run(game, dump),
         Command::Logic { game } => logic::run(game),
         Command::Enemies { game } => enemies::run(game),
+        Command::Mounts { game } => mounts::run(game),
         Command::NpcDiff { game, rows } => enemies::diff(game, rows),
         Command::SpDiff { game, rows } => enemies::sp_diff(game, rows),
         Command::EntityEvents {

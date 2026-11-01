@@ -27,6 +27,9 @@ use items::rng::Rng;
 
 const PARTS: &str = "PARTS_PARAM_ST";
 const MODELS: &str = "MODEL_PARAM_ST";
+const EVENTS: &str = "EVENT_PARAM_ST";
+/// The event type that ties a rider's part to a mount's.
+const MOUNT_EVENT: i64 = 21;
 /// An enemy that takes part in play. Type 10 stands in cutscenes and the like.
 const ENEMY: i64 = 2;
 /// Mixed into the seed, so enemies draw apart from items.
@@ -206,6 +209,27 @@ fn words(i: &fs_emevd::Instruction) -> impl Iterator<Item = u32> + '_ {
         .map(|w| u32::from_le_bytes(w.try_into().unwrap()))
 }
 
+/// The parts a map's mount events tie together as rider and mount. The event
+/// stays when a part's body changes, and the game then sets up a ride between
+/// bodies that have none: it crashed around Stormveil, with its 16 such events.
+fn tied_parts(msb: &Msb) -> HashSet<usize> {
+    let mut out = HashSet::new();
+    for e in &msb.table(EVENTS).entries {
+        if field(EVENTS, "type").get(e, 0) != Some(MOUNT_EVENT) {
+            continue;
+        }
+        for name in ["rider_part", "mount_part"] {
+            if let Some(p) = field(EVENTS, name)
+                .get(e, 0)
+                .and_then(|p| usize::try_from(p).ok())
+            {
+                out.insert(p);
+            }
+        }
+    }
+    out
+}
+
 /// Find everything that can move.
 pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     let npc_rows: HashMap<i32, Row> = s
@@ -288,6 +312,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
         .collect();
     for (map_index, (m, msb)) in s.maps.iter().enumerate() {
         let models = &msb.table(MODELS).entries;
+        let tied = tied_parts(msb);
         for (part, e) in msb.table(PARTS).entries.iter().enumerate() {
             if get(e, "type") != ENEMY {
                 continue;
@@ -343,6 +368,8 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 let shown = s.text("NpcName", *bar_text).unwrap_or(&name).to_string();
                 let refuse = if shown.contains("dummy") {
                     Some("a stand-in with no fight of its own")
+                } else if tied.contains(&part) {
+                    Some("it is tied to its rider or mount")
                 } else if rises.contains(&en) {
                     Some("it gets up as a next stage, and its script stays here")
                 } else if !hostile {
@@ -375,6 +402,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 continue;
             }
             let body_ok = !NOT_BODIES.contains(&model_name.as_str())
+                && !tied.contains(&part)
                 && (model_name != "c0000" || chara > 0)
                 && npc.field("hp").get(&row.data, 0) > 1
                 && body.think > 1

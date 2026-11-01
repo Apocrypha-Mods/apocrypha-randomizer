@@ -118,6 +118,29 @@ evidence = "-1 in 22,846 of 23,203 enemies; every other value is a row of CharaI
 
 [[field]]
 table = "EVENT_PARAM_ST"
+types = [21]
+name = "rider_part"
+section = 0x20
+offset = 0x00
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+An index into the map's PARTS_PARAM_ST, or -1. Event type 21 ties two parts as
+rider and mount: their models are a RideParam row's rider (+0x00) and mount
+(+0x04), checked by the real-file test."""
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [21]
+name = "mount_part"
+section = 0x20
+offset = 0x04
+kind = "i32"
+confidence = "confirmed"
+evidence = "The other part of a rider_part's event, or -1."
+
+[[field]]
+table = "EVENT_PARAM_ST"
 types = [4]
 name = "treasure_part"
 section = 0x20

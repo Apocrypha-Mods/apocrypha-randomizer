@@ -966,6 +966,14 @@ Still to do:
   - **Next, one lab run:** either have `apoc_native` log the character's model, ride state and three manipulator
     slots on that fault, which tells the routes apart and names the body; or filter RideParam's models, c0000
     among them, from `body_ok` and see if the crash stops, a possible stopgap that says less.
+- **Mount events, the likely cause, fixed; not yet seen in the game** (2026-11-01, no lab run). Map event type 21 ties
+  a rider's part to a mount's (`rider_part`, `mount_part`). `apoc-fs mounts` lists them: 136 tie a part to another or
+  to none, 26 are unset, and all 134 full pairs are models a RideParam row pairs. Stormveil's map has 16. Moves changed the
+  bodies on those parts and left the event, so the game set up a ride between bodies that have none. Parts in a mount
+  event no longer move, as ordinary enemies or as bosses, which keeps Night's Cavalry and their horses in place (three boss
+  names leave the boss pool, so seeds that move bosses change). 21,572 spots remain. `real_enemies.rs` holds it. This fits
+  the crash but does not explain why the manipulator is null. The next lab run, a seed with ordinary enemies around
+  Stormveil on the save that crashed, should pass the 30 s where it always closed. The add-on keeps ordinary enemies off until then.
 - **Machine checks again** (2026-10-31, 16:36). The PC went down some 25 s after a lab run was
   stopped, its scope having just timed out and been killed, nothing else running. The same
   fatal error: MC5, syndrome 0x4d000000, on another address (Ryzen 7 5700X). The last three

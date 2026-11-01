@@ -323,3 +323,75 @@ fn placidusaxs_arena_has_no_sleep() {
         "the fight starts by distance"
     );
 }
+
+/// Mount events tie a rider's part to a mount's, on models RideParam pairs, and
+/// neither part moves: changing either's body crashed the game around Stormveil.
+#[test]
+fn riders_and_mounts_stay_where_their_event_ties_them() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let rides: HashSet<(i32, i32)> = s
+        .reg
+        .table("RideParam")
+        .unwrap()
+        .rows
+        .iter()
+        .map(|r| {
+            let w = |o: usize| i32::from_le_bytes(r.data[o..o + 4].try_into().unwrap());
+            (w(0), w(4))
+        })
+        .collect();
+    let (mut pairs, mut in_ride_param) = (0, 0);
+    let mut tied_stormveil = 0;
+    let spots: HashSet<(usize, usize)> = p.spots.iter().map(|s| (s.map_index, s.part)).collect();
+    for (i, (m, msb)) in s.maps.iter().enumerate() {
+        let parts = &msb.table(PARTS).entries;
+        let models = &msb.table("MODEL_PARAM_ST").entries;
+        let number = |part: usize| -> Option<i32> {
+            let at = field(PARTS, "model").get(parts.get(part)?, 0)?;
+            entry_name(models.get(usize::try_from(at).ok()?)?)?[1..]
+                .parse()
+                .ok()
+        };
+        for e in &msb.table("EVENT_PARAM_ST").entries {
+            if field("EVENT_PARAM_ST", "type").get(e, 0) != Some(21) {
+                continue;
+            }
+            let end = |n: &str| {
+                field("EVENT_PARAM_ST", n)
+                    .get(e, 0)
+                    .and_then(|v| usize::try_from(v).ok())
+            };
+            let (rider, mount) = (end("rider_part"), end("mount_part"));
+            for part in [rider, mount].into_iter().flatten() {
+                assert!(
+                    !spots.contains(&(i, part)),
+                    "{m} part {part} is in the pool"
+                );
+            }
+            if let (Some(r), Some(t)) = (rider, mount) {
+                pairs += 1;
+                if m.to_string() == "m10_00_00_00" {
+                    tied_stormveil += 1;
+                }
+                if number(r)
+                    .zip(number(t))
+                    .is_some_and(|pair| rides.contains(&pair))
+                {
+                    in_ride_param += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(tied_stormveil, 16);
+    assert!(pairs > 100, "{pairs}");
+    println!(
+        "{pairs} pairs, {in_ride_param} in RideParam, {} spots",
+        p.spots.len()
+    );
+    assert!(
+        in_ride_param * 100 >= pairs * 95,
+        "{in_ride_param} of {pairs}"
+    );
+}
