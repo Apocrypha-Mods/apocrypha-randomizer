@@ -1704,3 +1704,40 @@ Others stand on `3[10]` (182, ten flags from 170, at least two on) and `3[12]` (
 would need counts and values followed, or on flags with no event setting them (7607 to 7609,
 1044362703, 1044362709, 1034509410 among them). These last were read from what `gift-blockers` prints,
 not each followed through talk as 4323 was.
+
+## What a moved item leaves behind (2026-11-01)
+
+No game or lab run: read from the scripts and proven by the walk. `apoc-fs flag-readers` lists what reads the
+pick-up flag of each key or quest item, and `apoc-fs item-readers` what names the item itself.
+
+**Doors that follow the item.** The Grand Lifts (common event 930, 3[4] with the two Dectus halves, Rold and the two
+Haligtree halves), the academy's doors, the Carian Inverted Statue, the Imbued Sword Key and the Unalloyed Gold Needle all
+test the item held, so moving them is safe. Reads of `if_item` as "held" are the catalogue's, probable.
+
+**The capital's gate does not.** It tests flags 182 and 105 (m60_45_52 event 1045522500). 182 is on when two of flags
+170 to 179 are (common event 730), and those are set by bosses' reward rows and by event 6905 from the rewards' flags; 105
+on entering the Roundtable Hold. No script tests a rune held. So a seed with two runes in early chests passed the proof
+while the gate stayed shut, and one with none could open it. The edge now asks for two of Godrick, Rennala, Radahn, Rykard,
+Mohg and Malenia, and Great Runes are no longer key items. Rennala's flag 177 comes only from event 6905, which starts with
+the game's common script, so her count may want a reload; this has not been seen in play.
+
+**Doors on a slot's flag.** The East Altus tower's door and one in the Shunning-Grounds test 400001, the flag of Melina's
+gift, which she cannot give after the burning. Those areas take no key or quest item. Which part of the Shunning-Grounds is
+behind its door was not read, so the whole map counts. The Divine Towers' restored runes (event 90005110) wait on their boss
+and name the rune, which the area map cannot see, so they take none either.
+
+**Places that close.** `closes` in the area map: the capital, the Shunning-Grounds, and the towers reached through them.
+Which of these truly shut after the burning was not tested; the reading is the strict one, and it only narrows placement.
+Other closings (Volcano Manor after its quest, Farum Azula) are not modelled.
+
+**Where key and quest items go.** Never an unlimited shop row, nor one above 3,000 runes (our own figure), nor an enemy's
+drop while enemies move (`Options::enemies_move`). Slots that may not give their item take consumables or upgrades first, and
+unlimited rows consumables first, unless the sliders leave none. Prices are still the rows' own (`value`, probable).
+
+**Output.** `<out>.files` beside the folder lists what a seed wrote; the next seed removes what it did not rewrite, and never
+anything off the list. A folder with no list is warned about, not touched. `generate` always writes `<out>.me3`, whose save is
+the seed's own, though only launching through that profile uses it. The add-on goes through the mod manager, which was not changed.
+
+Proven on 2.7.2 with `apoc-rando check`, three threads beside other work, none failing: 10,000 default seeds in 1,449 s; 2,000
+with enemies moving in 303 s; 2,000 with the DLC separate, half of everything moving and keys at 60% bias in 166 s; 500 with
+consumables and upgrades held still in 81 s. The `enemies`, `items`, `logic` and `rando` tests pass.
