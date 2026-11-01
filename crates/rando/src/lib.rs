@@ -435,6 +435,24 @@ fn open_files(game: &Path, mods: &[PathBuf]) -> Result<GameFiles> {
     GameFiles::open(game, &dirs)
 }
 
+/// Refuse to write inside the game's folder, as a later seed removes what the last one
+/// wrote there. `out` may not exist yet, so its nearest existing parent is what is compared.
+fn not_in_game(game: &Path, out: &Path) -> Result<()> {
+    let game = game.canonicalize()?;
+    let absolute = std::path::absolute(out)?;
+    let parent = absolute.ancestors().find(|a| a.exists());
+    if parent
+        .and_then(|a| a.canonicalize().ok())
+        .is_some_and(|a| a.starts_with(&game))
+    {
+        return Err(format_err(format!(
+            "{} is inside the game's folder; choose a mod folder elsewhere",
+            out.display()
+        )));
+    }
+    Ok(())
+}
+
 /// Build one seed's mod folder, its spoiler log and, where needed, its profile.
 pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
     let Request {
@@ -447,6 +465,7 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
         mods,
     } = request;
     let (game, mods) = (game.as_path(), mods.as_slice());
+    not_in_game(game, out)?;
     let files = open_files(game, mods)?;
     let mut sources = Sources::open_with(game, &files)?;
     known_patch(&sources.reg.version())?;
@@ -824,6 +843,17 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(e.contains("/no/such/mod"), "{e}");
+    }
+
+    #[test]
+    fn a_folder_inside_the_game_is_refused() {
+        let dir = std::env::temp_dir().join(format!("apoc-in-game-{}", std::process::id()));
+        let game = dir.join("game");
+        std::fs::create_dir_all(&game).unwrap();
+        assert!(not_in_game(&game, &game.join("mods/seed")).is_err());
+        assert!(not_in_game(&game, &game).is_err());
+        assert!(not_in_game(&game, &dir.join("seed")).is_ok());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

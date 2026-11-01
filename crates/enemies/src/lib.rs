@@ -986,6 +986,17 @@ mod tests {
         }
     }
 
+    /// Written from Linux and held on every system CI runs, none of which has the game:
+    /// a plan drawn differently anywhere would change every seed there.
+    #[test]
+    fn a_plan_is_the_same_on_every_system() {
+        let plan = shuffle(&sample(), 12345, &opts(100, 100, 30));
+        let hash = plan.from.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &f| {
+            (h ^ f as u64).wrapping_mul(0x100_0000_01b3)
+        });
+        assert_eq!(hash, 2038416491583041321);
+    }
+
     #[test]
     fn at_nought_nothing_moves() {
         let p = sample();
