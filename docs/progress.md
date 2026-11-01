@@ -1643,3 +1643,7 @@ What holds them: `1003[3]`, `3[1]` and `3[26]`, range and state tests not settle
 and `3[10]`, and flags nothing sets. They stay unread, as a wrong guess would count a
 gift the game withholds.
 
+Both changes were proven on 2.7.2 with `apoc-rando check`, seeds 0 to 9,999, none failing: the
+failed branches in 1,371 s, then the Boluses and the five gifts on top in 1,122 s. On the mod
+manager's `feat/randomizer-addon`, its whole gate passes, with 4,455 Rust tests.
+
