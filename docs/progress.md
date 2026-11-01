@@ -1687,5 +1687,12 @@ only the first argument of a call to a shared routine (`t409006100`, `t409106100
 command receives it. Their other ways come back to it: 2051459743 is set in talk on 4326 and
 2051459205, and 4326 is set by event only on 4323. 2051459205 and 2051459740 were found in talk
 only. Whatever sets 4323 is outside the files read, so these stay shut; the game running, or more of
-the exe, would show it. The other 17 were not each traced this far. `apoc-fs gift-blockers` now
-prints the talk commands holding a flag.
+the exe, would show it. `apoc-fs gift-blockers` now prints the talk commands holding a flag.
+
+**The other 17.** Flags 3062 and 3063 test the graces of 76200 to 76299 and 76300 to 76399, ranges past
+the 64 flags `flow` reads one by one. Tried on 2.7.2: reading them, with a grace's flag meaning its map
+reached, opens no gift, as each of those gifts also names another flag. So the change was not kept.
+Others stand on `3[10]` (182, ten flags from 170, at least two on) and `3[12]` (3646, 1035449235), which
+would need counts and values followed, or on flags with no event setting them (7607 to 7609,
+1044362703, 1044362709, 1034509410 among them). These last were read from what `gift-blockers` prints,
+not each followed through talk as 4323 was.
