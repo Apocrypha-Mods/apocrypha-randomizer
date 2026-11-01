@@ -163,15 +163,13 @@ by `tools/pack.sh` (see docs/progress.md).
   must derive (location and enemy annotations, boss event templates, item-check
   rewrites, flag ranges and more).
 
-## 6a. Decisions still open (Nova)
+## 6a. Decisions made (Nova, 2026-11-01)
 
-- **Crash-fix DLL.** Mixing base-game and DLC enemies tends to crash without a
-  helper that raises the game's memory limits. Build our own (a separate clean
-  effort), rely on a loader feature, or keep base and DLC enemies separate by
-  default.
-- **Fog-gate randomizer compatibility.** Support a third-party fog-gate tool,
-  build our own later, or neither.
-- **Archipelago multiworld.** In or out of scope.
+- **Crash-fix DLL.** None for now: base-game and DLC enemies stay apart by default, and
+  one is built only if play shows it is needed.
+- **Fog-gate randomizers.** Neither supported nor built for the first release.
+- **Archipelago multiworld.** Out for the first release.
+- **The add-on page** offers every option the command line has (spec `items.md` §1).
 
 ## 7. Working rules
 

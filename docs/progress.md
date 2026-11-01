@@ -1771,3 +1771,14 @@ seed overrides, and it does not list that map. So Limgrave's mounted patrols wer
 shows these maps load and run with moved enemies standing in them, not that fights work.
 
 `test-warp` from a map near its target reloaded for ever, seen the same with enemies unmoved, so it now fires once, on flag 10009990.
+
+## Moved bosses: what was read, and what was not filtered (2026-11-01)
+
+No lab run. `apoc-fs boss-commands` lists what scripts tell each spot. Looking for scripted immortality: `2004[10]` state 1 is on
+30 spots, but ordinary field bosses use it too, off early in their fight event and on near its end, so it is not that. `2004[35]` and
+`2004[73]` sit around cutscenes and stage changes, and their meaning was not settled. No filter was added, as a wrong one pins
+bosses for nothing. Water, falls and poison were not filtered either: a death there ends the fight and the reward stays. Which
+summons a boss relies on was not read; the defeat events wait on the spot's own bodies, as read before. See `spec/enemies.md` §4.
+
+Nova's decisions: enemies stay on their own side unless `--enemy-dlc mixed`, in the add-on always; a shop row moves only if its
+item's category slider allows it as well as the merchants'.

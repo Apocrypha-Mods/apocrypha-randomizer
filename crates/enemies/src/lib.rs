@@ -79,7 +79,9 @@ impl Default for Options {
             ordinary: 0,
             mix: 0,
             scale: true,
-            dlc_separate: false,
+            // Apart unless asked: mixing them is said to want a helper that raises
+            // the game's limits, which we do not have (PLAN.md §6a).
+            dlc_separate: true,
             models: 20,
         }
     }

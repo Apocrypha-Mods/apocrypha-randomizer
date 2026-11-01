@@ -16,7 +16,8 @@ the first group. Our own design wins wherever the two groups disagree.
 `10-open-questions.md`. It was written by a separate person who read the
 reference program, then reviewed for contamination (no code, no identifiers, no
 data tables), and upstream citations were stripped. It came before the design
-above, which replaced it. Taking behaviour from it is Nova's decision each time.
+above, which replaced it. Taking behaviour from it is Nova's decision each time. On
+2026-11-01 Nova allowed it for enemy hazards.
 
 If something is unclear, ask for the spec to be extended; don't go and look
 upstream.

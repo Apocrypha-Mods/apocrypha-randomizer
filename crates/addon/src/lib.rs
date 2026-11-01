@@ -220,7 +220,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.dlc_separate = request.dlc_separate;
     let mut foes = EnemyOptions::default();
     foes.set(&request.enemies).map_err(format_err)?;
-    foes.dlc_separate = request.dlc_separate;
+    foes.dlc_separate = true;
     let written = Written::default();
     let loaded = state.loaded.as_ref().expect("loaded above");
     let built = rando::build(

@@ -23,7 +23,9 @@ seed and its options always give the same game.
 - **Scaling**, on unless `--no-enemy-scaling`. A body takes the health and
   strength tier of whoever stood there, so Malenia in Margit's arena is about
   as tough as Margit. Off, it keeps its own.
-- **Base game and DLC.** `--dlc separate` keeps enemies on their own side too.
+- **Base game and DLC.** Enemies stay on their own side unless `--enemy-dlc mixed`
+  (Nova, 2026-11-01), as mixing is said to want a helper raising the game's limits, which
+  we do not have. `--dlc` is for items only.
 - **Models per map:** `models=N`, 20 unless given, 0 for no limit. The most models
   ordinary enemies' moves may add to one map; a boss's model does not count. Swaps
   bring maps down to it, so every body still lands once, but where no swap fits a
@@ -100,8 +102,15 @@ To be filled in as they are found. Not yet seen in the game:
   but not its wake (20000 up), and stands asleep. `apoc-fs boss-commands` lists what
   each spot is told. Which ids a body has is a rough reading of its `.anibnd`: 106 of
   340 commands were not found on the spot's own body, so some archives hold more.
-- **Moving ordinary enemies crashes the game near Stormveil**, at every model limit
-  tried (`progress.md`). Bosses alone do not. Not yet safe to play.
+- **Moving ordinary enemies crashed the game near Stormveil** at every model limit
+  tried, until riders, mounts and generators' parts stayed (`progress.md`). Six regions now
+  run in the lab with no crash, but nothing has been fought. Not yet played.
+- **Water, falls and poison in a boss's arena.** Not filtered. A body that dies there
+  still ends the fight, and the reward stays with the place, so this costs a cheap win, not
+  a seed. No list of such arenas has been read from the game.
+- **Scripted immortality.** Not filtered, as no instruction is identified as it: `2004[10]`
+  and `2004[35]` were read and do not fit. If a newcomer stays immortal at some spot, the fight
+  cannot be won; only play will show it. The defeat events wait only on a fall, a death or no health.
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
 - **Quest humans.** A hostile human moved away may be part of a quest's event.

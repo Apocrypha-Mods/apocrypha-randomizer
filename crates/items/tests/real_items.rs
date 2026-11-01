@@ -393,3 +393,21 @@ fn what_must_be_had_lands_where_it_stays_within_reach() {
     }
     assert_eq!(one_off_on_shy, 0);
 }
+
+/// A category at 0% stays put in shops too, whatever the merchants' slider says.
+#[test]
+fn a_category_at_none_stays_in_the_shops() {
+    let Some((s, model)) = sources() else { return };
+    let graph = logic::elden_ring();
+    let bound = Bound::new(&graph, model);
+    let us = items::units(model, &bound, &s.reg).unwrap();
+    let mut options = items::Options::default();
+    options.set(false, "weapons=0,merchants=100").unwrap();
+    let plan = items::shuffle(&bound, &us, 3, &options).unwrap();
+    for (u, unit) in us.iter().enumerate() {
+        if unit.place == items::Place::Shop && unit.category == items::Category::Weapon {
+            assert_eq!(plan.placed[u], u, "row {}", unit.row);
+        }
+    }
+    assert!((0..us.len()).any(|u| us[u].place == items::Place::Shop && plan.placed[u] != u));
+}

@@ -44,6 +44,8 @@ the same options always gives the same game.
 - Shop stock can be shuffled with everything else.
 - How random the shops are is the player's choice: a **merchants** shuffle
   slider, 0–100%, for how much of their stock is put in play.
+- A shop row moves only if both the merchants' slider and its item's own category
+  slider allow it, so a category at 0% stays put in the shops too (Nova, 2026-11-01).
 - Pricing is open. Until it is decided, a shop row keeps its own price and
   stock, whatever item it now sells.
 - Rows paid for in items (Dragon Communion, remembrance trades) stay as they

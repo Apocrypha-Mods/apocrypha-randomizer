@@ -705,7 +705,11 @@ fn attempt(
                             .quest_items
                             .iter()
                             .any(|q| (q.kind, q.id) == (u.item.kind, u.item.id))));
-            rng.below(100) < usize::from(options.shuffle(u.slider())) && !pinned
+            let drawn = rng.below(100) < usize::from(options.shuffle(u.slider()));
+            // A shop row answers to its item's slider too: 0% stays put.
+            let category =
+                u.place != Place::Shop || rng.below(100) < usize::from(options.shuffle(u.category));
+            drawn && category && !pinned
         })
         .collect();
     let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();

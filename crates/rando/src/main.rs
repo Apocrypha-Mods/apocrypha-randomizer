@@ -59,6 +59,10 @@ struct Sliders {
     /// shuffle them together (`mixed`, the default).
     #[arg(long, default_value = "mixed", value_parser = ["mixed", "separate"])]
     dlc: String,
+    /// Whether enemies stay on their own side of the base game and the DLC, apart
+    /// from `--dlc`, which is for items. Mixed may crash the game.
+    #[arg(long, default_value = "separate", value_parser = ["mixed", "separate"])]
+    enemy_dlc: String,
     /// Weapons picked up or bought for runes arrive at the highest level the
     /// player has raised one of their path to. Puts our native module in the
     /// mod folder.
@@ -103,7 +107,7 @@ impl Sliders {
         let mut o = EnemyOptions::default();
         o.set(&self.enemies).map_err(format_err)?;
         o.scale = !self.no_enemy_scaling;
-        o.dlc_separate = self.dlc == "separate";
+        o.dlc_separate = self.enemy_dlc == "separate";
         Ok(o)
     }
 }
