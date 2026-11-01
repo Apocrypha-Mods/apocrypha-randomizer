@@ -17,6 +17,7 @@ mod check;
 mod columns;
 mod enemies;
 mod flags;
+mod gift_audit;
 mod instructions;
 mod labels;
 mod logic;
@@ -255,6 +256,9 @@ enum Command {
     },
     /// Every instruction in every map's script holding one of these numbers.
     ScriptFind { game: PathBuf, values: Vec<i32> },
+    /// For each gift that may take a key item: what its talk script asks once
+    /// failed conditions count, and what can turn on a flag it needs off.
+    GiftAudit { game: PathBuf },
     /// Whole events, by id, and every use of instructions given as `bank:id`.
     ScriptDump {
         game: PathBuf,
@@ -430,6 +434,7 @@ fn main() {
             freeze,
         } => test_kit::kill(game, out, &map, entity, after, over, freeze),
         Command::ScriptFind { game, values } => script_find(game, &values),
+        Command::GiftAudit { game } => gift_audit::run(game),
         Command::ScriptDump { game, events, uses } => script_dump(game, &events, &uses),
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::TestWarp {

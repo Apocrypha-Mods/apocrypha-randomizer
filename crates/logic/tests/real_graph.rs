@@ -240,15 +240,25 @@ fn quest_gifts_open_on_the_stages_events_set() {
     );
     let got = missable.iter().filter(|&&i| w.taken[i]).count();
     assert!(got >= 25, "only {got} quest gifts got in the vanilla walk");
-    // Melina's gifts do not wait on a stage that moves on.
-    for item in ["Spectral Steed Whistle", "Rold Medallion"] {
-        assert!(
-            m.locations
-                .iter()
-                .filter(|l| l.items.iter().any(|it| it.name.as_deref() == Some(item)))
-                .all(|l| !l.missable),
-            "{item}"
-        );
+    let is_missable = |item: &str| {
+        m.locations
+            .iter()
+            .filter(|l| l.items.iter().any(|it| it.name.as_deref() == Some(item)))
+            .any(|l| l.missable)
+    };
+    // Melina's whistle waits on nothing that moves on.
+    assert!(!is_missable("Spectral Steed Whistle"));
+    // Lost once an event turns on a flag they need off: the Rold Medallion's slot
+    // needs the Erdtree unburnt (110), which a key item placed elsewhere allows.
+    for item in [
+        "Rold Medallion",
+        "Grace Mimic",
+        "Perfume Bottle",
+        "Hole-Laden Necklace",
+        "Watchful Spirit",
+        "Gourmet Scorpion Stew",
+    ] {
+        assert!(is_missable(item), "{item}");
     }
 }
 
@@ -285,6 +295,6 @@ fn gifts_read_one_at_a_time() {
         let asks = format!("{:?}", m.locations[by_lot(lot)].given_if);
         assert!(asks.contains("Hole-Laden Necklace"), "{asks}");
     }
-    // The necklace that starts it is not one of them.
-    assert!(!m.locations[by_lot(106600)].missable);
+    // Nor does the gift that starts it: events can turn on a flag it needs off.
+    assert!(m.locations[by_lot(106600)].missable);
 }

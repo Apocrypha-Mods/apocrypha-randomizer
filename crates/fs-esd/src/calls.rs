@@ -35,6 +35,77 @@ pub struct Resolved {
     pub needs: BTreeSet<Atom>,
 }
 
+/// What one lot's award asks on one chain of calls, with what failing means
+/// counted: the [`reach::must_strictly`] of each machine on the way there.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct StrictWay {
+    pub bank: i32,
+    pub id: i32,
+    pub args: Vec<Option<i32>>,
+    pub needs: BTreeSet<Atom>,
+}
+
+/// Every one of the game's commands each root machine reaches, as [`resolve`]
+/// finds them, each with what holds there once failed conditions count.
+pub fn resolve_strictly(esd: &Esd) -> Vec<StrictWay> {
+    let groups: HashMap<i64, &Group> = esd.groups.iter().map(|g| (g.id, g)).collect();
+    let called: HashSet<i64> = esd
+        .commands
+        .iter()
+        .filter(|c| c.bank == CALL_BANK)
+        .map(|c| i64::from(c.id))
+        .collect();
+    let mut must: HashMap<i64, Vec<Option<BTreeSet<Atom>>>> = HashMap::new();
+    let mut seen: HashSet<Call> = HashSet::new();
+    let mut out = Vec::new();
+    let mut todo: Vec<(i64, Vec<Option<i32>>, BTreeSet<Atom>, usize)> = esd
+        .groups
+        .iter()
+        .filter(|g| !called.contains(&g.id))
+        .map(|g| (g.id, Vec::new(), BTreeSet::new(), 0))
+        .collect();
+    while let Some((id, passed, held, depth)) = todo.pop() {
+        let g = groups[&id];
+        let here = must
+            .entry(id)
+            .or_insert_with(|| reach::must_strictly(esd, g))
+            .clone();
+        for (s, here) in esd.states_of(g).iter().zip(here) {
+            let here = here.unwrap_or_default();
+            for (c, more) in reach::commands_strictly(esd, s) {
+                let needs: BTreeSet<Atom> =
+                    held.iter().chain(&here).chain(&more).copied().collect();
+                let args: Vec<Option<i32>> = esd
+                    .command_args(c)
+                    .into_iter()
+                    .map(|e| {
+                        let e = e?;
+                        expr::constant(e)
+                            .or_else(|| passed.get(expr::argument(e)?).copied().flatten())
+                    })
+                    .collect();
+                if c.bank == CALL_BANK {
+                    let target = i64::from(c.id);
+                    if groups.contains_key(&target)
+                        && depth < MAX_DEPTH
+                        && seen.insert((target, args.clone(), needs.clone()))
+                    {
+                        todo.push((target, args, needs, depth + 1));
+                    }
+                    continue;
+                }
+                out.push(StrictWay {
+                    bank: c.bank,
+                    id: c.id,
+                    args,
+                    needs,
+                });
+            }
+        }
+    }
+    out
+}
+
 /// Every one of the game's commands each root machine reaches, once for each
 /// set of arguments it is reached with and what holds there.
 pub fn resolve(esd: &Esd) -> Vec<Resolved> {

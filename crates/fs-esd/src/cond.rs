@@ -139,6 +139,16 @@ pub fn requires(e: &[u8]) -> Vec<Atom> {
     out
 }
 
+/// What is sure when an expression is false: of a plain test, its opposite. A
+/// failed "and" says nothing of which part failed, so it adds nothing.
+pub fn refuses(e: &[u8]) -> Vec<Atom> {
+    let mut out = Vec::new();
+    if let Some(n) = parse(e) {
+        collect(&n, false, &mut out);
+    }
+    out
+}
+
 /// The atoms `n` asks for when it is `truth`.
 fn collect(n: &Node, truth: bool, out: &mut Vec<Atom>) {
     match n {
@@ -185,6 +195,20 @@ mod tests {
         let mut b = vec![INT];
         b.extend_from_slice(&v.to_le_bytes());
         b
+    }
+
+    #[test]
+    fn a_failed_test_says_its_opposite_and_a_failed_and_says_nothing() {
+        let mut one = vec![0x4F];
+        one.extend(int(77));
+        one.extend([0x85, 0x41, EQ]);
+        let mut e = one.clone();
+        e.push(END);
+        assert_eq!(refuses(&e), vec![Atom::Flag(77, false)]);
+        let mut both = one.clone();
+        both.extend(one);
+        both.extend([AND, END]);
+        assert_eq!(refuses(&both), vec![]);
     }
 
     #[test]

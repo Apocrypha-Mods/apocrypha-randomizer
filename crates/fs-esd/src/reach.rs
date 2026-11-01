@@ -9,12 +9,28 @@
 
 use std::collections::BTreeSet;
 
-use crate::cond::{Atom, requires};
+use crate::cond::{Atom, refuses, requires};
 use crate::{Command, Condition, Esd, Group};
 
 /// The atoms that hold on every way to each state of `g` (in the order of
 /// [`Esd::states_of`]); `None` for a state no way reaches.
 pub fn must(esd: &Esd, g: &Group) -> Vec<Option<BTreeSet<Atom>>> {
+    must_by(esd, g, conditions)
+}
+
+/// [`must`], with what failing means counted too: a state's conditions are
+/// tried in order, so the one that passes says the ones before it failed. A way
+/// that needs a flag off is lost once that flag comes on, which is how a gift
+/// comes to be missed on a branch.
+pub fn must_strictly(esd: &Esd, g: &Group) -> Vec<Option<BTreeSet<Atom>>> {
+    must_by(esd, g, conditions_strictly)
+}
+
+fn must_by<'a>(
+    esd: &'a Esd,
+    g: &'a Group,
+    conditions: impl Fn(&'a Esd, Vec<&'a Condition>) -> Vec<(&'a Condition, BTreeSet<Atom>)>,
+) -> Vec<Option<BTreeSet<Atom>>> {
     let states = esd.states_of(g);
     let Some(first) = states.first().and_then(|s| esd.index_of(s)) else {
         return Vec::new();
@@ -78,6 +94,33 @@ pub fn conditions<'a>(
     out
 }
 
+/// [`conditions`], with what the conditions tried first say by failing.
+pub fn conditions_strictly<'a>(
+    esd: &'a Esd,
+    top: Vec<&'a Condition>,
+) -> Vec<(&'a Condition, BTreeSet<Atom>)> {
+    let mut out = Vec::new();
+    let mut todo: Vec<(Vec<&Condition>, BTreeSet<Atom>)> = vec![(top, BTreeSet::new())];
+    while let Some((list, mut held)) = todo.pop() {
+        for c in list {
+            if out.len() > 10_000 {
+                return out;
+            }
+            let mut atoms = held.clone();
+            let expression = esd.expression(c.evaluator);
+            if let Some(e) = expression {
+                atoms.extend(requires(e));
+            }
+            todo.push((esd.conditions_in(c.subconditions), atoms.clone()));
+            out.push((c, atoms));
+            if let Some(e) = expression {
+                held.extend(refuses(e));
+            }
+        }
+    }
+    out
+}
+
 /// Every command a state runs, with what holds when it runs beyond the
 /// state's own `must`: its on-enter, on-exit and on-update commands ask for
 /// nothing more, a condition's on-pass commands for what the condition does.
@@ -88,6 +131,26 @@ pub fn commands<'a>(esd: &'a Esd, s: &'a crate::State) -> Vec<(&'a Command, BTre
         .map(|c| (c, BTreeSet::new()))
         .collect();
     for (c, atoms) in conditions(esd, esd.conditions_in(s.conditions)) {
+        out.extend(
+            esd.commands_in(c.on_pass)
+                .iter()
+                .map(|cmd| (cmd, atoms.clone())),
+        );
+    }
+    out
+}
+
+/// [`commands`], with what the conditions tried first say by failing.
+pub fn commands_strictly<'a>(
+    esd: &'a Esd,
+    s: &'a crate::State,
+) -> Vec<(&'a Command, BTreeSet<Atom>)> {
+    let mut out: Vec<(&Command, BTreeSet<Atom>)> = [s.on_enter, s.on_exit, s.on_update]
+        .into_iter()
+        .flat_map(|span| esd.commands_in(span))
+        .map(|c| (c, BTreeSet::new()))
+        .collect();
+    for (c, atoms) in conditions_strictly(esd, esd.conditions_in(s.conditions)) {
         out.extend(
             esd.commands_in(c.on_pass)
                 .iter()

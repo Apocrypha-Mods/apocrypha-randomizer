@@ -322,6 +322,29 @@ pub fn extract(s: &Sources) -> Result<Model> {
         }
     }
 
+    // The flags each lot needs off on every way to it, failed conditions counted.
+    let mut needs_off: HashMap<i32, BTreeSet<u32>> = HashMap::new();
+    for (_, _, esd) in &s.talk {
+        for r in fs_esd::calls::resolve_strictly(esd) {
+            if let (AWARD_ITEM_LOT, [Some(lot), ..]) = ((r.bank, r.id), &r.args[..])
+                && *lot > 0
+            {
+                let off: BTreeSet<u32> = r
+                    .needs
+                    .iter()
+                    .filter_map(|a| match a {
+                        Atom::Flag(f, false) => Some(*f),
+                        _ => None,
+                    })
+                    .collect();
+                needs_off
+                    .entry(*lot)
+                    .and_modify(|all| all.retain(|f| off.contains(f)))
+                    .or_insert(off);
+            }
+        }
+    }
+
     // What the talk scripts give, and which shop rows they open.
     let mut gifts: Vec<(Option<MapId>, &str, i32)> = Vec::new();
     let mut sold_by: HashMap<i32, BTreeSet<(MapId, &str)>> = HashMap::new();
@@ -941,6 +964,19 @@ pub fn extract(s: &Sources) -> Result<Model> {
         l.given_if = (out.first() != Some(&Vec::new())).then_some(out);
     }
     mark_either_or(&mut model.locations);
+    // A gift that needs a flag off is lost once an event turns that flag on. A flag
+    // talk sets is left out, as talk marks its own gifts given that way.
+    for l in model.locations.iter_mut().filter(|l| l.kind == Kind::Gift) {
+        let off = l
+            .lot
+            .as_ref()
+            .and_then(|lot| lot.ids.first())
+            .and_then(|id| needs_off.get(id));
+        l.missable |= off.is_some_and(|off| {
+            off.iter()
+                .any(|f| Some(*f) != l.flag && !PASSING.contains(f) && event_sets.contains_key(f))
+        });
+    }
 
     Ok(model)
 }
@@ -1002,6 +1038,9 @@ const JAR_KNIGHTS: [u32; 3] = [1047410701, 1047410702, 1047410703];
 /// object actions by their maps' event tables, and each event asks for nothing
 /// else than holding the necklace there.
 const BELLS: [u32; 2] = [2050403600, 2053463600];
+/// Flags events turn on and off again at once, which shut nothing for good: 9001,
+/// which common events 901 and 902 hold on only while they run.
+const PASSING: [u32; 1] = [9001];
 /// A lot given in place of one of an either-or pair ([`mark_either_or`]) that
 /// shares no flag with them: Ymir's 106620, given with both bells rung only if
 /// 106610 was taken (machine 2147483608 of t420006100 branches on 2051459208,
