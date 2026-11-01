@@ -141,6 +141,16 @@ pub fn warp(
     let mut args = bytes;
     args.extend(entity.to_le_bytes());
     args.extend(0u32.to_le_bytes());
+    // Once only: a target near the map that sets it off would load that map again,
+    // and go round for ever. Skip the set, the wait and the warp if the flag is on.
+    const ONCE: u32 = 10_009_990;
+    let mut skip = vec![3u8, 1, 0, 0];
+    skip.extend(ONCE.to_le_bytes());
+    event.instructions.push(instruction(1003, 1, skip));
+    let mut set = vec![0u8; 4];
+    set.extend(ONCE.to_le_bytes());
+    set.extend(1u32.to_le_bytes());
+    event.instructions.push(instruction(2003, 66, set));
     event
         .instructions
         .push(instruction(1001, 0, 3.0f32.to_le_bytes().to_vec()));

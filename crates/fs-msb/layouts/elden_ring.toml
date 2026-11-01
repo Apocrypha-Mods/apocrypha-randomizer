@@ -118,6 +118,20 @@ evidence = "-1 in 22,846 of 23,203 enemies; every other value is a row of CharaI
 
 [[field]]
 table = "EVENT_PARAM_ST"
+types = [5]
+name = "generator_part"
+section = 0x20
+offset = 0x60
+kind = "i32"
+count = 32
+confidence = "probable"
+evidence = """
+Indices into the map's PARTS_PARAM_ST, or -1. 324 parts over 199 events of type 5, of
+one model in all but 3 events: the bodies a generator makes copies of. Read from the
+values' shape and from public descriptions of the format; not seen in play."""
+
+[[field]]
+table = "EVENT_PARAM_ST"
 types = [21]
 name = "rider_part"
 section = 0x20

@@ -30,6 +30,8 @@ const MODELS: &str = "MODEL_PARAM_ST";
 const EVENTS: &str = "EVENT_PARAM_ST";
 /// The event type that ties a rider's part to a mount's.
 const MOUNT_EVENT: i64 = 21;
+/// The event type that makes copies of its parts as a fight goes on.
+const GENERATOR_EVENT: i64 = 5;
 /// An enemy that takes part in play. Type 10 stands in cutscenes and the like.
 const ENEMY: i64 = 2;
 /// Mixed into the seed, so enemies draw apart from items.
@@ -209,22 +211,25 @@ fn words(i: &fs_emevd::Instruction) -> impl Iterator<Item = u32> + '_ {
         .map(|w| u32::from_le_bytes(w.try_into().unwrap()))
 }
 
-/// The parts a map's mount events tie together as rider and mount. The event
-/// stays when a part's body changes, and the game then sets up a ride between
-/// bodies that have none: it crashed around Stormveil, with its 16 such events.
+/// The parts a map's events tie to what they are. A mount event sets up a ride
+/// between two parts and stays when a body changes, so the game rides bodies that
+/// have no ride: it crashed around Stormveil, with its 16 such events. A generator
+/// goes on making copies of its parts, and nearly all make one model: a large body
+/// there would come again and again.
 fn tied_parts(msb: &Msb) -> HashSet<usize> {
     let mut out = HashSet::new();
+    let mut add = |p: Option<i64>| out.extend(p.and_then(|p| usize::try_from(p).ok()));
     for e in &msb.table(EVENTS).entries {
-        if field(EVENTS, "type").get(e, 0) != Some(MOUNT_EVENT) {
-            continue;
-        }
-        for name in ["rider_part", "mount_part"] {
-            if let Some(p) = field(EVENTS, name)
-                .get(e, 0)
-                .and_then(|p| usize::try_from(p).ok())
-            {
-                out.insert(p);
+        match field(EVENTS, "type").get(e, 0) {
+            Some(MOUNT_EVENT) => {
+                add(field(EVENTS, "rider_part").get(e, 0));
+                add(field(EVENTS, "mount_part").get(e, 0));
             }
+            Some(GENERATOR_EVENT) => {
+                let list = field(EVENTS, "generator_part");
+                (0..32).for_each(|i| add(list.get(e, i)));
+            }
+            _ => {}
         }
     }
     out
@@ -369,7 +374,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 let refuse = if shown.contains("dummy") {
                     Some("a stand-in with no fight of its own")
                 } else if tied.contains(&part) {
-                    Some("it is tied to its rider or mount")
+                    Some("a map event ties it to its rider, mount or generator")
                 } else if rises.contains(&en) {
                     Some("it gets up as a next stage, and its script stays here")
                 } else if !hostile {

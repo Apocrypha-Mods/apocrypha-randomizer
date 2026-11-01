@@ -1746,3 +1746,28 @@ the seed's own, though only launching through that profile uses it. The add-on g
 Proven on 2.7.2 with `apoc-rando check`, three threads beside other work, none failing: 10,000 default seeds in 1,449 s; 2,000
 with enemies moving in 303 s; 2,000 with the DLC separate, half of everything moving and keys at 60% bias in 166 s; 500 with
 consumables and upgrades held still in 81 s. The `enemies`, `items`, `logic` and `rando` tests pass.
+
+## More links, and more of the world in the lab (2026-11-01)
+
+`apoc-fs mounts` counts what map events tie together. **Generators** (type 5, parts at +0x60, read from the values' shape and
+public format descriptions) make copies of their parts and all but 3 of 199 make one model, so their 324 parts no longer move,
+271 of them movable before. **Groups** (type 15) stay movable: 457 of 870 already mix models unmodded, and nothing has shown
+harm. Summons that scripts spawn were not read.
+
+**Region runs**, seed 1, ordinary enemies moved, one launch each, a fresh copy of the save, `ER_CPU=300`, warped in with
+`test-warp`. None closed, and the PC stayed up through all of them, at 5.7 to 5.9 GB.
+
+| Region | Reached | Time from Continue |
+| --- | --- | --- |
+| Consecrated Snowfield | in the world | 230 s |
+| Leyndell | in the world | 230 s |
+| Raya Lucaria | in the world | 229 s |
+| Scadu Altus | in the world | 230 s |
+| Caelid | in the world for about a minute, then a loading screen and a dark hall | about 5 min |
+| Limgrave (Warmaster's Shack) | the same hall, no open world seen | about 5 min |
+
+The hall is taken to be the Roundtable Hold, as the save may trigger the first visit; see the log note in the commit's run.
+So Limgrave's mounted patrols were not exercised. The screenshots show no moved enemy close by and nothing was fought: this
+shows these maps load and run with moved enemies standing in them, not that fights work.
+
+`test-warp` from a map near its target reloaded for ever, seen the same with enemies unmoved, so it now fires once, on flag 10009990.

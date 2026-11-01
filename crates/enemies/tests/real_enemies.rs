@@ -355,7 +355,16 @@ fn riders_and_mounts_stay_where_their_event_ties_them() {
                 .ok()
         };
         for e in &msb.table("EVENT_PARAM_ST").entries {
-            if field("EVENT_PARAM_ST", "type").get(e, 0) != Some(21) {
+            let kind = field("EVENT_PARAM_ST", "type").get(e, 0);
+            if kind == Some(5) {
+                let list = field("EVENT_PARAM_ST", "generator_part");
+                for part in (0..32).filter_map(|n| list.get(e, n)) {
+                    if let Ok(part) = usize::try_from(part) {
+                        assert!(!spots.contains(&(i, part)), "{m} generator part {part}");
+                    }
+                }
+            }
+            if kind != Some(21) {
                 continue;
             }
             let end = |n: &str| {
