@@ -1584,7 +1584,8 @@ caught nothing. It now goes by model. The Walking Mausoleum is `c4450`: all of i
 open-world remembrance talk scripts stand on that model (`apoc-fs name-models`), a direct
 reading. The Abductor Virgin is `c4470`, from elimination: the models in both the
 academy and the Manor, against the guides' list of places and its tall body. No script
-names it, so that one wants a look in the game. A wrong guess costs little: it keeps one
+names it (the value 9140 the warp events test is no help: `c4470`'s animations do not
+hold it, and some 70 other models' do), so that one wants a look in the game. A wrong guess costs little: it keeps one
 kind of enemy still.
 
 **For Nova to decide (our own design):**
@@ -1636,8 +1637,8 @@ reading of the conditions, not of the game running.
 
 **Neutralizing Boluses is never given.** Flag 10009335 appears once, as a test in
 `t304001000`. No event, talk script or param row holds it (`apoc-fs gift-blockers`), so it
-is now `unused` and takes no item. Code in the exe setting it cannot be ruled out from
-these files. Nothing depends on it either way.
+is now `unused` and takes no item. The exe holds the number nowhere either, as bytes or
+as text, though code could still compute it. Nothing depends on it either way.
 
 **Five gifts open.** Following flags eight steps back, up from four, opens those whose every
 step is read. 49 stay shut, down from 54, all still missable, so none could take a key item.
