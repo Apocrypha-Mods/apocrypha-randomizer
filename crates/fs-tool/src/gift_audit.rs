@@ -13,6 +13,83 @@ use fs_esd::commands::{AWARD_ITEM_LOT, SET_EVENT_FLAG};
 use fs_esd::cond::Atom;
 use gamedata::model::Kind;
 
+/// Every part whose talk script opens the remembrance list and what stands nearest
+/// it, and each model whose animations hold `value`: the two ways the scripts name
+/// what carries a shop and what applies a grab.
+pub fn name_models(game: PathBuf, value: u32) -> Result<()> {
+    use fs_msb::layout::{entry_name, field};
+    const PARTS: &str = "PARTS_PARAM_ST";
+    const MODELS: &str = "MODEL_PARAM_ST";
+    let s = gamedata::Sources::open(&game)?;
+    let files = gamedata::GameFiles::open(&game, &[])?;
+    let mut talks = BTreeSet::new();
+    for (_, name, esd) in &s.talk {
+        if fs_esd::calls::resolve(esd)
+            .iter()
+            .any(|r| (r.bank, r.id) == fs_esd::commands::OPEN_EXCHANGE)
+        {
+            talks.insert(name.clone());
+        }
+    }
+    println!("talks {talks:?}");
+    let get = |e: &[u8], name: &str| field(PARTS, name).get(e, 0).unwrap_or(0);
+    let mut seen = BTreeSet::new();
+    for (m, msb) in &s.maps {
+        let models = &msb.table(MODELS).entries;
+        let model_of = |e: &[u8]| {
+            usize::try_from(get(e, "model"))
+                .ok()
+                .and_then(|i| models.get(i))
+                .and_then(|me| entry_name(me))
+                .unwrap_or_default()
+        };
+        let pos = |e: &[u8]| {
+            let f = field(PARTS, "position");
+            [0, 1, 2].map(|i| f.get_f32(e, i).unwrap_or(f32::NAN))
+        };
+        let parts = &msb.table(PARTS).entries;
+        for e in parts {
+            let name = model_of(e);
+            if name.starts_with('c') {
+                seen.insert(name.clone());
+            }
+            let talk = format!("t{:09}", get(e, "talk_id"));
+            if !talks.contains(&talk) {
+                continue;
+            }
+            let here = pos(e);
+            let mut near: Vec<(f32, String)> = parts
+                .iter()
+                .filter(|o| model_of(o).starts_with('c'))
+                .map(|o| {
+                    let p = pos(o);
+                    let d = (0..3).map(|i| (p[i] - here[i]).powi(2)).sum::<f32>().sqrt();
+                    (d, model_of(o))
+                })
+                .collect();
+            near.sort_by(|a, b| a.0.total_cmp(&b.0));
+            near.truncate(5);
+            println!("{m} {talk} {name} at {here:?} near {near:?}");
+        }
+    }
+    let bytes = value.to_le_bytes();
+    for model in seen {
+        let path = format!("/chr/{model}.anibnd.dcx");
+        if !files.exists(&path) {
+            continue;
+        }
+        let Ok(raw) = files.read(&path) else { continue };
+        let Ok((_, plain)) = fs_dcx::decompress(&raw) else {
+            continue;
+        };
+        let uses = plain.windows(4).filter(|w| *w == bytes).count();
+        if uses > 0 {
+            println!("{model}: {uses} uses of {value} in its animations");
+        }
+    }
+    Ok(())
+}
+
 /// Where each of `flags` appears in any form, and what stands on each way an event
 /// turns it on: what keeps a gift shut.
 pub fn blockers(game: PathBuf, flags: &[u32]) -> Result<()> {

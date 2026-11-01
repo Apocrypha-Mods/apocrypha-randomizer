@@ -36,9 +36,14 @@ const SALT: u64 = 0x454E_454D_4945_5321;
 const FIRST_NEW_ROW: i32 = 800_000_000;
 /// Models with no creature of their own: the player's form, and a stand-in.
 const NOT_BODIES: [&str; 1] = ["c1000"];
-/// Enemies the area map counts on doing what they do: an Abductor Virgin's
-/// grab is a way to the Volcano Manor. A Walking Mausoleum carries a shop.
-const STAY: [&str; 3] = ["Abductor Virgin", "Walking Mausoleum", "dummy"];
+/// Enemies the area map counts on doing what they do. No row names these, so
+/// they go by model. An Abductor Virgin's grab is a way to the Volcano Manor: c4470,
+/// the one tall body placed in the academy, the capital and the Manor, where public
+/// guides list Virgins. A Walking Mausoleum carries a shop: c4450, the part all
+/// seven of its open-world remembrance talk scripts stand on (`apoc-fs name-models`).
+const STAY_MODELS: [&str; 2] = ["c4470", "c4450"];
+/// Stand-ins, which do carry the word in their names.
+const STAY: [&str; 1] = ["dummy"];
 /// NpcParam teams of those who do not fight the player until a script says so:
 /// no team (Gideon), friends (Patches, merchants) and summonable allies (Millicent).
 const NOT_HOSTILE: [i64; 5] = [0, 1, 2, 26, 28];
@@ -377,6 +382,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 && hostile
                 && !entity.is_some_and(|en| rises.contains(&en))
                 && !entity.is_some_and(|en| area_bosses.contains(&en))
+                && !STAY_MODELS.contains(&model_name.as_str())
                 && !STAY.iter().any(|n| name.contains(n))
                 // A named character who is not built like a player is someone's
                 // quest: Blaidd, Alexander. Named humans here are hostile ones.

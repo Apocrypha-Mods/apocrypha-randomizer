@@ -261,6 +261,8 @@ enum Command {
     GiftAudit { game: PathBuf },
     /// Where flags appear, and what stands on each way an event turns them on.
     GiftBlockers { game: PathBuf, flags: Vec<u32> },
+    /// What carries the remembrance shop, and which models' animations hold a value.
+    NameModels { game: PathBuf, value: u32 },
     /// Whole events, by id, and every use of instructions given as `bank:id`.
     ScriptDump {
         game: PathBuf,
@@ -438,6 +440,7 @@ fn main() {
         Command::ScriptFind { game, values } => script_find(game, &values),
         Command::GiftAudit { game } => gift_audit::run(game),
         Command::GiftBlockers { game, flags } => gift_audit::blockers(game, &flags),
+        Command::NameModels { game, value } => gift_audit::name_models(game, value),
         Command::ScriptDump { game, events, uses } => script_dump(game, &events, &uses),
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::TestWarp {

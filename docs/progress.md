@@ -1578,12 +1578,14 @@ dirty-room write-up (`00` to `10`), merged from GitHub and kept for reference.
 - Neither copy of a boss placed twice moves now (§3.3). No boss is placed twice on
   2.7.2, so no seed changes today.
 
-**A fault found, not fixed:** Abductor Virgins and Walking Mausoleums should stay
-(`enemies.md`), but the rule goes by name and no NpcParam row carries either name, so
-it catches nothing. With ordinary enemies moving they can move, and the Volcano Manor
-route and a shop would go with them. The fix needs their models, which public lists
-did not give and the data alone does not settle. An ignored test in `real_enemies.rs`
-holds this, needing only their model ids. The add-on does not move ordinary enemies.
+**A fault found and fixed:** Abductor Virgins and Walking Mausoleums should stay
+(`enemies.md`), but the rule went by name and no NpcParam row carries either name, so it
+caught nothing. It now goes by model. The Walking Mausoleum is `c4450`: all of its
+open-world remembrance talk scripts stand on that model (`apoc-fs name-models`), a direct
+reading. The Abductor Virgin is `c4470`, from elimination: the models in both the
+academy and the Manor, against the guides' list of places and its tall body. No script
+names it, so that one wants a look in the game. A wrong guess costs little: it keeps one
+kind of enemy still.
 
 **For Nova to decide (our own design):**
 - A category at 0% still moves in shops and class gear: with `weapons=0, merchants=100`

@@ -219,44 +219,35 @@ fn a_written_seed_reads_back_with_each_part_standing_as_planned() {
 
 /// Cutscenes stay as they are (docs/spec/enemies.md §3.1): a seed changes none,
 /// but for Malenia's second-phase event, which goes with her without its own.
-/// The rule keeping these in place goes by name, so every part of their kind has to
-/// carry the name. Their row ids share a family (the id less its last four digits).
-/// It fails today: no row carries either name, so the rule catches nothing
-/// (docs/progress.md, "Against the specs").
+/// What the area map counts on stays, and the rule has something to catch.
 #[test]
-#[ignore = "known fault: their models are not yet known, and no row carries the names"]
 fn what_the_area_map_counts_on_is_not_in_the_pool() {
     let Some(s) = sources() else { return };
     let model = elden_ring::extract(&s).unwrap();
     let p = pool(&s, &model).unwrap();
-    let npc = s.reg.table("NpcParam").unwrap();
-    let layout = for_table("NpcParam").unwrap();
-    let name_of = |id: i32| {
-        npc.rows
-            .iter()
-            .find(|r| r.id == id)
-            .map(|r| layout.field("name_id").get(&r.data, 0) as i32)
-            .filter(|&n| n > 0)
-            .and_then(|n| s.text("NpcName", n))
-            .unwrap_or("")
-    };
-    for kind in ["Abductor Virgin", "Walking Mausoleum"] {
-        let families: HashSet<i32> = npc
-            .rows
-            .iter()
-            .filter(|r| name_of(r.id).contains(kind))
-            .map(|r| r.id / 10_000)
-            .collect();
-        assert!(!families.is_empty(), "{kind}: no row has the name");
-        let unnamed: Vec<i32> = p
-            .spots
-            .iter()
-            .filter(|s| families.contains(&(s.body.npc / 10_000)))
-            .map(|s| s.body.npc)
-            .collect();
-        println!("{kind}: families {families:?}, in the pool {unnamed:?}");
-        assert!(unnamed.is_empty(), "{kind} can move: {unnamed:?}");
+    for kind in ["c4470", "c4450"] {
+        assert!(
+            !p.spots
+                .iter()
+                .any(|s| s.boss.is_none() && s.body.model == kind),
+            "{kind} can move"
+        );
     }
+    // Where public guides list Abductor Virgins, and the Mausoleums' open world.
+    let held = |kind: &str, map: &str| {
+        s.maps.iter().any(|(m, msb)| {
+            m.to_string() == map
+                && msb
+                    .table("MODEL_PARAM_ST")
+                    .entries
+                    .iter()
+                    .any(|e| entry_name(e).as_deref() == Some(kind))
+        })
+    };
+    for map in ["m11_00_00_00", "m14_00_00_00", "m16_00_00_00"] {
+        assert!(held("c4470", map), "{map}");
+    }
+    assert!(held("c4450", "m60_10_08_02"));
 }
 
 #[test]
