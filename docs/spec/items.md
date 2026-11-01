@@ -144,7 +144,11 @@ shield, staff, seal, bow, torch) so an NPC can still use it, and its level up to
     +N. Raise a dagger to +25 and the next regular weapon found is +25.
   - *Somber path* (Somber Smithing Stones, +0 to +10): kept separately. Only
     raising a somber weapon to +N makes later somber pick-ups arrive at +N.
-  - A weapon never arrives below its own unmodded level.
+  - **Already-upgraded weapons stand apart** (Nova, 2026-11-02). A slot that gives a weapon above
+    +0, such as Rogier's Rapier at +8, keeps that level and is not upgraded, and a weapon the game
+    only gives upgraded raises nothing, even when smithed further.
+  - **Selling or dropping a weapon lowers nothing** (Nova, 2026-11-02): it is the highest
+    reached, kept per character by name in a file beside the module.
   - Weapons bought for runes count as picked up (Nova, 2026-10-30): a
     merchant sells them at the same level. Weapons paid for in items
     (remembrance trades, Dragon Communion) are not upgraded.

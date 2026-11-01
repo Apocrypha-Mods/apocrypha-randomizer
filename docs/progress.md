@@ -1796,8 +1796,7 @@ nothing shows they are copies. So nothing is changed.
 keeps invaders on spots whose events keep them gone once dead, which was read from event names and shapes, not from a death in play. It does
 mean a human never turns up on a plain enemy's spot: the choice is reversible at `Class` in `crates/enemies`.
 
-**Helpers.** 88 ordinary spots named by a boss's fight events no longer move (21,330 spots to 21,242). A few may only share a number with a flag; a pinned
-spot costs little. A boss that moves still leaves its helpers behind in its arena, which is untested.
+**Helpers.** Replaced by the next-but-one section: helpers now go with their boss, or it stays.
 
 **Places that close.** Volcano Manor and Farum Azula stay out of `closes`, from general knowledge and the edges, not a script read.
 
@@ -1820,9 +1819,24 @@ now holds one enemy plan on every system CI runs. `generate` also refuses an out
   This needs `EQUIP_PARAM_CUSTOM_WEAPON_ST` found in memory: check `upgrade: 1 EQUIP_PARAM_CUSTOM_WEAPON_ST table(s)` in its log in the next lab run. If it is not found, this fix does nothing and all else carries on.
 
 Checked and sound: ammunition, whose reinforce type has no levels, is never upgraded (353 lot slots); the two paths stay apart; a slot never goes below its own level.
-One gap left as it is: levels are read from what is held each time, so a raised weapon sold or dropped lowers them, where the spec says "highest reached". Whether
-the chest's contents count was not checked: the module reads seven inventories without knowing which each is. Keeping a high mark would need to survive reloads and change of character.
+A gap this left, levels falling when a raised weapon was sold, is closed in the next section.
 
 **Proven.** With `APOC_ER_STOCK` on 2.7.2, the workspace's tests apart from `native` (261 passed, none failed) and `native`'s own 7; clippy and fmt clean; `apoc_native.dll` builds. `apoc-rando check`, `bosses=100,ordinary=100,mix=10`,
 2,000 seeds in 298 s, none failing. The default 10,000 were not rerun, as nothing here changes item placement or the area map's edges.
+
+## Helpers go with their boss; levels stay; upgraded weapons apart (Nova, 2026-11-02)
+
+No game or lab run: none of this has been seen in the game.
+
+**Companions.** `crates/enemies/src/companions.rs`. A helper whose fight events only put it away (`2004[4]`, `[5]`, `[39]`) goes with its boss; that reading leaves two bosses, Cemetery Shade
+and the Grave Warden Duelist. At the new place each takes over the nearest ordinary part with no entity, copied from the boss's part, within 6 m and at its height, keeping its own row at the new spot's strength tier. No table grows. A new event kills them
+when the boss dies, and on load once its flag is on, in the shape of event 30052810. At the old place, an event kills the originals on load. A boss with no room is sent home. In a mix, a boss on a spot with no entity brings companions with no such event: they act as ordinary enemies. `crates/rando/tests/real_companions.rs` holds this on the real map.
+
+**Bosses that stay.** 24, from `apoc-fs helpers`: helpers with poses, waits or effects need that arena's script. Each could move only with a script written for it, as Malenia's is. She still moves, leaving her copies, whose part in her fight was not settled. Queen Maggie stays because of one more event reading her adds' effects. A few may stay for a number shared by chance.
+
+**Auto-upgrade.** A slot giving a weapon above +0 is no longer rewritten, and a weapon only given above +0 raises nothing, even smithed further. A weapon given at both +0 and +7 still counts above +7, as an instance's origin cannot be seen.
+`Marks` keeps each character's highest levels in `apoc_upgrade_levels.txt` beside the module, by name; a rise counts when seen twice running under one name. So two characters of one name share them, and a deleted character's stay for a new one of that name.
+In the next lab run check the log for `upgrade: character <name>`. The name's place, +0x9C in `PlayerGameData`, is from memory of public notes and was not read here. If it is wrong, the log says `no character's name read`, and levels last only until the game closes, carrying over to another character loaded in that time.
+
+**Proven.** With `APOC_ER_STOCK` on 2.7.2, the `enemies`, `rando` and `native` tests (47, none failing), clippy clean, including `native` for Windows. Seed 3, `bosses=100,ordinary=100,mix=10`: the same files and spoiler log on Linux and under Wine. `apoc-rando check`, same sliders, 500 seeds in 72 s, none failing.
 

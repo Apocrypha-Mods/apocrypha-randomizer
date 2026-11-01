@@ -11,12 +11,17 @@
 //! (25 map pick-ups give +1 to +10), so holding a weapon at a level proves
 //! nothing on its own. A held weapon counts only above the highest level any
 //! pick-up, shop or class in the loaded tables gives it at: that level can
-//! only have come from a smith. Levels given are kept for the weapon as a whole, since an
+//! only have come from a smith. A weapon only ever given already upgraded (Rogier's Rapier,
+//! +8) stands apart (Nova, 2026-11-02): it raises nothing, even raised further, and a slot
+//! that gives a weapon above +0 keeps that level. Levels given are kept for the weapon as a whole, since an
 //! Ash of War moves a weapon to another row at the same level: Longsword +7 from a chest,
 //! made Heavy, is Heavy Longsword +7, and no smith raised it. A preset weapon a lot gives
 //! (`EquipParamCustomWeapon`) counts as given at its own level too.
+//!
+//! **Highest reached.** Selling or dropping a weapon lowers nothing: [`Marks`] keeps each
+//! character's highest level, by name, and a file beside the module keeps it across launches.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// The two upgrade paths.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -119,8 +124,8 @@ pub struct Slot {
 #[derive(Debug)]
 pub struct Upgrader {
     pub weapons: Weapons,
-    /// The highest level each weapon is given at anywhere, by [`whole_weapon`].
-    given: HashMap<i32, i32>,
+    /// The lowest and highest level each weapon is given at, by [`whole_weapon`].
+    given: HashMap<i32, (i32, i32)>,
     pub slots: Vec<Slot>,
 }
 
@@ -131,8 +136,8 @@ impl Upgrader {
         let mut levels = HashMap::new();
         for id in given {
             if let Some((base, level)) = weapons.split(id) {
-                let e = levels.entry(whole_weapon(base)).or_insert(0);
-                *e = (*e).max(level);
+                let e = levels.entry(whole_weapon(base)).or_insert((level, level));
+                *e = (e.0.min(level), e.1.max(level));
             }
         }
         let slots = slots
@@ -140,7 +145,7 @@ impl Upgrader {
             .filter(|s| {
                 weapons
                     .split(s.own)
-                    .is_some_and(|(b, _)| weapons.path(b).is_some())
+                    .is_some_and(|(b, level)| level == 0 && weapons.path(b).is_some())
             })
             .collect();
         Upgrader {
@@ -157,7 +162,12 @@ impl Upgrader {
             let Some((base, level)) = self.weapons.split(id) else {
                 continue;
             };
-            if level <= self.given.get(&whole_weapon(base)).copied().unwrap_or(0) {
+            let (lowest, highest) = self
+                .given
+                .get(&whole_weapon(base))
+                .copied()
+                .unwrap_or((0, 0));
+            if lowest > 0 || level <= highest {
                 continue;
             }
             match self.weapons.path(base) {
@@ -185,6 +195,85 @@ impl Upgrader {
     }
 }
 
+/// A character's name as the game holds it: UTF-16 up to a nul. `None` for anything that
+/// does not read as a name, such as before a character is loaded.
+pub fn character_name(b: &[u8]) -> Option<String> {
+    let units: Vec<u16> = b
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .take_while(|&u| u != 0)
+        .collect();
+    if units.len() * 2 >= b.len() {
+        return None;
+    }
+    let name = String::from_utf16(&units).ok()?;
+    (!name.trim().is_empty() && !name.chars().any(char::is_control)).then_some(name)
+}
+
+/// Each character's highest levels. A rise counts once seen twice running under one name,
+/// so a character loading in does not take on the last one's weapons.
+#[derive(Debug, Default)]
+pub struct Marks {
+    saved: BTreeMap<String, Levels>,
+    name: Option<String>,
+    mark: Levels,
+    seen: Option<Levels>,
+}
+
+impl Marks {
+    /// From the text [`Marks::text`] wrote. Lines that do not read are left out.
+    pub fn from_text(text: &str) -> Self {
+        let saved = text
+            .lines()
+            .filter_map(|l| {
+                let mut p = l.splitn(3, ' ');
+                let regular = p.next()?.parse().ok()?;
+                let somber = p.next()?.parse().ok()?;
+                Some((p.next()?.to_string(), Levels { regular, somber }))
+            })
+            .collect();
+        Marks {
+            saved,
+            ..Default::default()
+        }
+    }
+
+    pub fn text(&self) -> String {
+        self.saved
+            .iter()
+            .map(|(n, l)| format!("{} {} {n}\n", l.regular, l.somber))
+            .collect()
+    }
+
+    /// One look at the game: who is loaded, if that can be read, and what they hold raised.
+    /// Gives the levels to use, and whether [`Marks::text`] has changed. With no name read,
+    /// the mark lasts until the game closes.
+    pub fn observe(&mut self, name: Option<String>, raised: Levels) -> (Levels, bool) {
+        if let Some(n) = name.filter(|n| self.name.as_ref() != Some(n)) {
+            self.mark = self.saved.get(&n).copied().unwrap_or_default();
+            self.name = Some(n);
+            self.seen = None;
+            return (self.mark, false);
+        }
+        let high = self.mark.max(raised);
+        if high == self.mark {
+            self.seen = None;
+            return (self.mark, false);
+        }
+        if self.seen != Some(raised) {
+            self.seen = Some(raised);
+            return (self.mark, false);
+        }
+        self.mark = high;
+        self.seen = None;
+        let Some(n) = &self.name else {
+            return (self.mark, false);
+        };
+        self.saved.insert(n.clone(), high);
+        (self.mark, true)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,8 +294,8 @@ mod tests {
             .enumerate()
             .map(|(i, &own)| Slot { at: i * 4, own })
             .collect();
-        // A pick-up somewhere gives Longsword +7.
-        Upgrader::new(weapons, [DAGGER, LONGSWORD + 7, MOONVEIL], slots)
+        // Pick-ups give Longsword at +0 and +7.
+        Upgrader::new(weapons, [DAGGER, LONGSWORD, LONGSWORD + 7, MOONVEIL], slots)
     }
 
     #[test]
@@ -228,7 +317,7 @@ mod tests {
     fn an_ash_of_war_does_not_make_a_given_level_raised() {
         let reinforce: Vec<i32> = (0..=25).chain(100..=125).collect();
         let weapons = Weapons::new([(LONGSWORD, 0), (LONGSWORD + 100, 100)], &reinforce);
-        let u = Upgrader::new(weapons, [LONGSWORD + 7], Vec::new());
+        let u = Upgrader::new(weapons, [LONGSWORD, LONGSWORD + 7], Vec::new());
         assert_eq!(u.raised([LONGSWORD + 107]), Levels::default());
         assert_eq!(u.raised([LONGSWORD + 108]).regular, 8);
     }
@@ -236,20 +325,76 @@ mod tests {
     #[test]
     fn pick_ups_arrive_at_the_level_of_their_own_path() {
         let u = upgrader(&[DAGGER, LONGSWORD + 7, MOONVEIL, TORCH]);
-        // The torch cannot be upgraded, so it is not a slot.
-        assert_eq!(u.slots.len(), 3);
+        // The torch cannot be upgraded and the +7 stays as it is, so neither is a slot.
+        assert_eq!(u.slots.len(), 2);
         let at = |levels| -> Vec<i32> { u.slots.iter().map(|&s| u.target(s, levels)).collect() };
-        assert_eq!(at(Levels::default()), [DAGGER, LONGSWORD + 7, MOONVEIL]);
+        assert_eq!(at(Levels::default()), [DAGGER, MOONVEIL]);
         let l = Levels {
             regular: 5,
             somber: 3,
         };
-        // Never below its own level: the Longsword stays +7.
-        assert_eq!(at(l), [DAGGER + 5, LONGSWORD + 7, MOONVEIL + 3]);
+        assert_eq!(at(l), [DAGGER + 5, MOONVEIL + 3]);
         let l = Levels {
             regular: 25,
             somber: 10,
         };
-        assert_eq!(at(l), [DAGGER + 25, LONGSWORD + 25, MOONVEIL + 10]);
+        assert_eq!(at(l), [DAGGER + 25, MOONVEIL + 10]);
+    }
+
+    #[test]
+    fn a_weapon_only_given_upgraded_stands_apart() {
+        let reinforce: Vec<i32> = (0..=25).collect();
+        const RAPIER: i32 = 5_030_000;
+        let weapons = Weapons::new([(RAPIER, 0), (DAGGER, 0)], &reinforce);
+        let slots = vec![
+            Slot {
+                at: 0,
+                own: RAPIER + 8,
+            },
+            Slot { at: 4, own: DAGGER },
+        ];
+        let u = Upgrader::new(weapons, [RAPIER + 8, DAGGER], slots);
+        assert_eq!(u.raised([RAPIER + 8, RAPIER + 12]), Levels::default());
+        assert_eq!(u.slots.len(), 1);
+        assert_eq!(u.slots[0].own, DAGGER);
+    }
+
+    fn at(regular: i32) -> Levels {
+        Levels { regular, somber: 0 }
+    }
+
+    #[test]
+    fn selling_a_weapon_lowers_nothing() {
+        let mut m = Marks::default();
+        let me = || Some("Nova".to_string());
+        assert_eq!(m.observe(me(), at(0)), (at(0), false));
+        assert_eq!(m.observe(me(), at(9)), (at(0), false));
+        assert_eq!(m.observe(me(), at(9)), (at(9), true));
+        assert_eq!(m.observe(me(), at(0)), (at(9), false));
+        assert_eq!(Marks::from_text(&m.text()).saved["Nova"], at(9));
+    }
+
+    #[test]
+    fn each_character_has_its_own_mark_and_takes_none_from_the_last() {
+        let mut m = Marks::from_text("9 0 Nova\n3 2 Two Words\n");
+        assert_eq!(m.observe(Some("Nova".into()), at(0)).0, at(9));
+        // The next character's name arrives while the old inventory is still there.
+        assert_eq!(m.observe(Some("Ali".into()), at(12)).0, at(0));
+        assert_eq!(m.observe(Some("Ali".into()), at(0)).0, at(0));
+        let two = m.observe(Some("Two Words".into()), at(0)).0;
+        assert_eq!((two.regular, two.somber), (3, 2));
+    }
+
+    #[test]
+    fn names_are_read_up_to_their_nul() {
+        let utf16 = |s: &str| -> Vec<u8> {
+            let mut b: Vec<u8> = s.encode_utf16().flat_map(u16::to_le_bytes).collect();
+            b.resize(32, 0);
+            b
+        };
+        assert_eq!(character_name(&utf16("Nova")).as_deref(), Some("Nova"));
+        assert_eq!(character_name(&utf16("")), None);
+        assert_eq!(character_name(&utf16("a\u{1}b")), None);
+        assert_eq!(character_name(&[0x41; 32]), None);
     }
 }

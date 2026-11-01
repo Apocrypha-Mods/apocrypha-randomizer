@@ -10,6 +10,7 @@
 //!   strength tier of whoever stood there before. The game's own tiers do the
 //!   rest: Margit's health is his row's 2521 times his tier's 1.656.
 
+pub mod companions;
 pub mod malenia;
 pub mod placidusax;
 
@@ -57,7 +58,8 @@ const INVADER_TEAM: i64 = 27;
 /// Events that name a boss's number and others' for reasons not to do with a fight:
 /// a start-up list (0, 50, 100), "stay gone once this flag is on" (90005300, whose flag can
 /// be the boss's number) and the invasion events shared by a map's invaders.
-const NOT_A_FIGHT: [i64; 8] = [0, 50, 100, 90005300, 90005790, 90005791, 90005792, 90005793];
+pub(crate) const NOT_A_FIGHT: [i64; 8] =
+    [0, 50, 100, 90005300, 90005790, 90005791, 90005792, 90005793];
 
 /// What the player sets (docs/spec/enemies.md §2). All at 0 changes nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -198,6 +200,8 @@ pub struct Spot {
 pub struct BossSpot {
     pub bar_text: i32,
     pub script: MapId,
+    /// The flag its defeat sets, if the boss table names it.
+    pub defeat_flag: Option<u32>,
 }
 
 /// A boss left where it is, and why.
@@ -213,6 +217,8 @@ pub struct Pool {
     pub fixed: Vec<Fixed>,
     /// The creature models each map lists, by `Spot::map_index`.
     pub listed: Vec<BTreeSet<String>>,
+    /// Those who go where a boss goes, by the boss's entity.
+    pub companions: BTreeMap<u32, Vec<companions::Companion>>,
 }
 
 impl Pool {
@@ -312,27 +318,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             }
         }
     }
-    // Those a fight's own events act on: Malenia's copies, Messmer's snakes, the Fire
-    // Giant's second body. Away from it they would stand about as strays, and a stranger
-    // in their place would be told what they were told.
-    let mut helpers: HashSet<u32> = HashSet::new();
-    for (_, script) in &s.scripts {
-        for run in catalogue::runs(script, Some(&s.common_func)) {
-            if NOT_A_FIGHT.contains(&run.event.id) {
-                continue;
-            }
-            // Bank 2000 starts other events, which are read on their own.
-            let acts = || {
-                run.instructions
-                    .iter()
-                    .filter(|i| i.bank != 2000)
-                    .flat_map(words)
-            };
-            if acts().any(|w| bars.contains_key(&w)) {
-                helpers.extend(acts().filter(|w| !bars.contains_key(w)));
-            }
-        }
-    }
+    let helpers = companions::read(s, &bars);
     let area_bosses: HashSet<u32> = model.bosses.iter().filter_map(|b| b.entity).collect();
     // A talk script that gives something can't lose its speaker.
     let giving: HashSet<&str> = model
@@ -451,6 +437,11 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 let mut sp = spot(Some(BossSpot {
                     bar_text: *bar_text,
                     script: *script,
+                    defeat_flag: model
+                        .bosses
+                        .iter()
+                        .find(|b| b.entity == Some(en) && b.defeat_flag != 0)
+                        .map(|b| b.defeat_flag),
                 }));
                 sp.body.name = shown;
                 sp.body.name_text = *bar_text;
@@ -466,7 +457,6 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 && hostile
                 && !entity.is_some_and(|en| rises.contains(&en))
                 && !entity.is_some_and(|en| area_bosses.contains(&en))
-                && !entity.is_some_and(|en| helpers.contains(&en))
                 && !STAY_MODELS.contains(&model_name.as_str())
                 && !STAY.iter().any(|n| name.contains(n))
                 // A named character who is not built like a player is someone's
@@ -481,6 +471,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     // two bodies under one entity.
     out.spots
         .retain(|s| s.boss.is_none() || !s.entity.is_some_and(|en| twice.contains(&en)));
+    companions::settle(s, &mut out, &helpers);
     Ok(out)
 }
 
@@ -560,6 +551,7 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     if options.ordinary > 0 && options.models > 0 {
         cap_models(pool, &mut from, usize::from(options.models));
     }
+    companions::make_room(pool, &mut from);
     Plan { from }
 }
 
@@ -833,6 +825,31 @@ pub fn apply(
             bar_sources.entry(b.bar_text).or_insert(body.name_text);
         }
     }
+    let mut new_row = |data: Vec<u8>, name: Option<Vec<u16>>| -> Result<i32> {
+        let next = first_new
+            .checked_add(made.len() as i32)
+            .ok_or_else(|| format_err("NpcParam has no ids left for new rows"))?;
+        Ok(*made.entry(data.clone()).or_insert_with(|| {
+            new_rows.push(Row {
+                id: next,
+                data,
+                name,
+            });
+            next
+        }))
+    };
+    let mut scripts = malenia::scripts(s, pool, plan)?;
+    placidusax::apply(s, pool, plan, &mut scripts)?;
+    companions::apply(
+        s,
+        pool,
+        plan,
+        options.scale,
+        &rows,
+        &mut new_row,
+        &mut maps,
+        &mut scripts,
+    )?;
     let new_rows_count = new_rows.len();
     table.rows.extend(new_rows);
     table.rows.sort_by_key(|r| r.id);
@@ -840,8 +857,6 @@ pub fn apply(
     for msb in maps.values_mut() {
         recount_models(msb)?;
     }
-    let mut scripts = malenia::scripts(s, pool, plan)?;
-    placidusax::apply(s, pool, plan, &mut scripts)?;
     Ok(Applied {
         maps: maps.into_iter().map(|(i, m)| (s.maps[i].0, m)).collect(),
         scripts,
@@ -922,6 +937,7 @@ mod tests {
             boss: boss.then_some(BossSpot {
                 bar_text: i as i32,
                 script: MapId(map),
+                defeat_flag: None,
             }),
         }
     }
@@ -939,6 +955,7 @@ mod tests {
             spots,
             fixed: vec![],
             listed: vec![BTreeSet::new()],
+            companions: BTreeMap::new(),
         }
     }
 
@@ -1045,6 +1062,7 @@ mod tests {
             spots: vec![boss, plain],
             fixed: vec![],
             listed: vec![BTreeSet::new()],
+            companions: BTreeMap::new(),
         };
         let added = new_models(&p, &[0, 1]);
         assert_eq!(added[&0].keys().copied().collect::<Vec<_>>(), ["c1000"]);
@@ -1067,6 +1085,7 @@ mod tests {
             spots,
             fixed: vec![],
             listed,
+            companions: BTreeMap::new(),
         };
         let free = shuffle(
             &p,

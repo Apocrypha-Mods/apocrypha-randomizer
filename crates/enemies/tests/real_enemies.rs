@@ -213,7 +213,11 @@ fn a_written_seed_reads_back_with_each_part_standing_as_planned() {
             .iter()
             .filter(|(m, _)| m.to_string() != "m13_00_00_00")
             .count();
-        assert_eq!(others, 2, "her arena and her new one, beside Placidusax's");
+        // Companions' bosses add scripts of their own.
+        assert!(
+            others >= 2,
+            "her arena and her new one, beside Placidusax's"
+        );
     }
 }
 

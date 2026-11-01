@@ -55,8 +55,12 @@ seed and its options always give the same game.
   dead, so a body on a plain spot would come back at every rest. It also holds each map
   to the human-built bodies it has unmodded: at most 5 ordinary ones, where trading with
   everyone reached 7. A boss sent out by the mix takes a plain spot only.
-- **A fight's helpers stay** (2026-11-02): an ordinary spot that a boss's fight events act
-  on, such as Malenia's copies, Messmer's snakes or the Fire Giant's second body.
+- **A boss's helpers go with it** (Nova, 2026-11-02). Those a fight's events only put away
+  (Cemetery Shade's skeletons, the Grave Warden Duelist's) stand beside it wherever it lands,
+  at its strength tier, and die with it; at the old arena they are gone. A boss whose helpers
+  are part of its fight, with poses and waits from that arena's script, stays there with them,
+  as there is no moving them yet: Messmer, the Fire Giant, Rennala and 21 more (`apoc-fs helpers`).
+  Malenia alone still moves, by §3.2, and her copies stay behind. An invisible stand-in (c0100) stays with its arena.
 
 - **Cutscenes stay as they are** (Nova's choice). A boss's intro plays once, on the
   first visit, and shows the unmodded boss; when it ends, whoever the seed put there
@@ -92,7 +96,8 @@ A boss stays put when:
   that arena's fight might never end. Malenia alone moves, with her script;
 - it is friendly until a script turns it (Gideon, the friendly Patches);
 - its talk script gives an item;
-- it is placed twice, or is a stand-in.
+- it is placed twice, or is a stand-in;
+- parts of its fight need its arena's script (§3.1).
 
 An Abductor Virgin stays, as its grab is a way to the Volcano Manor, and a Walking
 Mausoleum, as it carries a shop.
@@ -120,6 +125,8 @@ To be filled in as they are found. Not yet seen in the game:
   cannot be won; only play will show it. The defeat events wait only on a fall, a death or no health.
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
+- **Companions at a new place.** They stand within 6 m of the boss at its height, so on uneven
+  ground one may stand in a wall or fall. They take a part copied from the boss's. Not seen in the game.
 - **Quest humans.** A hostile human moved away may be part of a quest's event.
 - **Far copies.** None found on 2.7.2: no entity is on two open-world parts. 164 spots on
   coarse tiles still move, as nothing ties them to a fine copy. Not seen in play.
@@ -131,4 +138,4 @@ To be filled in as they are found. Not yet seen in the game:
 
 - The same seed and options always give the same result.
 - An item's place in the proof does not change, as drops and rewards stay.
-- Every body lands exactly once.
+- Every body lands exactly once, but for the few a boss's companions replace.

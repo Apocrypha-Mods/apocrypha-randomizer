@@ -3,10 +3,18 @@ use std::io::Write;
 
 use super::*;
 use crate::params::{self, Table};
-use crate::upgrade::{Levels, Slot, Upgrader, Weapons};
+use crate::upgrade::{Levels, Marks, Slot, Upgrader, Weapons, character_name};
 use crate::walk;
 
 const DLL_PROCESS_ATTACH: u32 = 1;
+/// Where the character's name is in `CS::PlayerGameData`, from public notes on the game and
+/// not yet seen in the lab. If it is wrong no name reads, and the marks last only until
+/// the game closes: the log says `upgrade: no character's name read`.
+const NAME_AT: usize = 0x9C;
+const NAME_LEN: usize = 34;
+/// The file beside the module holding each character's highest levels.
+const MARKS_FILE: &str = "apoc_upgrade_levels.txt";
+static MODULE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 const MEM_COMMIT: u32 = 0x1000;
 /// Page protections that can be written (and so read).
 const WRITABLE: u32 = 0x04 | 0x08 | 0x40 | 0x80;
@@ -30,6 +38,7 @@ struct MemoryBasicInformation {
 unsafe extern "system" {
     fn VirtualQuery(address: usize, info: *mut MemoryBasicInformation, length: usize) -> usize;
     fn GetModuleHandleW(name: *const u16) -> usize;
+    fn GetModuleFileNameW(module: usize, name: *mut u16, size: u32) -> u32;
     fn GetCurrentProcess() -> usize;
     fn GetCurrentThread() -> usize;
     fn SetThreadPriority(thread: usize, priority: i32) -> i32;
@@ -388,6 +397,23 @@ fn everything(inventories: &[usize]) -> Vec<(u32, u32, u32)> {
     out
 }
 
+/// Where the marks are kept: beside this module, so a seed's folder and save go together.
+fn marks_path() -> Option<std::path::PathBuf> {
+    let module = MODULE.load(std::sync::atomic::Ordering::Relaxed);
+    let mut name = vec![0u16; 1024];
+    let n = unsafe { GetModuleFileNameW(module, name.as_mut_ptr(), 1024) } as usize;
+    (n > 0 && n < 1024).then(|| {
+        std::path::PathBuf::from(String::from_utf16_lossy(&name[..n])).with_file_name(MARKS_FILE)
+    })
+}
+
+/// The loaded character's name, from the first player data that holds one.
+fn loaded_name(player: &[usize]) -> Option<String> {
+    player
+        .iter()
+        .find_map(|&p| character_name(&read(p + NAME_AT, NAME_LEN)?))
+}
+
 /// Auto-upgrade: every two seconds, read the levels the player has raised
 /// and write them into the weapon pick-ups, so the next one is made at that
 /// level.
@@ -419,6 +445,12 @@ fn auto_upgrade() {
         break (u, roots(&image, module, &regions, player), inventory);
     };
     let floor = floor();
+    let marks_at = marks_path();
+    let mut marks = marks_at
+        .as_ref()
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .map_or_else(Marks::default, |t| Marks::from_text(&t));
+    let mut named = false;
     let mut invs = Vec::new();
     let mut current = None;
     let mut last_held = Vec::new();
@@ -444,7 +476,28 @@ fn auto_upgrade() {
             note(&format!("upgrade: weapons held: {ids:?}"));
             last_held = ids.clone();
         }
-        let levels = u.raised(ids.iter().copied()).max(floor);
+        let name = loaded_name(&player);
+        if name.is_some() != named || tick == 0 {
+            named = name.is_some();
+            note(&format!(
+                "upgrade: {}",
+                name.as_deref()
+                    .map_or("no character's name read".into(), |n| format!(
+                        "character {n}"
+                    ))
+            ));
+        }
+        let (mark, changed) = marks.observe(name, u.raised(ids.iter().copied()));
+        if changed && let Some(p) = &marks_at {
+            let tmp = p.with_extension("tmp");
+            if std::fs::write(&tmp, marks.text())
+                .and_then(|()| std::fs::rename(&tmp, p))
+                .is_err()
+            {
+                note("upgrade: could not save the levels");
+            }
+        }
+        let levels = mark.max(floor);
         if current != Some(levels) {
             let mut written = 0;
             for &s in &u.slots {
@@ -469,8 +522,9 @@ fn auto_upgrade() {
 /// Called by Windows as the module is loaded and unloaded.
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
-pub extern "system" fn DllMain(_module: *mut c_void, reason: u32, _reserved: *mut c_void) -> i32 {
+pub extern "system" fn DllMain(module: *mut c_void, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
+        MODULE.store(module as usize, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(|| {
             note(&format!(
                 "apoc_native {} loaded into process {}",

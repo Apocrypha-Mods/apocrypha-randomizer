@@ -212,6 +212,24 @@ pub fn helpers(game: PathBuf) -> Result<()> {
         "ordinary spots {}: {classes:?}",
         classes.values().sum::<usize>()
     );
+    println!("--- bosses and their companions");
+    for (boss, list) in &pool.companions {
+        let who = pool
+            .spots
+            .iter()
+            .find(|p| p.entity == Some(*boss))
+            .map_or("?", |p| p.body.name.as_str());
+        let models: Vec<&str> = list.iter().map(|c| c.model.as_str()).collect();
+        println!("{who} ({boss}): {models:?}");
+    }
+    println!("--- bosses left in place for their helpers");
+    for f in pool
+        .fixed
+        .iter()
+        .filter(|f| f.reason.contains("parts of its fight"))
+    {
+        println!("{}", f.name);
+    }
     println!("--- hostile humans");
     for p in pool
         .spots
