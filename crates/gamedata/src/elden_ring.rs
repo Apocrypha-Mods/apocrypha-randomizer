@@ -1188,17 +1188,24 @@ impl Explain<'_> {
     fn event_way(&self, e: &EventWay, f: u32, depth: usize) -> Vec<Way> {
         use fs_emevd::flow::{Reading, Test};
         let mut ways: Vec<Way> = vec![e.map.map(Cond::Map).into_iter().collect()];
-        let at_a_bell = e.way.iter().any(|l| {
-            matches!(l.test.reading(), Some(Reading::ObjectAction(o)) if l.holds && BELLS.contains(&o))
-        });
+        let mut lost = false;
         for lit in &e.way {
             let options = match (&lit.test, lit.holds) {
                 (Test::Flag(g), true) if *g != f => self.flag(*g, depth),
-                (Test::Flag(_), _) => continue,
+                (Test::Flag(_), true) => continue,
+                // Off, so lost once an event can turn it on, if this way can happen.
+                (Test::Flag(g), false) => {
+                    lost |= *g != f
+                        && self.event_sets.contains_key(g)
+                        && !self.talk_sets.contains_key(g);
+                    continue;
+                }
                 (Test::Other { .. }, holds) => match (lit.test.reading(), holds) {
                     (Some(Reading::Dead(c)), true) if JAR_KNIGHTS.contains(&c) => continue,
                     (Some(Reading::ObjectAction(o)), true) if BELLS.contains(&o) => continue,
-                    (Some(Reading::Unnamed), true) if at_a_bell => continue,
+                    // The logic plays alone, always in the player's own world.
+                    (Some(Reading::MyWorld { wanted }), holds) if wanted == holds => continue,
+                    (Some(Reading::MyWorld { .. }), _) => return Vec::new(),
                     // Holding a good, however the event asks it.
                     (Some(Reading::Good { id, held }), holds) if held == holds => {
                         vec![vec![Cond::Holds(self.item(ItemKind::Goods, id))]]
@@ -1221,6 +1228,9 @@ impl Explain<'_> {
             next.dedup();
             next.truncate(MAX_WAYS);
             ways = next;
+        }
+        if lost && !ways.is_empty() {
+            self.fleeting.set(true);
         }
         ways
     }

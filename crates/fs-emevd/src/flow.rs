@@ -40,8 +40,8 @@ pub enum Reading {
     Good { id: i32, held: bool },
     /// The player did the action at an object (`if_object_action`).
     ObjectAction(u32),
-    /// `if_unnamed_state`: not settled, only ever beside what is waited for.
-    Unnamed,
+    /// Whether the player is in their own world (`if_my_world`), or asked not to be.
+    MyWorld { wanted: bool },
 }
 
 impl Test {
@@ -68,7 +68,9 @@ impl Test {
                 held: word("state")? == 1,
             }),
             "if_object_action" => Some(Reading::ObjectAction(word("object")?)),
-            "if_unnamed_state" => Some(Reading::Unnamed),
+            "if_my_world" => Some(Reading::MyWorld {
+                wanted: e.byte(&ins, "not_wanted")? == 0,
+            }),
             _ => None,
         }
     }
@@ -214,34 +216,42 @@ fn test_of(ins: &Instruction) -> Lit {
     other(ins)
 }
 
-/// Any of the flags `first` to `last` on.
-fn any_on(first: u32, last: u32) -> Option<Expr> {
-    (first > 0 && first <= last && last - first < 64).then(|| {
-        Expr::Any(
-            (first..=last)
-                .map(|f| {
-                    Expr::Lit(Lit {
-                        test: Test::Flag(f),
-                        holds: true,
-                    })
+/// A range test as the exe evaluates it (`EcTestMultiEventFlagState`, +0x580210 in
+/// 2.7.2): 0 all on, 1 all off, 2 any on, 3 any off.
+fn range(state: u8, first: u32, last: u32) -> Option<Expr> {
+    if first == 0 || first > last || last - first >= 64 {
+        return None;
+    }
+    let lits = |holds| {
+        (first..=last)
+            .map(|f| {
+                Expr::Lit(Lit {
+                    test: Test::Flag(f),
+                    holds,
                 })
-                .collect(),
-        )
-    })
+            })
+            .collect()
+    };
+    match state {
+        0 => Some(Expr::All(lits(true))),
+        1 => Some(Expr::All(lits(false))),
+        2 => Some(Expr::Any(lits(true))),
+        3 => Some(Expr::Any(lits(false))),
+        _ => None,
+    }
 }
 
-/// What a condition instruction puts in its group: a flag's state, any of a
-/// range on (`if_flag_range` asking for state 2), or the instruction's own
-/// test.
+/// What a condition instruction puts in its group: a flag's state, a range's
+/// (`if_flag_range`), or the instruction's own test.
 fn condition(ins: &Instruction) -> Expr {
     let r = catalogue::named("if_flag_range");
     if (ins.bank, ins.id) == (r.bank, r.id)
-        && r.byte(ins, "state") == Some(2)
-        && let (Some(first), Some(last)) = (
+        && let (Some(state), Some(first), Some(last)) = (
+            r.byte(ins, "state"),
             Entry::word(ins, r.arg("first").word),
             Entry::word(ins, r.arg("last").word),
         )
-        && let Some(e) = any_on(first, last)
+        && let Some(e) = range(state, first, last)
     {
         return e;
     }
@@ -415,11 +425,8 @@ fn step(p: &mut Path, all: &[Instruction], ins: &Instruction) -> Option<Next> {
             let lines = e.byte(ins, "lines")? as usize;
             let first = Entry::word(ins, e.arg("first").word)?;
             let last = Entry::word(ins, e.arg("last").word)?;
-            // State 2: any of the range on; anything else is not read.
-            let c = match e.byte(ins, "state")? {
-                2 => any_on(first, last).unwrap_or_else(|| Expr::Lit(other(ins))),
-                _ => Expr::Lit(other(ins)),
-            };
+            let c =
+                range(e.byte(ins, "state")?, first, last).unwrap_or_else(|| Expr::Lit(other(ins)));
             branch(on(here + 1 + lines), c)
         }
         // What these three test is 0 in a world of one's own (see end_if in
@@ -577,6 +584,26 @@ mod tests {
                 Way::from([flag(12, true)])
             ]
         );
+    }
+
+    #[test]
+    fn a_range_means_what_the_exe_evaluates() {
+        // Each state, skipping past `end` when the test holds: the mark is reached
+        // when it fails.
+        let at = |state| {
+            let s = [
+                ins(1003, 3, &[bytes([1, state, 0]), 10, 11]),
+                ins(1000, 4, &[0]),
+                mark(),
+            ];
+            ways(&s)
+        };
+        let one = |f, h| Way::from([flag(f, h)]);
+        let both = |h| Way::from([flag(10, h), flag(11, h)]);
+        assert_eq!(at(0), vec![both(true)]);
+        assert_eq!(at(1), vec![both(false)]);
+        assert_eq!(at(2), vec![one(10, true), one(11, true)]);
+        assert_eq!(at(3), vec![one(10, false), one(11, false)]);
     }
 
     #[test]

@@ -151,6 +151,30 @@ pub fn blockers(game: PathBuf, flags: &[u32]) -> Result<()> {
     Ok(())
 }
 
+/// Every gift no way can reach, with what each of its ways stands on: the gifts
+/// still shut, and why.
+pub fn shut(game: PathBuf) -> Result<()> {
+    use gamedata::model::Cond;
+    let s = gamedata::Sources::open(&game)?;
+    let m = gamedata::elden_ring::extract(&s)?;
+    let mut count = 0;
+    let (mut missable, mut gifts) = (0, 0);
+    for l in m.locations.iter().filter(|l| l.kind == Kind::Gift) {
+        gifts += 1;
+        missable += usize::from(l.missable);
+        let Some(ways) = &l.given_if else { continue };
+        let open = |w: &Vec<Cond>| !w.iter().any(|c| matches!(c, Cond::Flag(_)));
+        if ways.iter().any(open) {
+            continue;
+        }
+        count += 1;
+        let lot = l.lot.as_ref().and_then(|t| t.ids.first().copied());
+        println!("lot {lot:?} missable {} ways {ways:?}", l.missable);
+    }
+    println!("shut {count} of {gifts} gifts, {missable} missable");
+    Ok(())
+}
+
 pub fn run(game: PathBuf) -> Result<()> {
     let s = gamedata::Sources::open(&game)?;
     let model = gamedata::elden_ring::extract(&s)?;

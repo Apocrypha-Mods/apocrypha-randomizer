@@ -201,7 +201,7 @@ fn every_packed_byte_claim_holds() {
                                 .any(|l| l.bank == 1014 && l.id == b as u32),
                             "group" | "source" => (-15..=15).contains(&(b as i8)),
                             "state" | "flag_kind" | "category" => b <= 3,
-                            "end" => b <= 1,
+                            "end" | "not_wanted" => b <= 1,
                             other => panic!("{}: no such byte as {other}", e.name),
                         } as usize;
                     }

@@ -448,7 +448,7 @@ How the evidence was gathered:
 | 3[0] | `if_flag` | confirmed | 8 bytes: packed condition, flag |
 | 1003[2] | `end_if_flag` | probable | 8 bytes: end, state, flag kind; then a flag. First catalogued as `branch_on_flag` |
 | 1003[101] | `goto_if_flag` | confirmed | a label later in the event in 2,112 of 2,128 uses. First `branch_on_flag_b` |
-| 1003[1], 1003[3] | `skip_if_flag`, `skip_if_flag_range` | confirmed, probable | never skip past the event's end |
+| 1003[1], 1003[3] | `skip_if_flag`, `skip_if_flag_range` | confirmed, confirmed from the exe | never skip past the event's end |
 | 1003[12–14] | `skip_if`, `goto_if`, `end_if` | probable | test one unnamed thing, 0 in a world of one's own |
 | 0[0] | `combine_group` | probable | puts one group's state into another, or waits on it |
 | 1000[1–4], 1000[101], [103], [107] | skips, ends, gotos on condition groups | confirmed, probable | skip counts fit, labels lie ahead |
@@ -1642,11 +1642,41 @@ as text, though code could still compute it. Nothing depends on it either way.
 
 **Five gifts open.** Following flags eight steps back, up from four, opens those whose every
 step is read. 49 stay shut, down from 54, all still missable, so none could take a key item.
-What holds them: `1003[3]`, `3[1]` and `3[26]`, range and state tests not settled, `3[12]`
-and `3[10]`, and flags nothing sets. They stay unread, as a wrong guess would count a
-gift the game withholds.
+What held them then: `1003[3]`, `3[1]` and `3[26]`, `3[12]` and `3[10]`, and flags nothing
+sets. The next section settles the first three from the exe.
 
 Both changes were proven on 2.7.2 with `apoc-rando check`, seeds 0 to 9,999, none failing: the
 failed branches in 1,371 s, then the Boluses and the five gifts on top in 1,122 s. On the mod
 manager's `feat/randomizer-addon`, its whole gate passes, with 4,455 Rust tests.
 
+## Event tests read from the exe
+
+Read by disassembling `eldenring.exe` 2.7.2, with no game or lab run. The event instruction
+dispatcher is at `+0x569040`; bank 3's table at `+0x570144`. The exe's own class names say what
+each test is.
+
+| Instruction | Handler | Class | Meaning |
+|---|---|---|---|
+| `3[1]`, `1003[3]` | `+0x56F484`, `+0x57047E` | `EcTestMultiEventFlagState`, test at `+0x580210` | byte 1: 0 all on, 1 all off, 2 any on, 3 any off |
+| `3[26]` | `+0x56FA5A` | `EcTestIsMyWorld`, test at `+0x57F9B0` | own world when byte 1 is 0, not when it is not |
+| `3[10]` | `+0x56F53F` | `EcTestMultiEventFlagCount`, test at `+0x57FEE0` | flags on in a range, against a value: `==`, `!=`, `>`, `<`, `>=`, `<=` |
+| `3[12]` | `+0x56F5DC` | `EcTestEventValue`, test at `+0x57D0D0` | a value held in a run of flags, against a value |
+
+This replaces the guess about range state 1, and shows that what the catalogue called
+`if_unnamed_state` is `if_my_world`. The first two rows are now in `fs_emevd::flow`. `3[10]` and
+`3[12]` are known but not followed: the logic would have to track counts and values, so a way
+through them stays shut. That the player's own world is what this test holds in when alone rests
+on the class's name; the field it reads (`+0xBCA` of the global at `+0x3D709A8`) was not traced.
+
+**Gifts.** `apoc-fs gift-shut` lists every gift with no open way and what each way stands on: 51
+before this, 39 after, so 12 open. That list counts two more than the 49 reported above, whose
+count was made differently. Missable gifts stay at 96 of 112.
+
+**A way through a flag that must be off** now marks its gift missable when an event, and no talk,
+can turn that flag on, and the rest of the way can happen. Without it, the newly read all-off
+ranges would have let key items onto gifts that a quest stage can shut.
+
+**What still holds the 39.** Of the 118 flags they name, 88 have no event setting them, and 82 of
+those appear in talk or params. The rest stand on `4[0]`, `3[10]`, `3[12]` and a few others.
+
+Proven with `apoc-rando check` on 2.7.2, seeds 0 to 9,999, none failing, in 1,347 s.

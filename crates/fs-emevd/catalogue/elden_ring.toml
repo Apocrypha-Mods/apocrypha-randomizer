@@ -170,13 +170,10 @@ name = "skip_if_flag_range"
 length = 12
 confidence = "probable"
 evidence = """
-174 uses, always 12 bytes: packed bytes, then two flags a short way apart
-(4982 and 4983, 3100 and 3104). Byte 0 (1 to 5) never counts past the end of
-its event; byte 1 is 2 in 146 unfilled uses, 1 in 26. State 2 is read as "any
-of the range on": NPC quest scripts use it to set a first stage only when no
-stage of the range is set yet (Patches' event 3119 skips clearing 3100 to
-3104 and setting 3100 on it), which no other reading of 2 makes work. What 1
-asks is not settled."""
+174 uses, always 12 bytes: packed bytes, then two flags. Byte 0 (1 to 5) never counts
+past the end of its event. Read from eldenring.exe 2.7.2: the handler at +0x57047E
+tests the range with the evaluator of EcTestMultiEventFlagState at +0x580210. Byte 1:
+0 all on, 1 all off, 2 any on, 3 any off."""
 [[instruction.arg]]
 word = 0
 name = "condition"
@@ -198,11 +195,10 @@ name = "if_flag_range"
 length = 12
 confidence = "probable"
 evidence = """
-147 uses, always 12 bytes: packed bytes, then two flags a short way apart
-(3386 and 3397, 4125 and 4126). Byte 0 a condition group, byte 1 a state: 2
-in 105 uses, 1 in 23, 0 in 10, 3 in 7. Shaped like skip_if_flag_range, and
-read the same way: state 2 is any of the range on. The other states are not
-settled."""
+147 uses, always 12 bytes: packed bytes, then two flags. Byte 0 a condition group.
+Read from eldenring.exe 2.7.2: the handler at +0x56F484 builds an
+EcTestMultiEventFlagState (+0x580150), tested at +0x580210. Byte 1: 0 all on, 1 all
+off, 2 any on, 3 any off."""
 [[instruction.arg]]
 word = 0
 name = "condition"
@@ -353,20 +349,18 @@ kind = "entity"
 [[instruction]]
 bank = 3
 id = 26
-name = "if_unnamed_state"
+name = "if_my_world"
 length = 4
 confidence = "probable"
 evidence = """
-524 uses, always 4 bytes: only a group, with nothing named. It stands in the same
-group as what the event waits for, including an object action (11 uses) and a
-death that leads to boss_defeated (13 runs), so ordinary play meets it while it
-meets those. What it tests is not settled. Read only beside a bell's object
-action, on the gift waiting for those bells."""
+524 uses, always 4 bytes. Read from eldenring.exe 2.7.2: the handler at +0x56FA5A
+builds an EcTestIsMyWorld (the exe's own class name) from byte 1, and its test at
++0x57F9B0 holds in the player's own world when byte 1 is 0, and outside it otherwise."""
 [[instruction.arg]]
 word = 0
 name = "condition"
 kind = "packed"
-bytes = ["group"]
+bytes = ["group", "not_wanted"]
 
 # --- Control flow -------------------------------------------------------------
 #
