@@ -1766,8 +1766,8 @@ harm. Summons that scripts spawn were not read.
 | Caelid | in the world for about a minute, then a loading screen and a dark hall | about 5 min |
 | Limgrave (Warmaster's Shack) | the same hall, no open world seen | about 5 min |
 
-The hall is taken to be the Roundtable Hold, as the save may trigger the first visit; see the log note in the commit's run.
-So Limgrave's mounted patrols were not exercised. The screenshots show no moved enemy close by and nothing was fought: this
+The hall looks like the Roundtable Hold, perhaps Melina's first visit, but this is unconfirmed: the log lists only files the
+seed overrides, and it does not list that map. So Limgrave's mounted patrols were not exercised. The screenshots show no moved enemy close by and nothing was fought: this
 shows these maps load and run with moved enemies standing in them, not that fights work.
 
 `test-warp` from a map near its target reloaded for ever, seen the same with enemies unmoved, so it now fires once, on flag 10009990.
