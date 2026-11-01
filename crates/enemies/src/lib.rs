@@ -268,6 +268,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
 
     let mut out = Pool::default();
     let mut placed: HashMap<u32, usize> = HashMap::new();
+    let mut twice: BTreeSet<u32> = BTreeSet::new();
     out.listed = s
         .maps
         .iter()
@@ -342,6 +343,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 } else if !hostile {
                     Some("friendly until a script turns it, which would not happen elsewhere")
                 } else if placed.contains_key(&en) {
+                    twice.insert(en);
                     Some("placed twice")
                 } else if !waited.contains(&en) {
                     Some("no script waits on its death, so the fight might never end")
@@ -384,6 +386,10 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             }
         }
     }
+    // Neither copy of a boss placed twice moves: one moved alone would leave
+    // two bodies under one entity.
+    out.spots
+        .retain(|s| s.boss.is_none() || !s.entity.is_some_and(|en| twice.contains(&en)));
     Ok(out)
 }
 
@@ -458,12 +464,14 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     Plan { from }
 }
 
-/// The models each map must add for the bodies that now stand in it.
+/// The models each map must add for the ordinary bodies that now stand in it. A
+/// boss's model does not count against the limit (`docs/spec/enemies.md` §2).
 pub fn new_models<'a>(pool: &'a Pool, from: &[usize]) -> BTreeMap<usize, BTreeMap<&'a str, usize>> {
     let mut out: BTreeMap<usize, BTreeMap<&str, usize>> = BTreeMap::new();
     for (i, s) in pool.spots.iter().enumerate() {
-        let model = pool.spots[from[i]].body.model.as_str();
-        if !pool.listed[s.map_index].contains(model) {
+        let body = &pool.spots[from[i]];
+        let model = body.body.model.as_str();
+        if body.boss.is_none() && !pool.listed[s.map_index].contains(model) {
             *out.entry(s.map_index)
                 .or_default()
                 .entry(model)
@@ -887,6 +895,21 @@ mod tests {
                 assert!(p.spots[i].map.is_open_world());
             }
         }
+    }
+
+    #[test]
+    fn a_bosss_model_does_not_count_against_the_limit() {
+        let mut boss = at(0, true, [10, 0, 0, 0], Size::Large);
+        boss.body.model = "c9000".into();
+        let mut plain = at(1, false, [10, 0, 0, 0], Size::Small);
+        plain.body.model = "c1000".into();
+        let p = Pool {
+            spots: vec![boss, plain],
+            fixed: vec![],
+            listed: vec![BTreeSet::new()],
+        };
+        let added = new_models(&p, &[0, 1]);
+        assert_eq!(added[&0].keys().copied().collect::<Vec<_>>(), ["c1000"]);
     }
 
     #[test]

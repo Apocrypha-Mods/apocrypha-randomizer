@@ -219,6 +219,63 @@ fn a_written_seed_reads_back_with_each_part_standing_as_planned() {
 
 /// Cutscenes stay as they are (docs/spec/enemies.md §3.1): a seed changes none,
 /// but for Malenia's second-phase event, which goes with her without its own.
+/// The rule keeping these in place goes by name, so every part of their kind has to
+/// carry the name. Their row ids share a family (the id less its last four digits).
+/// It fails today: no row carries either name, so the rule catches nothing
+/// (docs/progress.md, "Against the specs").
+#[test]
+#[ignore = "known fault: their models are not yet known, and no row carries the names"]
+fn what_the_area_map_counts_on_is_not_in_the_pool() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let npc = s.reg.table("NpcParam").unwrap();
+    let layout = for_table("NpcParam").unwrap();
+    let name_of = |id: i32| {
+        npc.rows
+            .iter()
+            .find(|r| r.id == id)
+            .map(|r| layout.field("name_id").get(&r.data, 0) as i32)
+            .filter(|&n| n > 0)
+            .and_then(|n| s.text("NpcName", n))
+            .unwrap_or("")
+    };
+    for kind in ["Abductor Virgin", "Walking Mausoleum"] {
+        let families: HashSet<i32> = npc
+            .rows
+            .iter()
+            .filter(|r| name_of(r.id).contains(kind))
+            .map(|r| r.id / 10_000)
+            .collect();
+        assert!(!families.is_empty(), "{kind}: no row has the name");
+        let unnamed: Vec<i32> = p
+            .spots
+            .iter()
+            .filter(|s| families.contains(&(s.body.npc / 10_000)))
+            .map(|s| s.body.npc)
+            .collect();
+        println!("{kind}: families {families:?}, in the pool {unnamed:?}");
+        assert!(unnamed.is_empty(), "{kind} can move: {unnamed:?}");
+    }
+}
+
+#[test]
+fn a_boss_placed_twice_has_neither_copy_moved() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let twice: HashSet<&str> = p
+        .fixed
+        .iter()
+        .filter(|f| f.reason == "placed twice")
+        .map(|f| f.name.as_str())
+        .collect();
+    println!("placed twice: {twice:?}");
+    for b in p.spots.iter().filter(|s| s.boss.is_some()) {
+        assert!(!twice.contains(b.body.name.as_str()), "{}", b.body.name);
+    }
+}
+
 #[test]
 fn no_cutscene_is_changed() {
     let Some(s) = sources() else { return };

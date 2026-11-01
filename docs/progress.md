@@ -1565,3 +1565,56 @@ Not yet done: the add-on has not run inside the real mod manager window, and no 
 it has been played. It must not be published before the legal opinion on `oozextract`
 (PLAN.md §6), which it needs to read the game's files. Publishing also needs the offline
 add-on publisher key.
+
+## Against the specs (2026-11-01)
+
+The code was read against `docs/spec/`. The README now separates our own design
+(`items.md`, `enemies.md`, `bias.md`), which the code follows, from the earlier
+dirty-room write-up (`00` to `10`), merged from GitHub and kept for reference.
+
+**Fixed:**
+- A boss's model no longer counts against the models-per-map limit (`enemies.md` §2).
+  Only seeds that move ordinary enemies can change.
+- Neither copy of a boss placed twice moves now (§3.3). No boss is placed twice on
+  2.7.2, so no seed changes today.
+
+**A fault found, not fixed:** Abductor Virgins and Walking Mausoleums should stay
+(`enemies.md`), but the rule goes by name and no NpcParam row carries either name, so
+it catches nothing. With ordinary enemies moving they can move, and the Volcano Manor
+route and a shop would go with them. The fix needs their models, which public lists
+did not give and the data alone does not settle. An ignored test in `real_enemies.rs`
+holds this, needing only their model ids. The add-on does not move ordinary enemies.
+
+**For Nova to decide (our own design):**
+- A category at 0% still moves in shops and class gear: with `weapons=0, merchants=100`
+  sold weapons move. Should a row move only if both sliders pass (`items.md` §2.1)?
+- The add-on page offers only the category sliders, DLC and bosses: no bias,
+  merchants, starting gear, keepsakes, gathering, NPC gear or scaling (`items.md` §1).
+- Slots that never give their item may receive ordinary items (`items.md` §4), and a
+  one-off item can land on a slot with a low drop chance.
+- An unnamed ordinary enemy on a boss's bar shows blank or stray text.
+- The keepsake menu's text is rewritten even at `keepsakes=0`.
+- `--bias` for merchants, starting gear, keepsakes and NPC gear is accepted and does
+  nothing.
+
+**Where the earlier write-up differs.** None of this was acted on, as taking behaviour
+from it is Nova's decision. Most likely to hurt a player first:
+1. Doors and talk that check a location's flag and not the item: flags do not follow
+   moved items, and the proof cannot see such a door. This could softlock a seed that
+   passes, and is the one to read first, from the game's own scripts.
+2. Riders, mounts and helpers are moved apart from their owners; this may bear on
+   the ordinary-enemy crash, though no link is proven.
+3. A moved boss's spot is not checked for water, falls or poison, and a body scripted
+   as immortal until a trigger is only partly filtered.
+4. Key items on one-time enemy drops while enemies move.
+5. Places that close later: the walk treats a reached area as reached for good, so an
+   item in the Royal Capital can be lost after the burning.
+6. A required key on an expensive shop row, and one-off items on unlimited rows.
+7. Open-world far copies of an enemy; a human-model load limit; invaders respawning.
+8. An old seed's files staying in a reused folder (`generate` removes nothing; the
+   add-on removes them), and a seed sharing the player's save unless a profile is written.
+
+Could not be settled from the code: whether slots that never give their item exist;
+that results match across systems (the suite passes on Linux and under Wine);
+`crates/native` against the auto-upgrade rules, which was only partly read.
+
