@@ -7,9 +7,9 @@ use crate::upgrade::{Levels, Marks, Slot, Upgrader, Weapons, character_name};
 use crate::walk;
 
 const DLL_PROCESS_ATTACH: u32 = 1;
-/// Where the character's name is in `CS::PlayerGameData`, from public notes on the game and
-/// not yet seen in the lab. If it is wrong no name reads, and the marks last only until
-/// the game closes: the log says `upgrade: no character's name read`.
+/// Where the character's name is in `CS::PlayerGameData`, from public notes on the game. In
+/// the lab on 2.7.2 no name reads here, so the marks last only until the game closes: the log
+/// says `upgrade: no character's name read` (docs/progress.md).
 const NAME_AT: usize = 0x9C;
 const NAME_LEN: usize = 34;
 /// The file beside the module holding each character's highest levels.

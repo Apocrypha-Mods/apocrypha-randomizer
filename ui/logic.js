@@ -17,8 +17,16 @@ export const CATEGORIES = [
 export const defaults = () => ({
   shuffle: Object.fromEntries(CATEGORIES.map(([k]) => [k, 100])),
   bosses: 0,
+  ordinary: 0,
+  mix: 0,
   dlc: "mixed",
 });
+
+/** `apoc-rando --enemies`, or nothing if no enemy moves. A mix needs bosses to send out. */
+function enemies({ bosses = 0, ordinary = 0, mix = 0 }) {
+  if (!bosses && !ordinary) return "";
+  return `bosses=${bosses},ordinary=${ordinary},mix=${bosses ? mix : 0}`;
+}
 
 /** One seed's request to the module. */
 export function request(seed, s) {
@@ -27,8 +35,7 @@ export function request(seed, s) {
     seed,
     shuffle: CATEGORIES.map(([k]) => `${k}=${s.shuffle[k] ?? 100}`).join(","),
     dlcSeparate: s.dlc === "separate",
-    // Ordinary enemies stay put: moving them crashes the game (docs/progress.md).
-    enemies: s.bosses > 0 ? `bosses=${s.bosses},ordinary=0,mix=0` : "",
+    enemies: enemies(s),
   };
 }
 

@@ -115,8 +115,10 @@ To be filled in as they are found. Not yet seen in the game:
   each spot is told. Which ids a body has is a rough reading of its `.anibnd`: 106 of
   340 commands were not found on the spot's own body, so some archives hold more.
 - **Moving ordinary enemies crashed the game near Stormveil** at every model limit
-  tried, until riders, mounts and generators' parts stayed (`progress.md`). Six regions now
-  run in the lab with no crash, but nothing has been fought. Not yet played.
+  tried, until riders, mounts and generators' parts stayed (`progress.md`). A matched control
+  closes at the old address without the riders' rule and runs with it. Moved enemies have
+  attacked and killed the character, and died to its hit and to scripts, with no crash. Not
+  yet played through, and a moved enemy's drop has not been picked up.
 - **Water, falls and poison in a boss's arena.** Not filtered. A body that dies there
   still ends the fight, and the reward stays with the place, so this costs a cheap win, not
   a seed. No list of such arenas has been read from the game.

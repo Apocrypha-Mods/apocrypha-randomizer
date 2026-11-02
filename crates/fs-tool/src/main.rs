@@ -224,6 +224,17 @@ enum Command {
         /// The mod folder to change.
         out: PathBuf,
     },
+    /// Large bodies and bosses near each grace, in a seed against the unmodded game.
+    GraceDanger {
+        game: PathBuf,
+        #[arg(long, default_value_t = 200)]
+        seeds: u64,
+        #[arg(long, default_value_t = 30.0)]
+        radius: f32,
+        /// List who stands near each grace in this seed.
+        #[arg(long)]
+        show: Option<u64>,
+    },
     /// Warp the player on every load of the chapel, to look at a far place in
     /// the lab. Never for a seed that is meant to be played as itself.
     TestWarp {
@@ -239,6 +250,12 @@ enum Command {
         /// The map whose loading sets it off, as `m60_42_36_00` (default the chapel).
         #[arg(long)]
         from: Option<String>,
+    },
+    /// Leave every enemy in a mod folder's maps with no think row, for walking up to
+    /// them in the lab. Never for a seed that is meant to be played.
+    TestCalm {
+        /// The mod folder to change.
+        out: PathBuf,
     },
     /// Leave a mod folder's moved enemies with one health, for lab checks of what
     /// their death sets off. Never for a seed that is meant to be played.
@@ -469,6 +486,13 @@ fn main() {
         Command::NameModels { game, value } => gift_audit::name_models(game, value),
         Command::ScriptDump { game, events, uses } => script_dump(game, &events, &uses),
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
+        Command::GraceDanger {
+            game,
+            seeds,
+            radius,
+            show,
+        } => far_copies::grace_danger(game, seeds, radius, show),
+        Command::TestCalm { out } => test_kit::calm(out),
         Command::TestWarp {
             game,
             out,

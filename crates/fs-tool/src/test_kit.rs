@@ -241,3 +241,34 @@ pub fn kill(
     )?;
     Ok(())
 }
+
+/// Leave every enemy in a mod folder's maps with no think row, so a character in the lab
+/// can walk up to it and hit it. Never for a seed that is meant to be played.
+pub fn calm(out: PathBuf) -> Result<()> {
+    const PARTS: &str = "PARTS_PARAM_ST";
+    let mut count = 0;
+    for file in std::fs::read_dir(out.join("map/mapstudio"))? {
+        let path = file?.path();
+        let (header, plain) = fs_dcx::decompress(&std::fs::read(&path)?)?;
+        let mut msb = fs_msb::Msb::read(&plain)?;
+        let t = msb
+            .tables
+            .iter_mut()
+            .find(|t| t.name == PARTS)
+            .ok_or_else(|| format_err("the map has no parts"))?;
+        for e in &mut t.entries {
+            if fs_msb::layout::field(PARTS, "type").get(e, 0) == Some(2) {
+                fs_msb::layout::field(PARTS, "think").set(e, 0, 0)?;
+                count += 1;
+            }
+        }
+        // A new file: the folder may share this one with a copy.
+        std::fs::remove_file(&path)?;
+        std::fs::write(
+            &path,
+            fs_dcx::compress(&header.with_algorithm(Algorithm::Zstd), &msb.write()?)?,
+        )?;
+    }
+    eprintln!("{count} enemies with no think row");
+    Ok(())
+}

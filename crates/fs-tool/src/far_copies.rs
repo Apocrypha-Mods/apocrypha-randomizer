@@ -299,3 +299,105 @@ pub fn helpers(game: PathBuf) -> Result<()> {
     }
     Ok(())
 }
+
+/// Which bodies stand near each grace in a seed against the unmodded game, as dangers
+/// a player meets on arriving: large bodies and bosses within `radius` metres. Heights
+/// are not compared in the open world, so a body on a cliff above counts.
+pub fn grace_danger(game: PathBuf, seeds: u64, radius: f32, show: Option<u64>) -> Result<()> {
+    let s = Sources::open(&game)?;
+    let model = gamedata::elden_ring::extract(&s)?;
+    let pool = enemies::pool(&s, &model)?;
+    let place = |map: gamedata::MapId, at: [f32; 3]| -> (Option<gamedata::MapId>, [f32; 3]) {
+        match map.world(at) {
+            // m60 and m61 are different worlds, on the same tile numbers.
+            Some(w) if map.is_open_world() => (None, [w[0], f32::from(map.0[0]) * 1e5, w[1]]),
+            _ => (Some(map), at),
+        }
+    };
+    let spots: Vec<_> = pool
+        .spots
+        .iter()
+        .map(|p| {
+            let e = &s.maps[p.map_index].1.table(PARTS).entries[p.part];
+            let at = |n| field(PARTS, "position").get_f32(e, n).unwrap_or(0.0);
+            place(p.map, [at(0), at(1), at(2)])
+        })
+        .collect();
+    let mut graces: Vec<(String, Vec<usize>)> = Vec::new();
+    for g in &model.graces {
+        let (Some(map), Some(at)) = (g.map, g.position) else {
+            continue;
+        };
+        let (world, at) = place(map, at);
+        let close: Vec<usize> = spots
+            .iter()
+            .enumerate()
+            .filter(|(_, (w, p))| {
+                *w == world && (0..3).map(|n| (p[n] - at[n]).powi(2)).sum::<f32>() < radius * radius
+            })
+            .map(|(i, _)| i)
+            .collect();
+        graces.push((g.name.clone().unwrap_or_default(), close));
+    }
+    let big = |b: &enemies::Spot| b.size == enemies::Size::Large || b.boss.is_some();
+    let stock = graces
+        .iter()
+        .filter(|(_, c)| c.iter().any(|&i| big(&pool.spots[i])))
+        .count();
+    println!(
+        "{} graces with a place; {stock} have a large body or boss within {radius} m unmodded",
+        graces.len()
+    );
+    let options = enemies::Options {
+        bosses: 100,
+        ordinary: 100,
+        mix: 10,
+        ..Default::default()
+    };
+    let (mut total, mut most, mut from_mix) = (0, 0, 0);
+    for seed in 0..seeds {
+        let plan = enemies::shuffle(&pool, seed, &options);
+        let hit: Vec<_> = graces
+            .iter()
+            .filter(|(_, c)| c.iter().any(|&i| big(&pool.spots[plan.from[i]])))
+            .collect();
+        total += hit.len();
+        most = most.max(hit.len());
+        from_mix += graces
+            .iter()
+            .filter(|(_, c)| {
+                c.iter().any(|&i| {
+                    pool.spots[i].boss.is_none() && pool.spots[plan.from[i]].boss.is_some()
+                })
+            })
+            .count();
+        if show == Some(seed) {
+            for (name, close) in &graces {
+                for &i in close {
+                    let b = &pool.spots[plan.from[i]];
+                    println!(
+                        "  seed {seed} {name}: {} {} {:?}{} on {} {} (entity {:?}, stood {})",
+                        b.body.model,
+                        b.body.name,
+                        b.size,
+                        if b.boss.is_some() { " boss" } else { "" },
+                        pool.spots[i].map,
+                        entry_name(
+                            &s.maps[pool.spots[i].map_index].1.table(PARTS).entries
+                                [pool.spots[i].part]
+                        )
+                        .unwrap_or_default(),
+                        pool.spots[i].entity,
+                        pool.spots[i].body.model,
+                    );
+                }
+            }
+        }
+    }
+    println!(
+        "over {seeds} seeds at bosses=100,ordinary=100,mix=10: {:.1} graces a seed have one, at most {most}; {:.1} a seed have a boss sent out by the mix",
+        total as f64 / seeds as f64,
+        from_mix as f64 / seeds as f64
+    );
+    Ok(())
+}

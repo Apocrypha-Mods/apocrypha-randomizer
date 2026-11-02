@@ -3,7 +3,7 @@
   "id": "randomizer",
   "name": "Randomizer",
   "version": "0.1.0",
-  "about": "Items and bosses, shuffled from a seed",
+  "about": "Items and enemies, shuffled from a seed",
   "entry": "index.html",
   "games": ["elden-ring"],
   "needs": ["hello", "fonts", "files.part.own", "output.write", "output.remove", "output.open", "disk.save", "apply.review", "busy"]

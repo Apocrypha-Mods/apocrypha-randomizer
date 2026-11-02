@@ -990,7 +990,15 @@ Still to do:
   - **Enemies at Gatefront attacked and killed the character** on four landings, within seconds in the runs where it was watched: a huge long-limbed creature and a smaller figure, which lock-on caught. YOU DIED ran, and the game reloaded. They were taken to be moved enemies from what stands there unmodded, not from a read of the map. **No ordinary enemy was killed**, so an ordinary enemy's death and drop are not seen.
   - **The dark hall is where the character returns after dying**: seen directly, YOU DIED at Gatefront, then a loading screen, then the hall. So Limgrave's earlier "hall, no open world" runs were deaths at the landing spot, not a fault. Its far door reads "Opens only to those carrying a finger".
   - `test-warp` from a map to a place in the same map does not move the character. Two launches went off a cliff by steering at 10 fps, which is the tool, not the seed.
-  - Open for balance: a low-level character dies within seconds at a grace with such a body beside it. This run does not say how often seeds do this.
+  - Open for balance: a low-level character dies within seconds at a grace with such a body beside it. The next item measures how often.
+- **Ordinary enemies die, and large bodies near graces do not rise** (2026-11-02, same seed, nine more launches, none closing, no page fault in any log read).
+  - **A player's hit killed an ordinary enemy** at Gatefront: +77 runes, the body fell, the game ran on. `apoc-fs test-calm` made that possible: every enemy in a mod folder's maps with think 0 stands still, and the character walked up unhurt.
+  - **Ten kills by script** (`test-kill`) of different bodies at Stormveil, c6100, c3500, c4491, c6010, c4430, c4385, c4070, c2271, c3670 and c4140, all at 1 health, with no fault. 67 runes arrived; which of the ten paid them, or whether all died, was not seen.
+  - **A moved enemy's drop was not picked up.** One hit was tried beside a dark body at Lower Capital Church and the runes stayed 0, so it was not the target or did not die. That hazard is still open.
+  - `apoc-fs grace-danger` counts large bodies and bosses within 30 m of a grace, heights not compared: 39 of 419 graces unmodded, 35.7 a seed over 200 seeds at `bosses=100,ordinary=100,mix=10`, at most 41, and 0.5 a seed with a boss sent out by the mix. So seeds do not add this, and no rule was added. The bodies listed beside Gatefront on seed 1 are both classed Small (c4316, c6100), while what killed the character looked huge: it may stand further off, or its NpcParam height may not show its size. Not settled. Sizes read sound for the models checked: dragons Large, soldiers Small.
+  - `test-warp` to Manor Lower Level and Stormhill Shack ended in the dark hall with every enemy calm at the Manor, so a landing can itself kill, probably by a fall. A warp onto an enemy's entity landed elsewhere, so it does not work as a way to reach one.
+- **Auto-upgrade in the lab.** `upgrade: 1 EQUIP_PARAM_CUSTOM_WEAPON_ST table(s)`: found, so the preset weapon fix has its table. `upgrade: no character's name read`, with a character loaded: **+0x9C is not the name on 2.7.2**, so levels last only until the game closes. Searching 44,000 blocks from the player data for the save's name `Boot` found it twice, one place appearing during loading and the other's address changing between scans, neither in a `PlayerGameData`. The search was dropped, and the fallback stands.
+- **The add-on offers ordinary enemies and the mix**, marked untested. Seed 1 at `bosses=100,ordinary=100,mix=10` through `tools/addon-run.mjs`: the same 502 files and spoiler log as `apoc-rando`, by `diff -r` and `cmp`, in 104 s with 2.05 GiB of module memory.
 - **Machine checks again** (2026-10-31, 16:36). The PC went down some 25 s after a lab run was
   stopped, its scope having just timed out and been killed, nothing else running. The same
   fatal error: MC5, syndrome 0x4d000000, on another address (Ryzen 7 5700X). The last three
@@ -1581,8 +1589,8 @@ manager and reaches only what the mod manager hands it. One file serves every sy
 
 Left out of this first version, on purpose:
 
-- **Ordinary enemies** are not offered, as moving them crashes the game. Bosses are
-  offered and marked untested.
+- **Ordinary enemies** were not offered at first, as moving them crashed the game. They
+  are now, marked untested, with the bosses and the mix (2026-11-02).
 - **Auto-upgrade** needs the native module loaded, which an add-on cannot place yet.
 - **Building on other mods.** The module reads the game's own copy only.
 
