@@ -1887,3 +1887,7 @@ The add-on carries `apoc_native.dll`, and the website's scan refused any program
 ## Open source (Nova, 2026-11-02)
 
 The whole project is now GPL-3.0-or-later, so the doubt over `oozextract`'s label no longer stops it shipping. `powzix/ooz`'s file headers read GPL version 3 or later, and every other crate in the tree was already recorded as permissive and compatible. The package now carries `LICENSE`. gitleaks found nothing across all commits. The repository went public with its full history the same day, by Nova's choice, spec write-ups and commit emails included.
+
+## Publish script (2026-11-02)
+
+`tools/publish.sh` builds the package, judges its files by a copy of the website's rules (`tools/check-package.sh`), signs a `release.json` with the offline key, tags the commit and stops; upload is by hand in the creator editor, as `apocrypha-web`'s `docs/addons.md` now has it, where Bodyworks' older script still uploads to a bucket. Seen with a throwaway key as `addons-dev`: the signature verified and the signed hash matched the package. `check-package.sh` passed the module at the root and refused it in a folder, under another name, as a non-Windows file, and refused a program in `.wasm`, an archive in `.json` and a bare name. Not run with the real key `addons-1`, which has not been found.
