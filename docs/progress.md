@@ -1886,4 +1886,4 @@ The add-on carries `apoc_native.dll`, and the website's scan refused any program
 
 ## Open source (Nova, 2026-11-02)
 
-The whole project is now GPL-3.0-or-later, so the doubt over `oozextract`'s label no longer stops it shipping. `powzix/ooz`'s file headers read GPL version 3 or later, and every other crate in the tree was already recorded as permissive and compatible. The package now carries `LICENSE`. gitleaks found nothing across all commits. The repository is not yet public.
+The whole project is now GPL-3.0-or-later, so the doubt over `oozextract`'s label no longer stops it shipping. `powzix/ooz`'s file headers read GPL version 3 or later, and every other crate in the tree was already recorded as permissive and compatible. The package now carries `LICENSE`. gitleaks found nothing across all commits. The repository went public with its full history the same day, by Nova's choice, spec write-ups and commit emails included.
