@@ -979,6 +979,12 @@ Still to do:
   fix (limit 1), closed about 35 s after Continue, with its loading screen still up 25 s in, sooner after loading than the 30 s first noted. Its fault address was not captured, and the two seeds differ in
   limit and in item placement as well. Only Stormveil's gate and the nearby open world were loaded, no moved enemy was seen or
   fought, and the rest of the world was not visited, so other crashes there are not ruled out.
+- **The rider fix is what stopped it, by a matched control** (2026-11-02, 2.7.2, `ER_CPU=300`, one run of each, a copy of the same save at
+  Margit's fog). Seed 1, `bosses=100,ordinary=100,mix=10`, both built today, with only the mount lines of `tied_parts` taken out of one for the control.
+  Without them the game closed 41 s after Continue, a null read at `eldenring.exe+0x475D2B`, the same address as the first crash. With them it ran 259 s until stopped, with no fault, the last shot standing at the fog.
+  The same build in Limgrave, warped in, also ran until stopped: Bridge of Sacrifice for 266 s, the last shot in the open world and the earlier ones of the same size from about the third on (a horse's tile, `m60_44_34`), and Third Church of Marika for 266 s,
+  though there no shot shows the church: loading screens, then the dark hall by about 100 s. The Warmaster's Shack was not rerun. Nothing was fought, and why the manipulator is null is still not known.
+  This seed overrides `m10_01_00_00`, and the Third Church run's log lists it while the bridge's does not, so the hall is probably that map, the Chapel of Anticipation by the spoiler log's naming; the earlier reading of the Roundtable Hold looks wrong. Why the character goes there is not settled: a death at the landing spot, respawning at the save's last grace, is a guess no screenshot showed.
 - **Machine checks again** (2026-10-31, 16:36). The PC went down some 25 s after a lab run was
   stopped, its scope having just timed out and been killed, nothing else running. The same
   fatal error: MC5, syndrome 0x4d000000, on another address (Ryzen 7 5700X). The last three
