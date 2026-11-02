@@ -161,8 +161,8 @@ function groups() {
         "div.card.rows",
         {},
         slider("Bosses", st.bosses, (v) => (st.bosses = v), h("span.tag.warn", { title: "Not yet played through in the game" }, "Untested")),
-        slider("Ordinary enemies", st.ordinary ?? 0, (v) => (st.ordinary = v), h("span.tag.warn", { title: "Not yet played through in the game" }, "Untested")),
-        slider("Bosses among ordinary enemies", st.mix ?? 0, (v) => (st.mix = v), h("span.tag.warn", { title: "Needs Bosses above 0. Not yet played through in the game" }, "Untested")),
+        slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), h("span.tag.warn", { title: "Not yet played through in the game" }, "Untested")),
+        slider("Boss mix", st.mix ?? 0, (v) => (st.mix = v), h("span.tag.warn", { title: "The share of bosses that trade places with an ordinary enemy. Needs Bosses above 0. Not yet played through in the game" }, "Untested")),
       ),
     ),
   );

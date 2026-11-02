@@ -1594,8 +1594,9 @@ Left out of this first version, on purpose:
 - **Auto-upgrade** needs the native module loaded, which an add-on cannot place yet.
 - **Building on other mods.** The module reads the game's own copy only.
 
-Not yet done: the add-on has not run inside the real mod manager window, and no seed from
-it has been played. It must not be published before the legal opinion on `oozextract`
+**In the real mod manager** (2026-11-02, `feat/randomizer-addon`, built apart, run in headless gamescope on an empty data folder, the add-on's files placed by hand rather than through Add). Two faults only the real host shows, both fixed on that branch, local and not pushed: Elden Ring's Tools tab listed no add-ons and the Tools screen sent it back to Mods, so the add-on could not be reached; and a game with no mods had no folder, so the first file failed with `No such file or directory`. Then seed 1 at Bosses 100, Ordinary 100, by the page's own sliders and Build button: 1 min 45 s, 5,628 items, 503 files the same as `apoc-rando gen --dlc mixed --enemies bosses=100,ordinary=100,mix=0` by `diff -r`. Its tests pass: 47 of `addons` in the desktop crate and 1,416 of the page's. One launch of the window stopped answering clicks after restarting, for a reason not found; the next did not. Add from a file, Apply and Save spoiler log were not pressed. The packed add-on is 915503 bytes, SHA-256 starting 8cc09c06f34fbf84.
+
+Not yet done: no seed from it has been played. It must not be published before the legal opinion on `oozextract`
 (PLAN.md §6), which it needs to read the game's files. Publishing also needs the offline
 add-on publisher key.
 
