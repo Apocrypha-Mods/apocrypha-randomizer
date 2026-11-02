@@ -1876,3 +1876,10 @@ In the next lab run check the log for `upgrade: character <name>`. The name's pl
 **Seen.** The packed add-on's real page, in headless Chrome against a stand-in host holding one small mod, Build pressed, auto-upgrade on: 201 files the same as `apoc-rando gen --with-mod --auto-upgrade`, the DLL among them, in 3 min 7 s. A screenshot of that page showed the new sliders drawn as text, now fixed and seen again.
 
 **Not seen.** These requests in the real mod manager's window: in headless gamescope its Tools tab blanks the window, so `files.stack` and the marker rest on tests of the host code and the page on the stand-in. No seed from the add-on has been played, and a seed on another mod with auto-upgrade has not been run in the game.
+
+
+## The website's package scan accepts auto-upgrade's module (2026-11-02)
+
+The add-on carries `apoc_native.dll`, and the website's scan refused any program in any add-on, so the package could not have been uploaded. Local runs never went through that scan. `AddonPackageRules` in `apocrypha-web` (branch `fix/randomizer-addon-native`, committed, not pushed) now accepts that one name at the root of add-on `randomizer` only, if it starts `MZ`, and the manifest cannot name it as its page. A throwaway test run on `dist/randomizer-0.1.0.apocaddon` passed the rules, and a stand-in package with the module passed the real upload and scan. The website is not yet deployed with this.
+
+`tools/publish.sh`, still to be written here, must allow this file too: the one in Bodyworks refuses it by type.
