@@ -9,7 +9,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
-| 5. Enemy randomizer | started 2026-10-30; not seen in game | `apoc-rando gen --enemies` writes a seed, and the real-file test reads it back. No lab run was made, at Nova's request (below). Its gate, in-game hazard checks, is open. |
+| 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
 | 6. Output and merging | done 2026-10-31 | A seed on Nightreign Movement and ELDEN VINS together ran in the lab: the seed's files served over both, the world loaded, and a moved boss fought under its own name (below). |
 | 7. Cross-platform | small CI 2026-10-31; release later | `.github/workflows/ci.yml` builds and tests on Linux, Windows and macOS, and lints on Linux. Tests that need the game skip there. By Nova's choice the byte-identical check and packaging wait until there is something to ship, after the add-on. |
 
@@ -1587,12 +1587,7 @@ manager and reaches only what the mod manager hands it. One file serves every sy
   game's own loose file and never a mod's. It is on the branch `feat/randomizer-addon`
   of `Apocrypha-Mods/apocrypha`.
 
-Left out of this first version, on purpose:
-
-- **Ordinary enemies** were not offered at first, as moving them crashed the game. They
-  are now, marked untested, with the bosses and the mix (2026-11-02).
-- **Auto-upgrade** needs the native module loaded, which an add-on cannot place yet.
-- **Building on other mods.** The module reads the game's own copy only.
+Ordinary enemies were not offered at first, as moving them crashed the game. They are now, marked untested, with the bosses and the mix (2026-11-02). What else was left out is now in; see "Every option, auto-upgrade and other mods" below.
 
 **In the real mod manager** (2026-11-02, `feat/randomizer-addon`, built apart, run in headless gamescope on an empty data folder, the add-on's files placed by hand rather than through Add). Two faults only the real host shows, both fixed on that branch, local and not pushed: Elden Ring's Tools tab listed no add-ons and the Tools screen sent it back to Mods, so the add-on could not be reached; and a game with no mods had no folder, so the first file failed with `No such file or directory`. Then seed 1 at Bosses 100, Ordinary 100, by the page's own sliders and Build button: 1 min 45 s, 5,628 items, 503 files the same as `apoc-rando gen --dlc mixed --enemies bosses=100,ordinary=100,mix=0` by `diff -r`. Its tests pass: 47 of `addons` in the desktop crate and 1,416 of the page's. One launch of the window stopped answering clicks after restarting, for a reason not found; the next did not. Add from a file, Apply and Save spoiler log were not pressed. The packed add-on is 915503 bytes, SHA-256 starting 8cc09c06f34fbf84.
 
@@ -1861,3 +1856,23 @@ In the next lab run check the log for `upgrade: character <name>`. The name's pl
 
 **Proven.** With `APOC_ER_STOCK` on 2.7.2, the `enemies`, `rando` and `native` tests (47, none failing), clippy clean, including `native` for Windows. Seed 3, `bosses=100,ordinary=100,mix=10`: the same files and spoiler log on Linux and under Wine. `apoc-rando check`, same sliders, 500 seeds in 72 s, none failing.
 
+
+## Every option, auto-upgrade and other mods in the add-on (2026-11-02)
+
+**Every option.** The page offers each category's shuffle and lean, merchants, starting gear, keepsakes, gathering, NPC gear, auto-upgrade, enemy strength and the model limit. Lean is not offered where it does nothing (merchants, starting gear, keepsakes, NPC gear). Enemies stay on their own side of the DLC, by Nova's decision. `tools/addon-run.mjs` with all of these set, seed 7: the same files as `apoc-rando` by `diff -r`, and the same spoiler log but for the auto-upgrade line, which that run gave the module alone. 105 s, 2.12 GiB of module memory.
+
+**Auto-upgrade.** The add-on carries `apoc_native.dll` and the page writes it at the mod's root when the option is on; a build with it off removes it. No new request was needed. The mod manager's own pipeline (`apoc me3-apply`) puts it at `loader/natives/apoc_native.dll`.
+
+**The character's name, found.** +0x9C of `PlayerGameData` was right all along. The save's character is called `test`, and `Boot`, searched for before, is another slot's name in the menu's summary. Of 11 to 20 objects with the class's first word, one holds the name; the image points at it through one more pointer than the module was following. A scan of everything found it, but `walk.rs` records such a scan pushing the game past its cap, so the module now looks one step past what the image points at, near the start of each object, once every half minute until found. Stale copies of the class in freed memory can read as a name (`濿`, seen during loading), so an object must also lead to an inventory.
+
+**Levels are kept under `%APPDATA%\Apocrypha Randomizer\upgrade_levels.txt`**, as the mod manager rebuilds the folder the module loads from at every Apply. Seen in the lab, 2.7.2, on a file set by hand to `5 2 test`: `name found ..., of 2 objects`, `character test`, and `raised to +5 regular and +2 somber; 1066 pick-ups rewritten`, at 5.6 GB. So reading the file and the name are seen; writing it after a real rise is only tested off the game.
+
+**Building on other mods.** The page asks the mod manager's new `files.stack` for what the enabled mods put in the game, its own last seed left out, and the module reads their maps, scripts, talk, text and each one's tables, then merges and builds as `apoc-rando --with-mod` does. Seed 7, bosses at 100%, on the whole of ELDEN VINS: the same files, and the same spoiler log but for the mod's label, in 172 s at 1.70 GiB.
+
+**A fault this found.** Apply merges each mod's tables by what differs from the game's. So a value a seed sets back to the game's, where a mod under it changed that value, came out as the mod's, and an item the proof counted on could move. On VINS this hit the first seed tried, in `ItemLotParam_map` and `CharaInitParam`. It would have hit any seed with such a mod on. The mod manager now takes a seed's tables whole (`regulation.bin.whole` beside its copy), and a mod placed over it still merges on top. `rando::survives_merge` checks each stacked seed against that merge.
+
+**Order.** `output.write` with `last: true` puts the seed after every other mod. The page says when the mods on no longer match those a seed was built on, but a seed holds the tables of a mod since turned off until built again.
+
+**Seen.** The packed add-on's real page, in headless Chrome against a stand-in host holding one small mod, Build pressed, auto-upgrade on: 201 files the same as `apoc-rando gen --with-mod --auto-upgrade`, the DLL among them, in 3 min 7 s. A screenshot of that page showed the new sliders drawn as text, now fixed and seen again.
+
+**Not seen.** These requests in the real mod manager's window: in headless gamescope its Tools tab blanks the window, so `files.stack` and the marker rest on tests of the host code and the page on the stand-in. No seed from the add-on has been played, and a seed on another mod with auto-upgrade has not been run in the game.

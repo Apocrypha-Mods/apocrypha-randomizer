@@ -11,7 +11,12 @@
 //   files.read  { path, own: true } ArrayBuffer       the game's own copy as it shipped, never a mod's;
 //                                                     "No such file." when the game has none
 //   files.picture { path, longest } ArrayBuffer       a texture, as a PNG no longer than `longest` a side
-//   output.write { name, files }   { files }          files: [{ path, bytes }], into the mod `name`
+//   files.stack { name }           { files, merged, mods }  what the enabled mods put in the game, the mod
+//                                  `name` this add-on built apart. files: [{ path, size }]; merged:
+//                                  [{ path, copies: [{ mod }] }], files merged at Apply, lowest priority first
+//   files.stack.read { name, path, copy? } ArrayBuffer  one of those, or with `copy` one mod's copy of a merged file
+//   output.write { name, files, last? } { files }     files: [{ path, bytes }], into the mod `name`. `last`: it was
+//                                  built on the others, so it goes after them and Apply takes its merged files whole
 //   output.remove { name, paths }  { removed }        files this add-on built into the mod `name`, taken out again
 //   disk.save   { name, bytes }    { saved }          a file, where the person says; false if they close the dialog
 //   disk.folder { files }          { saved }          files: [{ path, bytes }], under a folder the person picks; 0 if they close the dialog

@@ -32,12 +32,13 @@ const store = {
 
 const S = {
   build: "idle", // idle | run | done | fail
-  settings: { ...L.defaults(), ...store.get("settings", {}) },
+  settings: L.settled(store.get("settings", {})),
   seedText: String(store.get("seed", L.newSeed())),
   last: store.get("last", null), // { at, ms, seed, files, paths }
   result: null, // { seed, slots, files, ms, spoiler }
   fail: null, // { message, ms }
   stop: false,
+  stack: null, // what the other mods hold, as last asked
 };
 
 function h(tag, attrs = {}, ...kids) {
@@ -51,7 +52,7 @@ function h(tag, attrs = {}, ...kids) {
     else if (k === "value") el.value = v;
     else el.setAttribute(k, v === true ? "" : v);
   }
-  for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
   return el;
 }
 
@@ -70,6 +71,7 @@ let statusEl, sideEl;
 function status() {
   if (S.build === "run") return "Building";
   if (S.build === "fail") return "Build failed";
+  if (S.last && L.modsChanged(S.last.mods, S.stack?.mods)) return "Your mods have changed since this seed: build again";
   if (S.build === "done") return `Seed ${S.result.seed} built`;
   return S.last ? `Seed ${S.last.seed} built ${L.ago(S.last.at).toLowerCase()}` : "No seed built";
 }
@@ -80,7 +82,7 @@ function setStatus() {
 
 const saveSettings = () => store.set("settings", S.settings);
 
-function slider(label, value, set, tag) {
+function slider(label, value, set, tag, about) {
   const out = h("output", {}, `${value}%`);
   const input = h("input", {
     type: "range",
@@ -98,15 +100,15 @@ function slider(label, value, set, tag) {
       saveSettings();
     },
   });
-  return h("div.sr", {}, h("span.n", {}, label, tag), input, out);
+  return h("div.sr", {}, h("span.n", { title: about }, label, tag), input, out);
 }
 
 function groups() {
   const st = S.settings;
-  const seg = (options, now, set) => {
+  const seg = (label, options, now, set) => {
     const el = h(
       "div.seg",
-      { role: "group", "aria-label": "Shadow of the Erdtree items" },
+      { role: "group", "aria-label": label },
       options.map(([k, label]) =>
         h(
           "button" + (k === now ? ".on" : ""),
@@ -127,42 +129,66 @@ function groups() {
     );
     return el;
   };
+  const pick = (label, title, options, now, set, tag) =>
+    h("div.sr.pick", {}, h("span.n", { title }, label, tag), seg(label, options, now, set));
+  const untested = (why) => h("span.tag.warn", { title: `${why}Not yet played through in the game` }, "Untested");
+  const section = (name, ...kids) => h("section", {}, h("div.sh", {}, h("span", {}, name), h("span.x")), h("div.card.rows", {}, kids));
   return h(
     "div.groups",
     {},
-    h(
-      "section",
-      {},
-      h("div.sh", {}, h("span", {}, "Items"), h("span.x")),
-      h(
-        "div.card.rows",
-        {},
-        L.CATEGORIES.map(([k, label]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v))),
-        h(
-          "div.sr.pick",
-          {},
-          h("span.n", {}, "Shadow of the Erdtree"),
-          seg(
-            [
-              ["mixed", "Mixed in"],
-              ["separate", "Kept apart"],
-            ],
-            st.dlc,
-            (v) => (st.dlc = v),
-          ),
-        ),
+    section(
+      "Items",
+      L.CATEGORIES.map(([k, label]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v))),
+      pick(
+        "Shadow of the Erdtree",
+        "Whether base-game items can land in the DLC, and DLC items in the base game",
+        [
+          ["mixed", "Mixed in"],
+          ["separate", "Kept apart"],
+        ],
+        st.dlc,
+        (v) => (st.dlc = v),
       ),
     ),
-    h(
-      "section",
-      {},
-      h("div.sh", {}, h("span", {}, "Enemies"), h("span.x")),
-      h(
-        "div.card.rows",
-        {},
-        slider("Bosses", st.bosses, (v) => (st.bosses = v), h("span.tag.warn", { title: "Not yet played through in the game" }, "Untested")),
-        slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), h("span.tag.warn", { title: "Not yet played through in the game" }, "Untested")),
-        slider("Boss mix", st.mix ?? 0, (v) => (st.mix = v), h("span.tag.warn", { title: "The share of bosses that trade places with an ordinary enemy. Needs Bosses above 0. Not yet played through in the game" }, "Untested")),
+    section(
+      "Lean towards late",
+      L.LEANS.map(([k, label]) => slider(label, st.bias[k] ?? 0, (v) => (st.bias[k] = v))),
+    ),
+    section(
+      "Other places",
+      L.PLACES.map(([k, label, about]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v), null, about)),
+      pick(
+        "Auto-upgrade",
+        "Weapons arrive at the highest level you have raised one of their path to. Loads our own module into the game.",
+        [
+          [false, "Off"],
+          [true, "On"],
+        ],
+        !!st.autoUpgrade,
+        (v) => (st.autoUpgrade = v),
+      ),
+    ),
+    section(
+      "Enemies",
+      slider("Bosses", st.bosses, (v) => (st.bosses = v), untested("")),
+      slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), untested("")),
+      slider("Boss mix", st.mix ?? 0, (v) => (st.mix = v), untested("The share of bosses that trade places with an ordinary enemy. Needs Bosses above 0. ")),
+      pick(
+        "Strength",
+        "Whether a moved enemy takes the health and strength of the place it lands on, or keeps its own",
+        [
+          [true, "Of the place"],
+          [false, "Its own"],
+        ],
+        st.scale !== false,
+        (v) => (st.scale = v),
+      ),
+      pick(
+        "New models per map",
+        "The most models ordinary enemies may add to one map. The game's limit is not known, so higher may crash it.",
+        L.MODEL_LIMITS,
+        st.models ?? 20,
+        (v) => (st.models = v),
       ),
     ),
   );
@@ -208,6 +234,13 @@ function seedField() {
   return h("label.fld", {}, h("span", {}, "Seed"), h("div.seedrow", {}, input, another));
 }
 
+/** Which mods the next seed stands on: all those on now, as Apply will place them. */
+function stackLine() {
+  const mods = S.stack?.mods || [];
+  if (!mods.length) return null;
+  return h("div.kv", {}, h("span.k", {}, "Built on"), h("span.val", { title: mods.join("\n") }, mods.length === 1 ? mods[0] : `${mods.length} mods`));
+}
+
 let bar = null;
 function side() {
   const kv = (pairs) => h("div.kv", {}, pairs.flatMap(([k, v]) => [h("span.k", {}, k), h("span.val", {}, v)]));
@@ -219,6 +252,7 @@ function side() {
       kv([
         ["Output", OUTPUT],
         ["Seed", String(r.seed)],
+        ...(r.mods.length ? [["Built on", h("span", { title: r.mods.join("\n") }, r.mods.length === 1 ? r.mods[0] : `${r.mods.length} mods`)]] : []),
         ["Status", h("span.accent.fadein", {}, "Apply to place")],
       ]),
       h("button.btn.sm", { onclick: saveSpoiler }, "Save spoiler log…"),
@@ -229,6 +263,7 @@ function side() {
     kids = [
       h("div.risein", { style: "display:grid;gap:8px" }, h("span", {}, h("span.tag.bad", {}, "Build failed")), h("span", {}, S.fail.message)),
       seedField(),
+      stackLine(),
       (bar = bb("Build again", true)),
     ];
   } else {
@@ -245,6 +280,7 @@ function side() {
               ["Status", h("span.tag", {}, "New mod")],
             ],
       ),
+      stackLine(),
       (bar = bb("Build", true)),
     ];
   }
@@ -271,6 +307,10 @@ async function saveSpoiler() {
 // ------------------------------------------------------------------ build
 /** A file, or a piece of one, from the game's own copy: never what a mod holds. */
 async function readGame(path) {
+  // What another mod holds, the module's name for it: `mod:<path>`, or `mod#<n>` for the
+  // n-th mod's tables, each of which the mod manager will merge at Apply.
+  if (path.startsWith("mod:")) return request("files.stack.read", { name: OUTPUT, path: path.slice(4) });
+  if (path.startsWith("mod#")) return request("files.stack.read", { name: OUTPUT, path: "regulation.bin", copy: Number(path.slice(4)) });
   const asked = pieceOf(path);
   const file = IN_GAME + (asked ? asked.file : path);
   const part = (at, length) => request("files.part", { path: file, at, length, own: true });
@@ -336,9 +376,11 @@ async function build() {
   show();
   try {
     const call = await moduleCaller();
+    // Read now, as mods may have been turned on or off since the page opened.
+    S.stack = L.stackOf(await request("files.stack", { name: OUTPUT }));
     const run = await until(
       call,
-      L.request(seed, S.settings),
+      L.request(seed, S.settings, S.stack),
       readGame,
       (done, of) => {
         u.read = done;
@@ -349,15 +391,20 @@ async function build() {
     if (S.stop) throw new Stopped();
     u.writing = true;
     const files = outputs(run).map((f) => ({ path: f.path, bytes: f.bytes.buffer }));
+    if (S.settings.autoUpgrade) {
+      const native = await fetch(new URL(`./${L.NATIVE}`, import.meta.url));
+      if (!native.ok) throw new Error("This add-on's module for auto-upgrade is missing.");
+      files.push({ path: L.NATIVE, bytes: await native.arrayBuffer() });
+    }
     // A file the seed before moved and this one does not goes, or it would stay in the mod.
     const paths = files.map((f) => f.path);
     const gone = L.stale(S.last?.paths || [], paths);
     if (gone.length) await request("output.remove", { name: OUTPUT, paths: gone });
     // Written whole, in one request: what is placed is never half a seed.
-    await request("output.write", { name: OUTPUT, files }, files.map((f) => f.bytes));
+    await request("output.write", { name: OUTPUT, files, last: true }, files.map((f) => f.bytes));
     const ms = performance.now() - t0;
-    S.result = { seed, slots: run.json.slots, ms, spoiler: run.json.spoiler };
-    S.last = { at: Date.now(), ms, seed, paths };
+    S.result = { seed, slots: run.json.slots, ms, spoiler: run.json.spoiler, mods: S.stack.mods };
+    S.last = { at: Date.now(), ms, seed, paths, mods: S.stack.mods };
     store.set("last", S.last);
     S.build = "done";
   } catch (e) {
@@ -394,5 +441,6 @@ listen((event, data) => {
   if (event === "theme") wear(data);
   if (event === "stop") S.stop = true;
 });
+S.stack = L.stackOf(await hostAsk("files.stack", { name: OUTPUT }));
 page();
 window.ready = true;

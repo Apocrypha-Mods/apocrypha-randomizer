@@ -113,6 +113,8 @@ pub struct GameFiles {
     /// By lowercase path from the game's root, `/msg/engus/item.msgbnd.dcx`:
     /// mods name folders in any case (`map/MapStudio`), and the game does not mind.
     loose: HashMap<String, std::path::PathBuf>,
+    /// Mods' files handed over as bytes, for where there are no folders, by the same paths.
+    held: HashMap<String, std::sync::Arc<Vec<u8>>>,
     /// Paths more than one mod folder holds; the later one is used.
     pub shadowed: Vec<String>,
 }
@@ -150,6 +152,7 @@ impl GameFiles {
         Ok(GameFiles {
             dvd: Dvd::open_elden_ring(game)?,
             loose,
+            held: HashMap::new(),
             shadowed,
         })
     }
@@ -170,17 +173,38 @@ impl GameFiles {
         GameFiles {
             dvd,
             loose: HashMap::new(),
+            held: HashMap::new(),
             shadowed: Vec::new(),
         }
     }
 
+    /// Serve these files over the archives, in place of any handed over before. A path may
+    /// come with or without its leading slash, in any case.
+    pub fn hold(&mut self, files: impl IntoIterator<Item = (String, Vec<u8>)>) {
+        self.held = files
+            .into_iter()
+            .map(|(path, bytes)| {
+                let path = path.replace('\\', "/").to_lowercase();
+                let path = format!("/{}", path.trim_start_matches('/'));
+                (path, std::sync::Arc::new(bytes))
+            })
+            .collect();
+    }
+
     pub fn exists(&self, path: &str) -> bool {
-        self.loose.contains_key(&path.to_lowercase()) || self.dvd.find(path).is_some()
+        let lower = path.to_lowercase();
+        self.held.contains_key(&lower)
+            || self.loose.contains_key(&lower)
+            || self.dvd.find(path).is_some()
     }
 
     /// A file's bytes as stored, compression and all.
     pub fn read(&self, path: &str) -> Result<Vec<u8>> {
-        match self.loose.get(&path.to_lowercase()) {
+        let lower = path.to_lowercase();
+        if let Some(bytes) = self.held.get(&lower) {
+            return Ok(bytes.as_ref().clone());
+        }
+        match self.loose.get(&lower) {
             Some(file) => Ok(std::fs::read(file)?),
             None => Ok(self.dvd.read_path(path)?),
         }

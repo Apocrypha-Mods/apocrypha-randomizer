@@ -6,5 +6,5 @@
   "about": "Items and enemies, shuffled from a seed",
   "entry": "index.html",
   "games": ["elden-ring"],
-  "needs": ["hello", "fonts", "files.part.own", "output.write", "output.remove", "output.open", "disk.save", "apply.review", "busy"]
+  "needs": ["hello", "fonts", "files.part.own", "files.stack", "output.write", "output.remove", "output.open", "disk.save", "apply.review", "busy"]
 }

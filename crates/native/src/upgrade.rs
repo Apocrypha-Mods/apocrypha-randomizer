@@ -19,7 +19,7 @@
 //! (`EquipParamCustomWeapon`) counts as given at its own level too.
 //!
 //! **Highest reached.** Selling or dropping a weapon lowers nothing: [`Marks`] keeps each
-//! character's highest level, by name, and a file beside the module keeps it across launches.
+//! character's highest level, by name, and a file under `%APPDATA%` keeps it across launches.
 
 use std::collections::{BTreeMap, HashMap};
 

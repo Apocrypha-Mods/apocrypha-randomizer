@@ -7,7 +7,8 @@
 //! `{ op: "run", ... }` answers `{ need: [...] }` until it has all it needs, then
 //! `{ slots, spoiler, files: [{ path, size }] }` with the files' bytes after the JSON.
 //!
-//! A piece is named `Data0.bdt#offset+length`.
+//! A piece is named `Data0.bdt#offset+length`. What another mod holds is `mod:<path>`, and
+//! that mod's tables `mod#<n>`, the n-th mod that has any, lowest priority first.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -57,11 +58,13 @@ impl Bdt for FedBdt {
     }
 }
 
-/// What is kept between seeds, so a second one reads nothing again.
+/// What is kept between seeds on the same mods, so a second one reads nothing again.
 struct Loaded {
-    files: GameFiles,
+    stack: Stack,
     sources: Sources,
     model: Model,
+    /// The spoiler log's opening, saying what the seed stands on.
+    merged: String,
 }
 
 #[derive(Default)]
@@ -71,6 +74,42 @@ struct State {
     files: Option<GameFiles>,
     asked_all: bool,
     loaded: Option<Loaded>,
+    /// The unmodded names of bosses, read once when mods first come into it.
+    names: Option<rando::BossNames>,
+}
+
+/// A file another mod puts in the game.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct StackFile {
+    path: String,
+    size: u64,
+}
+
+/// What the other mods hold, as the mod manager will place it, the seed apart.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+struct Stack {
+    #[serde(default)]
+    files: Vec<StackFile>,
+    /// The mods with tables, lowest priority first.
+    #[serde(default)]
+    regulations: Vec<String>,
+    /// Their names, for the page. Not part of what a seed is built from.
+    #[serde(default)]
+    mods: Vec<String>,
+}
+
+impl Stack {
+    fn same_files(&self, other: &Stack) -> bool {
+        self.files == other.files && self.regulations == other.regulations
+    }
+
+    fn names(&self) -> Vec<String> {
+        self.files
+            .iter()
+            .map(|f| format!("mod:{}", f.path))
+            .chain((0..self.regulations.len()).map(|i| format!("mod#{i}")))
+            .collect()
+    }
 }
 
 /// One seed, as the page's form gives it.
@@ -88,6 +127,14 @@ struct Run {
     /// As `apoc-rando --enemies`.
     #[serde(default)]
     enemies: String,
+    /// As `apoc-rando --no-enemy-scaling`.
+    #[serde(default)]
+    no_scaling: bool,
+    /// The page places the native module; this says so in the spoiler log.
+    #[serde(default)]
+    auto_upgrade: bool,
+    #[serde(default)]
+    stack: Stack,
 }
 
 #[derive(Debug, Serialize)]
@@ -166,8 +213,8 @@ struct Answer {
 }
 
 /// What failed because a piece was not there yet, if that is why.
-fn asked_for_more(state: &State) -> Option<Answer> {
-    let mut pieces = state.pieces.lock().unwrap();
+fn asked_for_more(pieces: &Shared) -> Option<Answer> {
+    let mut pieces = pieces.lock().unwrap();
     if pieces.missing.is_empty() {
         return None;
     }
@@ -175,6 +222,82 @@ fn asked_for_more(state: &State) -> Option<Answer> {
     missing.sort();
     missing.dedup();
     Some(need(missing))
+}
+
+fn stock_tables(state: &State) -> Result<([u8; 32], &[u8])> {
+    let base = &state.whole["regulation.bin"];
+    Ok((
+        fs_param::crypto::find_key(&state.whole["eldenring.exe"], base)?,
+        base,
+    ))
+}
+
+/// The other mods' tables, lowest priority first.
+fn contributions(state: &State, stack: &Stack) -> Vec<rando::Contribution> {
+    stack
+        .regulations
+        .iter()
+        .enumerate()
+        .map(|(i, label)| rando::Contribution {
+            label: label.clone(),
+            bytes: state.whole[&format!("mod#{i}")].clone(),
+        })
+        .collect()
+}
+
+/// Read the game as the other mods leave it. Some answer if pieces are still wanted.
+fn load(state: &mut State, stack: &Stack) -> Result<Option<Answer>> {
+    let (key, base) = stock_tables(state)?;
+    let regulation = Regulation::read(&key, base)?;
+    rando::known_patch(&regulation.version())?;
+    let files = state.files.as_mut().expect("opened above");
+    files.hold(std::iter::empty());
+    let stacked = !stack.files.is_empty() || !stack.regulations.is_empty();
+    // The unmodded names first, and let go of before the mods' copy is read: both at once
+    // would come near what a module's memory can hold.
+    if stacked && state.names.is_none() {
+        let stock = match Sources::read(regulation.clone(), files) {
+            Ok(stock) => stock,
+            Err(e) => return asked_for_more(&state.pieces).map(Some).ok_or(e),
+        };
+        state.names = Some(rando::boss_names(elden_ring::extract(&stock)?));
+    }
+    let held: Vec<(String, Vec<u8>)> = stack
+        .files
+        .iter()
+        .map(|f| {
+            (
+                f.path.clone(),
+                state.whole[&format!("mod:{}", f.path)].clone(),
+            )
+        })
+        .collect();
+    state.files.as_mut().expect("opened above").hold(held);
+    let (regulation, merged) = if stack.regulations.is_empty() {
+        (regulation, String::new())
+    } else {
+        rando::merged_tables(
+            &key,
+            &state.whole["regulation.bin"],
+            &contributions(state, stack),
+        )?
+    };
+    let files = state.files.as_ref().expect("opened above");
+    let sources = match Sources::read(regulation, files) {
+        Ok(sources) => sources,
+        Err(e) => return asked_for_more(&state.pieces).map(Some).ok_or(e),
+    };
+    let mut model = elden_ring::extract(&sources)?;
+    if let Some(names) = state.names.as_ref().filter(|_| stacked) {
+        rando::keep_boss_names(&mut model, names);
+    }
+    state.loaded = Some(Loaded {
+        stack: stack.clone(),
+        sources,
+        model,
+        merged,
+    });
+    Ok(None)
 }
 
 fn run(state: &mut State, request: &Run) -> Result<Answer> {
@@ -185,46 +308,48 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     if !absent.is_empty() {
         return Ok(need(absent));
     }
-    if state.files.is_none() && state.loaded.is_none() {
+    if state.files.is_none() {
         state.files = Some(open_files(state)?);
     }
     if !state.asked_all {
         state.asked_all = true;
-        if let Some(files) = &state.files {
-            return Ok(need(known_pieces(files)));
-        }
+        return Ok(need(known_pieces(
+            state.files.as_ref().expect("opened above"),
+        )));
     }
-    if state.loaded.is_none() {
-        let regulation = fs_param::crypto::find_key(
-            &state.whole["eldenring.exe"],
-            &state.whole["regulation.bin"],
-        )
-        .and_then(|key| Regulation::read(&key, &state.whole["regulation.bin"]))?;
-        rando::known_patch(&regulation.version())?;
-        let files = state.files.as_ref().expect("opened above");
-        let sources = match Sources::read(regulation, files) {
-            Ok(sources) => sources,
-            Err(e) => return asked_for_more(state).ok_or(e),
-        };
-        let model = elden_ring::extract(&sources)?;
-        let files = state.files.take().expect("opened above");
-        state.loaded = Some(Loaded {
-            files,
-            sources,
-            model,
-        });
+    let absent: Vec<String> = request
+        .stack
+        .names()
+        .into_iter()
+        .filter(|n| !state.whole.contains_key(n))
+        .collect();
+    if !absent.is_empty() {
+        return Ok(need(absent));
+    }
+    if state
+        .loaded
+        .as_ref()
+        .is_none_or(|l| !l.stack.same_files(&request.stack))
+    {
+        state.loaded = None;
+        if let Some(early) = load(state, &request.stack)? {
+            return Ok(early);
+        }
     }
     let mut options = ItemOptions::default();
     options.set(false, &request.shuffle).map_err(format_err)?;
     options.set(true, &request.bias).map_err(format_err)?;
     options.dlc_separate = request.dlc_separate;
+    options.auto_upgrade = request.auto_upgrade;
     let mut foes = EnemyOptions::default();
     foes.set(&request.enemies).map_err(format_err)?;
     foes.dlc_separate = true;
+    foes.scale = !request.no_scaling;
     let written = Written::default();
     let loaded = state.loaded.as_ref().expect("loaded above");
+    let files = state.files.as_ref().expect("opened above");
     let built = rando::build(
-        &loaded.files,
+        files,
         &loaded.sources,
         &loaded.model,
         Job {
@@ -237,10 +362,18 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     );
     let built = match built {
         Ok(built) => built,
-        Err(e) => return asked_for_more(state).ok_or(e),
+        Err(e) => return asked_for_more(&state.pieces).ok_or(e),
     };
     let mut out = written.0.into_inner().unwrap();
     out.sort_by(|a, b| a.0.cmp(&b.0));
+    if !loaded.stack.regulations.is_empty() {
+        let seed = out
+            .iter()
+            .find(|(path, _)| path == "regulation.bin")
+            .ok_or_else(|| format_err("the seed wrote no tables"))?;
+        let (key, base) = stock_tables(state)?;
+        rando::survives_merge(&key, base, &seed.1)?;
+    }
     let files: Vec<FileOut> = out
         .iter()
         .map(|(path, bytes)| FileOut {
@@ -251,7 +384,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     Ok(Answer {
         json: serde_json::json!({
             "slots": built.slots,
-            "spoiler": built.spoiler,
+            "spoiler": format!("{}{}", loaded.merged, built.spoiler),
             "files": files,
         }),
         bytes: out.into_iter().flat_map(|(_, bytes)| bytes).collect(),
@@ -267,7 +400,7 @@ fn answer(state: &mut State, request: &[u8], data: &[u8]) -> Result<Answer> {
             if value["absent"].as_bool().unwrap_or(false) {
                 return Err(format_err(format!("the game has no {path}")));
             }
-            if path.contains('#') {
+            if path.contains('#') && !path.starts_with("mod") {
                 let mut pieces = state.pieces.lock().unwrap();
                 pieces.held.insert(path, data.to_vec());
             } else {
@@ -423,5 +556,29 @@ mod tests {
         assert_eq!(buf, [1, 2]);
         assert!(bdt.read_at(&mut buf, 18).is_err());
         assert_eq!(pieces.lock().unwrap().missing, ["Data0.bdt#18+2"]);
+    }
+
+    #[test]
+    fn a_mods_tables_are_kept_whole_and_not_taken_for_a_piece() {
+        let mut state = StateBox::default();
+        call_bytes(&mut state, br#"{"op":"put","path":"mod#0"}"#, b"x");
+        assert_eq!(state.0.whole["mod#0"], b"x");
+        assert!(state.0.pieces.lock().unwrap().held.is_empty());
+    }
+
+    #[test]
+    fn a_stack_names_its_files_and_each_mods_tables() {
+        let stack = Stack {
+            files: vec![StackFile {
+                path: "map/mapstudio/m10.msb.dcx".into(),
+                size: 1,
+            }],
+            regulations: vec!["A".into(), "B".into()],
+            mods: vec![],
+        };
+        assert_eq!(
+            stack.names(),
+            ["mod:map/mapstudio/m10.msb.dcx", "mod#0", "mod#1"]
+        );
     }
 }

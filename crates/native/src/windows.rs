@@ -7,14 +7,14 @@ use crate::upgrade::{Levels, Marks, Slot, Upgrader, Weapons, character_name};
 use crate::walk;
 
 const DLL_PROCESS_ATTACH: u32 = 1;
-/// Where the character's name is in `CS::PlayerGameData`, from public notes on the game. In
-/// the lab on 2.7.2 no name reads here, so the marks last only until the game closes: the log
-/// says `upgrade: no character's name read` (docs/progress.md).
+/// Where the character's name is in `CS::PlayerGameData`. Seen in the lab on 2.7.2: of a dozen
+/// or more objects of that class, one reads the save's name here, once a character has loaded.
 const NAME_AT: usize = 0x9C;
 const NAME_LEN: usize = 34;
-/// The file beside the module holding each character's highest levels.
-const MARKS_FILE: &str = "apoc_upgrade_levels.txt";
-static MODULE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// Each character's highest levels, under `%APPDATA%`: the mod manager builds the folder this
+/// module loads from afresh at every Apply, which would lose a file kept beside it.
+const MARKS_FOLDER: &str = "Apocrypha Randomizer";
+const MARKS_FILE: &str = "upgrade_levels.txt";
 const MEM_COMMIT: u32 = 0x1000;
 /// Page protections that can be written (and so read).
 const WRITABLE: u32 = 0x04 | 0x08 | 0x40 | 0x80;
@@ -38,7 +38,6 @@ struct MemoryBasicInformation {
 unsafe extern "system" {
     fn VirtualQuery(address: usize, info: *mut MemoryBasicInformation, length: usize) -> usize;
     fn GetModuleHandleW(name: *const u16) -> usize;
-    fn GetModuleFileNameW(module: usize, name: *mut u16, size: u32) -> u32;
     fn GetCurrentProcess() -> usize;
     fn GetCurrentThread() -> usize;
     fn SetThreadPriority(thread: usize, priority: i32) -> i32;
@@ -397,21 +396,66 @@ fn everything(inventories: &[usize]) -> Vec<(u32, u32, u32)> {
     out
 }
 
-/// Where the marks are kept: beside this module, so a seed's folder and save go together.
+/// Where the marks are kept, made if need be.
 fn marks_path() -> Option<std::path::PathBuf> {
-    let module = MODULE.load(std::sync::atomic::Ordering::Relaxed);
-    let mut name = vec![0u16; 1024];
-    let n = unsafe { GetModuleFileNameW(module, name.as_mut_ptr(), 1024) } as usize;
-    (n > 0 && n < 1024).then(|| {
-        std::path::PathBuf::from(String::from_utf16_lossy(&name[..n])).with_file_name(MARKS_FILE)
-    })
+    let folder = std::path::PathBuf::from(std::env::var_os("APPDATA")?).join(MARKS_FOLDER);
+    std::fs::create_dir_all(&folder).ok()?;
+    Some(folder.join(MARKS_FILE))
 }
 
-/// The loaded character's name, from the first player data that holds one.
-fn loaded_name(player: &[usize]) -> Option<String> {
-    player
-        .iter()
-        .find_map(|&p| character_name(&read(p + NAME_AT, NAME_LEN)?))
+/// Objects of a class one step past what the image points at: a manager the image holds,
+/// and a pointer near its start. Never a scan of all memory, which in the lab pushed the game
+/// past its cap (`walk.rs`).
+fn one_step_in(
+    image: &[u8],
+    module: usize,
+    regions: &[(usize, usize)],
+    vtable: usize,
+) -> Vec<usize> {
+    let ours = module..module + image.len();
+    let mut out = Vec::new();
+    for o in (0..image.len().saturating_sub(7)).step_by(8) {
+        let v = usize::from_le_bytes(image[o..o + 8].try_into().unwrap());
+        if v % 8 != 0 || ours.contains(&v) || !inside(regions, v) {
+            continue;
+        }
+        let Some(b) = read(v, 0x40) else {
+            continue;
+        };
+        for c in b.chunks_exact(8) {
+            let w = usize::from_le_bytes(c.try_into().unwrap());
+            if w % 8 == 0
+                && !ours.contains(&w)
+                && inside(regions, w)
+                && read(w, 8).is_some_and(|f| usize::from_le_bytes(f.try_into().unwrap()) == vtable)
+            {
+                out.push(w);
+            }
+        }
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
+/// Whether `object` leads to an inventory: a stale copy of the class's first word in freed
+/// memory does not, though its bytes may read as a name (seen in the lab, during loading).
+fn has_inventory(object: usize, inventory: usize, regions: &[(usize, usize)]) -> bool {
+    let mut found = false;
+    walk::walk(
+        &[object],
+        2,
+        4_000,
+        read,
+        |w| inside(regions, w),
+        |_, b, _| found |= walk::embedded(b, inventory).next().is_some(),
+    );
+    found
+}
+
+/// A character's name, if `object` holds one now.
+fn name_in(object: usize) -> Option<String> {
+    character_name(&read(object + NAME_AT, NAME_LEN)?)
 }
 
 /// Auto-upgrade: every two seconds, read the levels the player has raised
@@ -422,7 +466,7 @@ fn auto_upgrade() {
     unsafe { SetThreadPriority(GetCurrentThread(), -2) };
     let module = unsafe { GetModuleHandleW(std::ptr::null()) };
     let vtable = |image: &[u8], class| rtti_vtable(image, module, class);
-    let (u, player, inventory) = loop {
+    let (u, player, player_class, inventory) = loop {
         std::thread::sleep(std::time::Duration::from_secs(5));
         let image = loaded_image(module);
         let (Some(store), Some(player), Some(inventory)) = (
@@ -442,15 +486,22 @@ fn auto_upgrade() {
             "upgrade: tables read in {} ms",
             started.elapsed().as_millis()
         ));
-        break (u, roots(&image, module, &regions, player), inventory);
+        break (
+            u,
+            roots(&image, module, &regions, player),
+            player,
+            inventory,
+        );
     };
     let floor = floor();
     let marks_at = marks_path();
+    note(&format!("upgrade: levels kept in {marks_at:?}"));
     let mut marks = marks_at
         .as_ref()
         .and_then(|p| std::fs::read_to_string(p).ok())
         .map_or_else(Marks::default, |t| Marks::from_text(&t));
-    let mut named = false;
+    let (mut named, mut holder) = (false, None);
+    let mut holders = Vec::new();
     let mut invs = Vec::new();
     let mut current = None;
     let mut last_held = Vec::new();
@@ -476,7 +527,27 @@ fn auto_upgrade() {
             note(&format!("upgrade: weapons held: {ids:?}"));
             last_held = ids.clone();
         }
-        let name = loaded_name(&player);
+        // The object that held the name holds the next character's too, and no scan is needed
+        // while it does.
+        let mut name = holder.and_then(name_in);
+        if name.is_none() && tick % 15 == 0 {
+            let image = loaded_image(module);
+            holders = one_step_in(&image, module, &regions(), player_class);
+        }
+        if name.is_none() {
+            let regions = regions();
+            holder = holders
+                .iter()
+                .copied()
+                .find(|&o| name_in(o).is_some() && has_inventory(o, inventory, &regions));
+            name = holder.and_then(name_in);
+            if name.is_some() {
+                note(&format!(
+                    "upgrade: name found at {holder:x?}, of {} objects",
+                    holders.len()
+                ));
+            }
+        }
         if name.is_some() != named || tick == 0 {
             named = name.is_some();
             note(&format!(
@@ -522,9 +593,8 @@ fn auto_upgrade() {
 /// Called by Windows as the module is loaded and unloaded.
 #[unsafe(no_mangle)]
 #[allow(non_snake_case)]
-pub extern "system" fn DllMain(module: *mut c_void, reason: u32, _reserved: *mut c_void) -> i32 {
+pub extern "system" fn DllMain(_module: *mut c_void, reason: u32, _reserved: *mut c_void) -> i32 {
     if reason == DLL_PROCESS_ATTACH {
-        MODULE.store(module as usize, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(|| {
             note(&format!(
                 "apoc_native {} loaded into process {}",

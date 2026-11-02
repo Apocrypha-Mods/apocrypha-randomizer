@@ -9,7 +9,8 @@ use std::time::Instant;
 use std::collections::BTreeSet;
 
 use fs_bytes::{Result, format_err};
-use fs_param::merge::{self, Contribution};
+use fs_param::merge;
+pub use fs_param::merge::Contribution;
 use gamedata::model::{Item, ItemKind};
 use gamedata::sources::{Text, text_of};
 use gamedata::{GameFiles, Sources, elden_ring};
@@ -234,7 +235,20 @@ fn merge_mods(game: &Path, sources: &mut Sources, mods: &[PathBuf], say: Say) ->
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let outcome = merge::merge(&key, &base, &contributions)?;
+    let (merged, log) = merged_tables(&key, &base, &contributions)?;
+    sources.reg = merged;
+    say(log.trim_end());
+    Ok(log)
+}
+
+/// The game's tables with each mod's changes on them, lowest priority first, and the report
+/// for the spoiler log. A mod that cannot be merged stops the run, naming it.
+pub fn merged_tables(
+    key: &[u8; 32],
+    base: &[u8],
+    contributions: &[Contribution],
+) -> Result<(fs_param::Regulation, String)> {
+    let outcome = merge::merge(key, base, contributions)?;
     let report = outcome.report;
     if !report.refused.is_empty() {
         let why: Vec<String> = report
@@ -250,10 +264,37 @@ fn merge_mods(game: &Path, sources: &mut Sources, mods: &[PathBuf], say: Say) ->
     let bytes = outcome
         .bytes
         .ok_or_else(|| format_err("the merge produced nothing"))?;
-    sources.reg = fs_param::Regulation::read(&key, &bytes)?;
-    let log = merge_log(&report);
-    say(log.trim_end());
-    Ok(log)
+    Ok((fs_param::Regulation::read(key, &bytes)?, merge_log(&report)))
+}
+
+/// A mod manager merges a mod's tables onto the game's at Apply, by what differs from them.
+/// A seed built on other mods is taken whole there, by itself, so run that merge and refuse
+/// a seed it would change, whose proof would no longer hold.
+pub fn survives_merge(key: &[u8; 32], base: &[u8], seed: &[u8]) -> Result<()> {
+    let (merged, _) = merged_tables(
+        key,
+        base,
+        &[Contribution {
+            label: "this seed".to_string(),
+            bytes: seed.to_vec(),
+        }],
+    )?;
+    let seed = fs_param::Regulation::read(key, seed)?;
+    let lost: Vec<&str> = seed
+        .table_names()
+        .filter(|name| match (seed.table(name), merged.table(name)) {
+            (Ok(a), Ok(b)) => a != b,
+            _ => true,
+        })
+        .collect();
+    if lost.is_empty() {
+        Ok(())
+    } else {
+        Err(format_err(format!(
+            "the mod manager's merge would change this seed's tables ({}), so its proof would not hold",
+            lost.join(", ")
+        )))
+    }
 }
 
 fn merge_log(report: &merge::MergeReport) -> String {
@@ -415,15 +456,26 @@ fn extract_model(
     let mut model = elden_ring::extract(sources)?;
     if !mods.is_empty() {
         let stock = elden_ring::extract(&Sources::open(game)?)?;
-        let names: std::collections::HashMap<i32, Option<String>> =
-            stock.bosses.into_iter().map(|b| (b.area, b.name)).collect();
-        for boss in &mut model.bosses {
-            if let Some(name) = names.get(&boss.area) {
-                boss.name = name.clone();
-            }
-        }
+        keep_boss_names(&mut model, &boss_names(stock));
     }
     Ok(model)
+}
+
+/// Each boss's name as the unmodded game has it, by its area.
+pub fn boss_names(stock: gamedata::model::Model) -> BossNames {
+    stock.bosses.into_iter().map(|b| (b.area, b.name)).collect()
+}
+
+/// [`boss_names`]' result.
+pub type BossNames = std::collections::HashMap<i32, Option<String>>;
+
+/// Put the unmodded names back on a model read from mods' files.
+pub fn keep_boss_names(model: &mut gamedata::model::Model, names: &BossNames) {
+    for boss in &mut model.bosses {
+        if let Some(name) = names.get(&boss.area) {
+            boss.name = name.clone();
+        }
+    }
 }
 
 /// The game's files with the mods' folders over them.

@@ -14,30 +14,89 @@ export const CATEGORIES = [
   ["consumables", "Consumables"],
 ];
 
+/** The kinds of slot with a shuffle slider of their own. Gathering alone also takes a bias. */
+export const PLACES = [
+  ["merchants", "Merchants", "How much of what merchants sell is put in play. A row moves only if its item's own slider allows it too."],
+  ["starting-gear", "Starting gear", "The classes' weapons, armour, talismans and spells, usable or not."],
+  ["keepsakes", "Keepsakes", "The gifts offered when making a character."],
+  ["gathering", "Gathering", "What plants and ores give. These trade only with each other."],
+  ["npc-gear", "NPC gear", "What NPCs wear and hold. Nothing a player picks up."],
+];
+
+/** What takes a bias: every category of item, and gathering. */
+export const LEANS = [...CATEGORIES, ["gathering", "Gathering"]];
+
+/** The most models a map may gain, as `models=N`: the game's own limit is not known. */
+export const MODEL_LIMITS = [
+  [20, "20"],
+  [40, "40"],
+  [0, "No limit"],
+];
+
 export const defaults = () => ({
-  shuffle: Object.fromEntries(CATEGORIES.map(([k]) => [k, 100])),
+  shuffle: Object.fromEntries([...CATEGORIES, ...PLACES].map(([k]) => [k, 100])),
+  bias: Object.fromEntries(LEANS.map(([k]) => [k, 0])),
   bosses: 0,
   ordinary: 0,
   mix: 0,
+  models: 20,
+  scale: true,
+  autoUpgrade: false,
   dlc: "mixed",
 });
 
-/** `apoc-rando --enemies`, or nothing if no enemy moves. A mix needs bosses to send out. */
-function enemies({ bosses = 0, ordinary = 0, mix = 0 }) {
-  if (!bosses && !ordinary) return "";
-  return `bosses=${bosses},ordinary=${ordinary},mix=${bosses ? mix : 0}`;
-}
-
-/** One seed's request to the module. */
-export function request(seed, s) {
+/** Settings kept from an earlier visit over the defaults, sliders added since included. */
+export function settled(kept) {
+  const d = defaults();
   return {
-    op: "run",
-    seed,
-    shuffle: CATEGORIES.map(([k]) => `${k}=${s.shuffle[k] ?? 100}`).join(","),
-    dlcSeparate: s.dlc === "separate",
-    enemies: enemies(s),
+    ...d,
+    ...kept,
+    shuffle: { ...d.shuffle, ...kept?.shuffle },
+    bias: { ...d.bias, ...kept?.bias },
   };
 }
+
+/** `apoc-rando --enemies`, or nothing if no enemy moves. A mix needs bosses to send out. */
+function enemies({ bosses = 0, ordinary = 0, mix = 0, models = 20 }) {
+  if (!bosses && !ordinary) return "";
+  return `bosses=${bosses},ordinary=${ordinary},mix=${bosses ? mix : 0},models=${models}`;
+}
+
+const sliders = (list, values, or) => list.map(([k]) => `${k}=${values[k] ?? or}`).join(",");
+
+/** One seed's request to the module. `stack` is what the other mods hold ([`stackOf`]). */
+export function request(seed, s, stack = null) {
+  const r = {
+    op: "run",
+    seed,
+    shuffle: sliders([...CATEGORIES, ...PLACES], s.shuffle, 100),
+    bias: sliders(LEANS, s.bias, 0),
+    dlcSeparate: s.dlc === "separate",
+    enemies: enemies(s),
+    noScaling: !s.scale,
+    autoUpgrade: !!s.autoUpgrade,
+  };
+  if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
+  return r;
+}
+
+/** Folders of the game a seed reads and rewrites; a mod's other files do not bear on it. */
+const READS = /^(map\/mapstudio|event|script\/talk|msg)\//i;
+
+/** What the mod manager says the other mods put in the game, as the module wants it. */
+export function stackOf(answer) {
+  const files = (answer?.files || []).filter((f) => READS.test(f.path)).map((f) => ({ path: f.path, size: f.size }));
+  const regulations = (answer?.merged || []).find((m) => m.path.toLowerCase() === "regulation.bin")?.copies || [];
+  return { files, regulations: regulations.map((c) => c.mod), mods: answer?.mods || [] };
+}
+
+/** Whether the mods a seed stands on are no longer those on now: it holds their tables. */
+export function modsChanged(built = [], now = []) {
+  return built.length !== now.length || built.some((m, i) => m !== now[i]);
+}
+
+/** The native module's place in the mod: at its root, which the mod manager loads as code. */
+export const NATIVE = "apoc_native.dll";
 
 /** A seed as typed: digits only, up to what a double holds exactly, or null. */
 export function parseSeed(text) {

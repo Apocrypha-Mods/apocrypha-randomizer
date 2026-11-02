@@ -148,7 +148,8 @@ shield, staff, seal, bow, torch) so an NPC can still use it, and its level up to
     +0, such as Rogier's Rapier at +8, keeps that level and is not upgraded, and a weapon the game
     only gives upgraded raises nothing, even when smithed further.
   - **Selling or dropping a weapon lowers nothing** (Nova, 2026-11-02): it is the highest
-    reached, kept per character by name in a file beside the module.
+    reached, kept per character by name in a file under `%APPDATA%`, as the mod manager
+    rebuilds the folder the module loads from at every Apply.
   - Weapons bought for runes count as picked up (Nova, 2026-10-30): a
     merchant sells them at the same level. Weapons paid for in items
     (remembrance trades, Dragon Communion) are not upgraded.
