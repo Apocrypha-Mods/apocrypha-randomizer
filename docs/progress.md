@@ -244,8 +244,8 @@ load before a run.
       through `apoc-fs check --names`, and it does not reach the count the gate
       wanted, which was a match with a whole list.
 - [x] **Step 3: the game accepts files we write** (below).
-- [ ] **Legal opinion on `oozextract`** before anything that ships enables
-      `fs-dcx/kraken`.
+- [x] **`oozextract` in what ships:** no legal opinion, as the project went
+      GPL-3.0-or-later on 2026-11-02 (PLAN.md §6b).
 
 ## Phase 2: formats
 
@@ -1883,3 +1883,7 @@ In the next lab run check the log for `upgrade: character <name>`. The name's pl
 The add-on carries `apoc_native.dll`, and the website's scan refused any program in any add-on, so the package could not have been uploaded. Local runs never went through that scan. `AddonPackageRules` in `apocrypha-web` (`dev`) now accepts that one name at the root of add-on `randomizer` only, if it starts `MZ`, and the manifest cannot name it as its page. A throwaway test run on `dist/randomizer-0.1.0.apocaddon` passed the rules, and a stand-in package with the module passed the real upload and scan. The website is not yet deployed with this.
 
 `tools/publish.sh`, still to be written here, must allow this file too: the one in Bodyworks refuses it by type.
+
+## Open source (Nova, 2026-11-02)
+
+The whole project is now GPL-3.0-or-later, so the doubt over `oozextract`'s label no longer stops it shipping. `powzix/ooz`'s file headers read GPL version 3 or later, and every other crate in the tree was already recorded as permissive and compatible. The package now carries `LICENSE`. gitleaks found nothing across all commits. The repository is not yet public.

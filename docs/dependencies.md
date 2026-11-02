@@ -6,7 +6,7 @@ Every dependency, its licence and why it is here.
 
 | Crate / source | Licence | Used by | For |
 | --- | --- | --- | --- |
-| apoc-fsparams (Apocrypha desktop) | proprietary, Nova's own | fs-bytes, fs-dcx, fs-param | `rd.rs`, `Error`, `dcx.rs`, `param.rs`, the regulation crypto and `merge.rs` lifted and widened |
+| apoc-fsparams (Apocrypha desktop) | Nova's own; the lifted code is GPL-3.0-or-later here | fs-bytes, fs-dcx, fs-param | `rd.rs`, `Error`, `dcx.rs`, `param.rs`, the regulation crypto and `merge.rs` lifted and widened |
 | aes 0.8 | MIT OR Apache-2.0 | fs-dvdbnd | AES-128-ECB of archive entries |
 | base64 0.22 | MIT OR Apache-2.0 | fs-dvdbnd | PEM bodies of the archive keys |
 | num-bigint 0.4 | MIT OR Apache-2.0 | fs-dvdbnd | raw RSA (modpow) of the `.bhd` headers |
@@ -17,7 +17,7 @@ Every dependency, its licence and why it is here.
 | serde 1, toml 1 | MIT OR Apache-2.0 | fs-param, fs-emevd, fs-msb, gamedata, logic, fs-tool | reading our own layouts and catalogue; the model's TOML dump |
 | clap 4 | MIT OR Apache-2.0 | fs-tool | the `apoc-fs` command line |
 | tempfile 3 (dev only) | MIT OR Apache-2.0 | fs-dvdbnd tests | synthetic archives on disk |
-| oozextract 0.5.7 | MIT label, **disputed** (port of GPL ooz) | fs-kraken only | Kraken decode. Reached only through `fs-dcx`'s `kraken` feature, which is off by default; `fs-tool` (a developer tool, never shipped) turns it on. Legal check before anything that ships enables it. |
+| oozextract 0.5.7 | MIT label, disputed (port of GPL-3.0-or-later ooz); either way compatible, as this project is GPL-3.0-or-later | fs-kraken only | Kraken decode. Reached only through `fs-dcx`'s `kraken` feature, which is off by default; `fs-tool` (a developer tool, never shipped) turns it on. The add-on ships it. |
 
 `oozextract` also pulls in `bytes`, `futures`, `log`, `test-log`, `wide` and
 `bytemuck` as normal dependencies, all MIT or MIT OR Apache-2.0.

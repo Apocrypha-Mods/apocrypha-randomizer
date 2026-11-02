@@ -1,8 +1,8 @@
 # Apocrypha Randomizer — plan
 
 An original item and enemy randomizer for Elden Ring, written in Rust, that runs
-natively on Linux, Windows and macOS. It is proprietary (all rights reserved) and
-lives in a private repo. Players run it as a command-line tool first; later it
+natively on Linux, Windows and macOS. It is free software under GPL-3.0-or-later (decided
+2026-11-02, §6b). Players run it as a command-line tool first; later it
 becomes an add-on inside the Apocrypha mod manager.
 
 Started 2026-10-29. This file is the handoff: read all of it before writing code.
@@ -49,7 +49,7 @@ the same kind of result by its own route.
 | --- | --- |
 | First game | Elden Ring (base game, then Shadow of the Erdtree) |
 | First version | Items **and** enemies |
-| Licence / repo | Proprietary, private: `Apocrypha-Mods/apocrypha-randomizer` |
+| Licence / repo | GPL-3.0-or-later, `Apocrypha-Mods/apocrypha-randomizer` (was proprietary until 2026-11-02, §6b) |
 | Delivery | Native CLI first, then an Apocrypha mod-manager add-on |
 | Later games | DS3 and Sekiro, once Elden Ring works; keep the core game-agnostic |
 
@@ -149,11 +149,10 @@ by `tools/pack.sh` (see docs/progress.md).
 
 - **Kraken on Linux:** many Elden Ring files are Oodle Kraken-compressed and
   the game's decoder is a Windows DLL. The only pure-Rust decoder,
-  `oozextract`, is labelled MIT but calls itself a port of GPL code, so keep it
-  behind a feature flag in its own crate and get a legal opinion before it
-  ships. Fallbacks: run the game's own DLL under Wine through a tiny helper, or
-  write a clean-room decoder. Writing can likely use zstd or uncompressed files; verify that the
-  game accepts them through me3.
+  `oozextract`, is labelled MIT but calls itself a port of GPL code. The project
+  is GPL-3.0-or-later so that this does not matter whichever label holds (§6b). It
+  stays behind a feature flag in its own crate. Writing can likely use zstd or
+  uncompressed files; verify that the game accepts them through me3.
 - **Archive file names:** the archives store name hashes, not names. We build our
   own list from the game's files (`apoc-fs names`), so no outside list is needed.
 - **Param field layouts:** Paramdex has no licence, so layouts for the tables
@@ -170,6 +169,13 @@ by `tools/pack.sh` (see docs/progress.md).
 - **Fog-gate randomizers.** Neither supported nor built for the first release.
 - **Archipelago multiworld.** Out for the first release.
 - **The add-on page** offers every option the command line has (spec `items.md` §1).
+
+## 6b. Decision made (Nova, 2026-11-02)
+
+- **Open source, in place of a legal opinion on `oozextract`.** Everything here is
+  GPL-3.0-or-later, including the `apoc-fsparams` code lifted into it. The mod manager is
+  not relicensed. Whether Oodle's owner has any claim on a decoder of its format is a
+  separate question this does not settle.
 
 ## 7. Working rules
 
