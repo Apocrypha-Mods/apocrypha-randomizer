@@ -165,6 +165,56 @@ fn melinas_gifts_come_from_the_grace_menu() {
     }
 }
 
+/// What nothing gives, sorted. A lot numbered after a map that is read and
+/// holding an item the model gets nowhere else would be a source not found
+/// yet: there is one, the "O Mother" gesture's (2050450510, m61_50_45), and
+/// every map such a lot is numbered after is read.
+#[test]
+fn what_nothing_gives_is_sorted() {
+    use gamedata::model::LotSort;
+    let m = model_or_skip!();
+    let sorted = &m.gaps.flagged_named;
+    let unknown = sorted
+        .get(&LotSort::MapUnknown)
+        .cloned()
+        .unwrap_or_default();
+    assert!(unknown.len() <= 1, "{unknown:?}");
+    assert!(!sorted.contains_key(&LotSort::MapNotRead));
+    // "About Sites of Grace", and the Confessor set's lot, looked for in play.
+    assert!(sorted[&LotSort::Tutorial].contains(&50000));
+    assert!(sorted[&LotSort::MapLeftover].contains(&1036430010));
+    assert!(sorted[&LotSort::MapLeftover].len() > 100);
+    assert!(m.gaps.treasure_without_lot > 100 && m.gaps.treasure_empty > 40);
+    // A treasure with an empty lot has no slot.
+    let empty = of(m, Kind::Treasure)
+        .into_iter()
+        .filter(|l| l.items.is_empty())
+        .count();
+    assert_eq!(empty, m.gaps.treasure_empty);
+}
+
+/// Shop rows whose on-sale flag events and talk turn on: Ymir sells the
+/// Glintstone Nails once both bells have rung, and the Twin Maiden Husks
+/// resell Black Flame's Protection only while its gift is untaken, so that row
+/// may be missed.
+#[test]
+fn shop_flags_are_read_from_events_and_talk() {
+    let m = model_or_skip!();
+    let row = |item: &str| {
+        of(m, Kind::Shop)
+            .into_iter()
+            .find(|l| {
+                l.items[0].name.as_deref() == Some(item)
+                    && l.terms.as_ref().is_some_and(|t| t.ways.is_some())
+            })
+            .unwrap_or_else(|| panic!("no read row for {item}"))
+    };
+    let nails = format!("{:?}", row("Glintstone Nails").terms);
+    assert!(nails.contains("Hole-Laden Necklace"), "{nails}");
+    assert!(!row("Glintstone Nails").missable);
+    assert!(row("Black Flame's Protection").missable);
+}
+
 #[test]
 fn plants_and_nodes_are_gathered() {
     let m = model_or_skip!();

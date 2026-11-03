@@ -55,7 +55,7 @@ fn quest_items_can_be_counted_on() {
             units[plan.placed[u]].item.name.as_deref() == Some("Irina's Letter")
                 && units[u].sure()
                 && walk.taken[units[u].location]
-                && !m.locations[units[u].location].missable
+                && !b.missable(units[u].location)
                 && !b.past_no_return(units[u].location)
         });
         assert!(letter.is_some(), "seed {seed}: Irina's Letter is not safe");
@@ -71,14 +71,15 @@ fn seeds_place_every_item_and_can_be_finished() {
     for seed in 0..20 {
         let plan = items::shuffle(&b, &units, seed, &items::Options::default()).unwrap();
         items::check(&b, &units, &plan).unwrap();
-        // A gift that may be missed never holds a key item that moved there.
+        // A gift or shop row that may be missed never holds a key item that
+        // moved there.
         for (u, unit) in units.iter().enumerate() {
             let from = &units[plan.placed[u]];
             assert!(
-                !m.locations[unit.location].missable
+                !b.missable(unit.location)
                     || from.category != items::Category::Key
                     || plan.placed[u] == u,
-                "seed {seed}: {:?} ({:?}, from {:?}) on a missable gift {:?} {:?}",
+                "seed {seed}: {:?} ({:?}, from {:?}) on a missable slot {:?} {:?}",
                 from.item.name,
                 from.category,
                 m.locations[from.location].source,

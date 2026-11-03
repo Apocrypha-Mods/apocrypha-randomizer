@@ -19,6 +19,7 @@ mod enemies;
 mod far_copies;
 mod flag_readers;
 mod flags;
+mod gaps;
 mod gift_audit;
 mod instructions;
 mod item_readers;
@@ -171,6 +172,14 @@ enum Command {
     Helpers { game: PathBuf },
     /// What reads the pick-up flag of each key or quest item.
     FlagReaders { game: PathBuf },
+    /// What the model does not reach, sorted: treasures with a missing or empty
+    /// lot, and the item lots nothing gives, with where their flags appear.
+    Gaps {
+        game: PathBuf,
+        /// Every lot of each group, not the first few.
+        #[arg(long)]
+        all: bool,
+    },
     /// What holds the id of each key item: a door asking for the item itself.
     ItemReaders { game: PathBuf },
     /// How NpcParam rows differ, word by word.
@@ -411,6 +420,7 @@ fn main() {
         Command::FarCopies { game } => far_copies::run(game),
         Command::Helpers { game } => far_copies::helpers(game),
         Command::FlagReaders { game } => flag_readers::run(game),
+        Command::Gaps { game, all } => gaps::run(game, all),
         Command::ItemReaders { game } => item_readers::run(game),
         Command::NpcDiff { game, rows } => enemies::diff(game, rows),
         Command::SpDiff { game, rows } => enemies::sp_diff(game, rows),

@@ -15,8 +15,9 @@
 //!
 //! A shop row also asks what its [`gamedata::model::Terms`] say: the items
 //! its price and material set spend, and the flag that puts it on sale. That
-//! flag is explained by the model (a boss beaten, an item handed over) or by
-//! an `on_sale` entry here; a row whose flag nothing explains is never
+//! flag is explained by the model (a boss beaten, an item handed over), by
+//! an `on_sale` entry here, or else by the ways the model reads events and talk
+//! turning it on, as a gift's; a row whose flag nothing explains is never
 //! counted as got.
 //!
 //! A gift asks what its talk scripts' conditions do
@@ -155,6 +156,10 @@ pub struct OnSale {
     pub flag: u32,
     #[serde(flatten)]
     pub need: Need,
+    /// The rows can be lost before they are bought (their merchant moves on in
+    /// a quest), so no key item is put there.
+    #[serde(default)]
+    pub missable: bool,
     #[serde(default = "yes")]
     pub sure: bool,
     pub note: String,
@@ -223,6 +228,8 @@ pub struct Terms<'a> {
     pub bosses: Vec<usize>,
     /// For a shop row whose on-sale flag nothing explains: never got.
     pub unexplained: Option<u32>,
+    /// For a shop row whose `on_sale` entry says it can be lost: no key item.
+    pub missable: bool,
     /// For a gift, the ways it is given, any one enough; `None` when its
     /// talk asks nothing (or a `place` entry speaks for it).
     pub ways: Option<Vec<Vec<Req<'a>>>>,
@@ -528,23 +535,31 @@ impl<'a> Bound<'a> {
             let placed = place_of(l);
             let mut terms = Terms::default();
             terms.needs.extend(placed.map(|p| &p.need));
-            if let Some(ways) = l.given_if.as_ref().filter(|_| placed.is_none()) {
-                terms.ways = Some(
-                    ways.iter()
-                        .map(|w| {
-                            w.iter()
-                                .map(|c| {
-                                    Self::req(c, &boss_index, &flag_locations, &|m| {
-                                        by_map(Some(m)).or_else(|| by_grace(Some(m), None))
-                                    })
+            let reqs = |ways: &'a [gamedata::model::Way]| -> Vec<Vec<Req<'a>>> {
+                ways.iter()
+                    .map(|w| {
+                        w.iter()
+                            .map(|c| {
+                                Self::req(c, &boss_index, &flag_locations, &|m| {
+                                    by_map(Some(m)).or_else(|| by_grace(Some(m), None))
                                 })
-                                .collect()
-                        })
-                        .collect(),
-                );
+                            })
+                            .collect()
+                    })
+                    .collect()
+            };
+            if let Some(ways) = l.given_if.as_ref().filter(|_| placed.is_none()) {
+                terms.ways = Some(reqs(ways));
             }
             if let Some(t) = l.terms.as_ref().filter(|_| !unused) {
                 Self::shop_terms(graph, t, &boss_index, &mut terms, &mut problems);
+                // What events and talk ask, where nothing above explains the flag.
+                if terms.unexplained.is_some()
+                    && let Some(ways) = &t.ways
+                {
+                    terms.unexplained = None;
+                    terms.ways = Some(reqs(ways));
+                }
             }
             location_terms.push(terms);
             location_area.push(
@@ -647,6 +662,7 @@ impl<'a> Bound<'a> {
                 .extend(t.handed.iter().filter_map(|i| i.name.as_deref()));
         } else if let Some(o) = graph.on_sale.iter().find(|o| o.flag == flag) {
             terms.needs.push(&o.need);
+            terms.missable = o.missable;
         } else {
             terms.unexplained = Some(flag);
         }
@@ -768,6 +784,13 @@ impl<'a> Bound<'a> {
             }
         }
         keys
+    }
+
+    /// Whether a location may be missed, so no key item goes there: the model
+    /// says so (a quest stage, a gift either-or), or the `on_sale` entry its
+    /// shop row waits on does.
+    pub fn missable(&self, location: usize) -> bool {
+        self.model.locations[location].missable || self.location_terms[location].missable
     }
 
     /// Whether a location lies past a step the game cannot take back.
@@ -1111,6 +1134,43 @@ mod tests {
                 bosses: vec!["Warden".into()],
                 ..Default::default()
             },
+            missable: false,
+            sure: true,
+            note: String::new(),
+        });
+        assert!(opens_cave(&g, &m, false));
+        assert!(!Bound::new(&g, &m).missable(0));
+        g.on_sale[0].missable = true;
+        assert!(
+            Bound::new(&g, &m).missable(0),
+            "the entry says it can be lost"
+        );
+    }
+
+    #[test]
+    fn a_shop_row_waits_for_the_ways_events_and_talk_turn_its_flag_on() {
+        use gamedata::model::Cond;
+        let ways = |ways: Vec<Vec<Cond>>| gamedata::model::Terms {
+            on_sale: Some(7),
+            ways: Some(ways),
+            ..Default::default()
+        };
+        // On holding the heart, which the cave's key needs anyway.
+        let (g, m) = shop(ways(vec![vec![Cond::Holds(item("Heart"))]]));
+        assert!(opens_cave(&g, &m, true));
+        assert!(!opens_cave(&g, &m, false));
+        // After the boss of the area.
+        let (g, m) = shop(ways(vec![vec![Cond::Boss(2)]]));
+        assert!(opens_cave(&g, &m, false));
+        // On a flag nothing explains: never.
+        let (g, m) = shop(ways(vec![vec![Cond::Flag(9)]]));
+        assert!(!opens_cave(&g, &m, false));
+        // An `on_sale` entry speaks for the flag instead.
+        let (mut g, m) = shop(ways(vec![vec![Cond::Flag(9)]]));
+        g.on_sale.push(OnSale {
+            flag: 7,
+            need: Need::default(),
+            missable: false,
             sure: true,
             note: String::new(),
         });
