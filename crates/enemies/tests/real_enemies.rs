@@ -187,16 +187,17 @@ fn a_written_seed_reads_back_with_each_part_standing_as_planned() {
             .find(|r| r.id == id)
             .expect("the new row exists");
         let old = rows.iter().find(|r| r.id == spot.body.npc).unwrap();
-        for f in [
-            "item_lot_enemy_id",
-            "item_lot_map_id",
-            "runes",
-            "hp",
-            "scale_a",
-        ] {
+        for f in ["item_lot_enemy_id", "item_lot_map_id", "runes", "hp"] {
             let f = npc.field(f);
             assert_eq!(f.get(&row.data, 0), f.get(&old.data, 0), "{}", f.name);
         }
+        // The spot's tier, or its map's where it has none and the body has one.
+        let tier = npc.field("scale_a");
+        let want = match (tier.get(&old.data, 0), p.map_tier.get(&spot.map_index)) {
+            (t, Some(&(m, _))) if t <= 0 && tier.get(&row.data, 0) > 0 => m,
+            (t, _) => t,
+        };
+        assert_eq!(tier.get(&row.data, 0), want, "scale_a");
         if i > 200 {
             break;
         }
@@ -492,4 +493,40 @@ fn stage_events_fit_every_seed() {
         eprintln!("mix {mix}: {moved} stage bosses moved over 1,000 seeds");
         assert!(moved > 1000);
     }
+}
+
+/// Wildlife trades only with wildlife (Nova, 2026-11-03), bosses mixing in or not,
+/// and every map with tiered enemies has a tier for the spots that have none.
+#[test]
+fn wildlife_trades_only_with_wildlife() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let animals = p
+        .spots
+        .iter()
+        .filter(|s| s.class == enemies::Class::Animal)
+        .count();
+    eprintln!("wildlife spots: {animals}");
+    assert!(animals > 4000);
+    for seed in 0..50 {
+        let mut options = all();
+        options.mix = if seed % 2 == 0 { 50 } else { 0 };
+        let plan = shuffle(&p, seed, &options);
+        for (i, &f) in plan.from.iter().enumerate() {
+            let (to, from) = (&p.spots[i], &p.spots[f]);
+            assert_eq!(
+                to.class == enemies::Class::Animal,
+                from.class == enemies::Class::Animal,
+                "seed {seed}: {} onto {}'s spot",
+                from.body.model,
+                to.body.model
+            );
+        }
+    }
+    assert!(
+        p.map_tier.len() > 400,
+        "{} maps with a tier",
+        p.map_tier.len()
+    );
 }

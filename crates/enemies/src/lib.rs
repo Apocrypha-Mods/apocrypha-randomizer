@@ -165,6 +165,20 @@ pub enum Class {
     Plain,
     Human,
     Invader,
+    /// Wildlife, which trades only with wildlife (Nova, 2026-11-03): a flock of ten
+    /// birds is not to become ten knights.
+    Animal,
+}
+
+/// Wildlife's models, `c6000` to `c6399`. Read from what they drop: feathers and
+/// fowl feet (c6001, c6070), beast bones, liver and meat (c6010, c6060, c6100),
+/// dragonfly heads (c6080 to c6082), turtle meat (c6090), fangs (c6290). Every
+/// base-game one has no strength tier.
+fn is_animal(model: &str) -> bool {
+    model
+        .strip_prefix('c')
+        .and_then(|n| n.parse::<u32>().ok())
+        .is_some_and(|n| (6000..6400).contains(&n))
 }
 
 /// What moves: everything that makes an enemy the enemy it is.
@@ -220,6 +234,10 @@ pub struct Pool {
     pub listed: Vec<BTreeSet<String>>,
     /// Those who go where a boss goes, by the boss's entity.
     pub companions: BTreeMap<u32, Vec<companions::Companion>>,
+    /// Each map's commonest strength tier (NpcParam `scale_a`, `scale_b`) among its
+    /// enemies that have one, by `Spot::map_index`, for the spots that have none
+    /// (docs/spec/05-enemy-model.md §5).
+    pub map_tier: BTreeMap<usize, (i64, i64)>,
 }
 
 impl Pool {
@@ -347,6 +365,28 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     for (map_index, (m, msb)) in s.maps.iter().enumerate() {
         let models = &msb.table(MODELS).entries;
         let tied = tied_parts(msb);
+        let mut tiers: BTreeMap<(i64, i64), usize> = BTreeMap::new();
+        for e in &msb.table(PARTS).entries {
+            if get(e, "type") != ENEMY {
+                continue;
+            }
+            if let Some(row) = npc_rows.get(&(get(e, "npc_param") as i32)) {
+                let tier = (
+                    npc.field("scale_a").get(&row.data, 0),
+                    npc.field("scale_b").get(&row.data, 0),
+                );
+                if tier.0 > 0 {
+                    *tiers.entry(tier).or_default() += 1;
+                }
+            }
+        }
+        // The commonest, the lower tier on a tie.
+        if let Some((&tier, _)) = tiers
+            .iter()
+            .max_by_key(|&(t, n)| (*n, std::cmp::Reverse(*t)))
+        {
+            out.map_tier.insert(map_index, tier);
+        }
         for (part, e) in msb.table(PARTS).entries.iter().enumerate() {
             if get(e, "type") != ENEMY {
                 continue;
@@ -393,6 +433,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             let class = match (model_name == "c0000", team == INVADER_TEAM) {
                 (true, true) => Class::Invader,
                 (true, false) => Class::Human,
+                (false, _) if is_animal(&model_name) => Class::Animal,
                 (false, _) => Class::Plain,
             };
             let spot = |boss| Spot {
@@ -446,6 +487,10 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 }));
                 sp.body.name = shown;
                 sp.body.name_text = *bar_text;
+                // A boss on a wildlife model is still a boss: it trades with bosses.
+                if sp.class == Class::Animal {
+                    sp.class = Class::Plain;
+                }
                 out.spots.push(sp);
                 continue;
             }
@@ -666,8 +711,16 @@ pub struct Applied {
 }
 
 /// A copy of `body`'s row that keeps what belongs to `spot`: its drops and
-/// runes always, its health and tier when scaling.
-fn row_for(body: &Row, spot: &Row, scale: bool, npc: &fs_param::layout::Layout) -> Result<Vec<u8>> {
+/// runes always, its health and tier when scaling. A spot with no tier gives a
+/// body that has one its map's commonest, `map_tier`; wildlife, with none of its
+/// own, stays without.
+fn row_for(
+    body: &Row,
+    spot: &Row,
+    scale: bool,
+    map_tier: Option<(i64, i64)>,
+    npc: &fs_param::layout::Layout,
+) -> Result<Vec<u8>> {
     let mut data = body.data.clone();
     let mut names = vec!["item_lot_enemy_id", "item_lot_map_id", "runes"];
     if scale {
@@ -676,6 +729,15 @@ fn row_for(body: &Row, spot: &Row, scale: bool, npc: &fs_param::layout::Layout) 
     for name in names {
         let f = npc.field(name);
         f.set(&mut data, 0, f.get(&spot.data, 0))?;
+    }
+    let (a, b) = (npc.field("scale_a"), npc.field("scale_b"));
+    if let Some((ta, tb)) = map_tier
+        && scale
+        && a.get(&spot.data, 0) <= 0
+        && a.get(&body.data, 0) > 0
+    {
+        a.set(&mut data, 0, ta)?;
+        b.set(&mut data, 0, tb)?;
     }
     Ok(data)
 }
@@ -802,7 +864,8 @@ pub fn apply(
         let (Some(b), Some(p)) = (rows.get(&body.npc), rows.get(&spot.body.npc)) else {
             return Err(format_err("a body's row has gone missing"));
         };
-        let data = row_for(b, p, options.scale, npc)?;
+        let tier = pool.map_tier.get(&spot.map_index).copied();
+        let data = row_for(b, p, options.scale, tier, npc)?;
         let next = first_new
             .checked_add(made.len() as i32)
             .ok_or_else(|| format_err("NpcParam has no ids left for new rows"))?;
@@ -956,6 +1019,7 @@ mod tests {
             fixed: vec![],
             listed: vec![BTreeSet::new()],
             companions: BTreeMap::new(),
+            map_tier: BTreeMap::new(),
         }
     }
 
@@ -1063,6 +1127,7 @@ mod tests {
             fixed: vec![],
             listed: vec![BTreeSet::new()],
             companions: BTreeMap::new(),
+            map_tier: BTreeMap::new(),
         };
         let added = new_models(&p, &[0, 1]);
         assert_eq!(added[&0].keys().copied().collect::<Vec<_>>(), ["c1000"]);
@@ -1086,6 +1151,7 @@ mod tests {
             fixed: vec![],
             listed,
             companions: BTreeMap::new(),
+            map_tier: BTreeMap::new(),
         };
         let free = shuffle(
             &p,
@@ -1127,5 +1193,35 @@ mod tests {
         assert_eq!((o.bosses, o.ordinary, o.mix), (100, 0, 5));
         assert!(o.set("dragons=10").is_err());
         assert!(o.set("bosses=101").is_err());
+    }
+
+    #[test]
+    fn a_spot_with_no_tier_gives_a_tiered_body_its_maps_and_wildlife_none() {
+        let npc = for_table("NpcParam").unwrap();
+        let row = |tier: i64, hp: i64| {
+            let mut data = vec![0u8; 0x400];
+            npc.field("scale_a").set(&mut data, 0, tier).unwrap();
+            npc.field("scale_b").set(&mut data, 0, tier).unwrap();
+            npc.field("hp").set(&mut data, 0, hp).unwrap();
+            Row {
+                id: 1,
+                data,
+                name: None,
+            }
+        };
+        let (knight, bird, plain) = (row(7000, 900), row(0, 40), row(0, 300));
+        let tier = |d: &[u8]| npc.field("scale_a").get(d, 0);
+        // A knight on a tierless spot takes the map's tier.
+        let d = row_for(&knight, &plain, true, Some((7050, 7050)), npc).unwrap();
+        assert_eq!(tier(&d), 7050);
+        // Wildlife on a tierless spot stays without one.
+        let d = row_for(&bird, &plain, true, Some((7050, 7050)), npc).unwrap();
+        assert_eq!(tier(&d), 0);
+        // Not scaling, nothing is taken.
+        let d = row_for(&knight, &plain, false, Some((7050, 7050)), npc).unwrap();
+        assert_eq!(tier(&d), 7000);
+        // A spot with its own tier keeps it.
+        let d = row_for(&knight, &row(7010, 500), true, Some((7050, 7050)), npc).unwrap();
+        assert_eq!(tier(&d), 7010);
     }
 }

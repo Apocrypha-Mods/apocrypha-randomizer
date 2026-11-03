@@ -2167,3 +2167,13 @@ No game or lab run.
 **What holds the 16.** 3062 and 3063 under Seluvis's and Rya's quests (3745, 3747 and the rest wait on them); 182 (`3[10]`); 3646 and 1035449235 (`3[12]` counters; 1035449235 counts Varré's invasions, which need online play); 7607 to 7609, 1044362703 and 1044362709 under Sellen's; 2049392705 and 2049392708; and the Boluses' 10009335.
 
 **Proven.** On 2.7.2 with `APOC_ER_STOCK`: the workspace's tests apart from `native`, 272 passed, none failed; clippy clean. `apoc-rando check`, seeds 0 to 999, sliders default, two threads: none failing, in 215 s. Not seen in the game: any of the opened gifts or Seluvis's rows.
+
+## Wildlife keeps to wildlife; spots with no tier take their map's (Nova, 2026-11-03)
+
+No game or lab run.
+
+**Wildlife.** Nova: animals trade only with animals, so ten birds never become ten random enemies. `Class::Animal` holds ordinary spots on models `c6000` to `c6399`, read from what they drop: feathers and fowl feet (c6001, c6070), beast bones, liver and meat (c6010, c6060, c6100), dragonfly heads (c6080 to c6082), turtle meat (c6090), fangs (c6290, c6291). 4,368 spots. Every base-game one has no strength tier. A boss on such a model (one in the DLC, `c6310`) stays a boss. Crabs (c2270 to c2277), wolves and dogs (c4160s), bears (c4550, c4560) and the like also drop beast matter but fight, and stay ordinary enemies until Nova says otherwise.
+
+**Tiers** (spec 05 §5). `Pool::map_tier` holds each map's commonest NpcParam tier among its enemies with one (463 maps). A body with a tier of its own landing on a spot with none takes that; wildlife, with none of its own, stays without.
+
+**Proven.** `enemies` tests on 2.7.2, among them 50 seeds at `bosses=100,ordinary=100`, mix 50 and 0, in which wildlife and the rest never trade, and a written seed whose rows carry the spot's tier or the map's. Clippy and fmt clean.
