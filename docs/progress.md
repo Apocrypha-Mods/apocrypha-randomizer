@@ -2177,3 +2177,5 @@ No game or lab run.
 **Tiers** (spec 05 §5). `Pool::map_tier` holds each map's commonest NpcParam tier among its enemies with one (463 maps). A body with a tier of its own landing on a spot with none takes that; wildlife, with none of its own, stays without.
 
 **Proven.** `enemies` tests on 2.7.2, among them 50 seeds at `bosses=100,ordinary=100`, mix 50 and 0, in which wildlife and the rest never trade, and a written seed whose rows carry the spot's tier or the map's. Clippy and fmt clean.
+
+**The day's gate** (2026-11-03, on `dev` at 8ed6d36, everything above merged): `apoc-rando check` on 2.7.2, seeds 0 to 9,999, default sliders, four threads: 10,000 placed and proven in 1,314.5 s, none failing.
