@@ -171,6 +171,17 @@ fn shop_rows_wait_for_what_puts_them_on_sale() {
             .any_of
             .contains(&"Conspectus Scroll")
     );
+    // Miriel's, picked from a menu and passed through calls, read the same way.
+    assert!(
+        terms_of(&b, "Glintstone Cometshard", |r| r == 100402)
+            .any_of
+            .contains(&"Conspectus Scroll")
+    );
+    assert!(
+        terms_of(&b, "Lightning Spear", |r| r == 100439)
+            .any_of
+            .contains(&"Dragon Cult Prayerbook")
+    );
     let stones = terms_of(&b, "Smithing Stone [1]", |r| r == 101808);
     assert_eq!(stones.needs.len(), 1);
     assert_eq!(

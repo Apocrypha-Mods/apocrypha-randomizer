@@ -356,7 +356,8 @@ pub fn extract(s: &Sources) -> Result<Model> {
     // What talk takes from the player or asks them to hold: (type, id).
     let mut quest_goods: BTreeSet<(i32, i32)> = BTreeSet::new();
     for (map, name, esd) in &s.talk {
-        for h in fs_esd::handover::handovers(esd) {
+        let chosen = fs_esd::choice::handovers(esd);
+        for h in fs_esd::handover::handovers(esd).into_iter().chain(chosen) {
             for f in h.flags {
                 handed.entry(f).or_default().insert(h.goods);
             }
