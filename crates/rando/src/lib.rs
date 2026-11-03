@@ -17,10 +17,12 @@ use gamedata::{GameFiles, Sources, elden_ring};
 use rayon::prelude::*;
 
 pub mod bearings;
+pub mod capital;
 pub mod far;
 
 pub use enemies::Options as EnemyOptions;
 pub use items::Options as ItemOptions;
+pub use items::options::{DEFAULT_LEYNDELL_RUNES, MAX_LEYNDELL_RUNES};
 
 /// Where a run's messages go. It may be called from several threads.
 pub type Say<'a> = &'a (dyn Fn(&str) + Sync);
@@ -577,7 +579,7 @@ pub fn build(
         options,
         enemies: foes,
     } = job;
-    let graph = logic::elden_ring();
+    let graph = graph_for(options)?;
     let bound = logic::Bound::new(&graph, model);
     if !bound.problems.is_empty() {
         return Err(format_err(format!(
@@ -603,6 +605,9 @@ pub fn build(
         &[(bearings::TEXT, bearings::words)]
     };
     menu_text(files, sink, &items::keepsake_items(&units, &plan), talk)?;
+    // Always, so the game's gate asks what the proof asked (`capital`).
+    let common = capital::apply(&sources.common, options.leyndell_runes)?;
+    put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
     let enemy_log = if foes.is_off() {
         None
     } else {
@@ -632,6 +637,22 @@ pub fn build(
     })
 }
 
+/// The area map as this seed's options set it.
+pub fn graph_for(options: &items::Options) -> Result<logic::Graph> {
+    let mut graph = logic::elden_ring();
+    graph
+        .set_leyndell_runes(usize::from(options.leyndell_runes))
+        .map_err(format_err)?;
+    Ok(graph)
+}
+
+/// Write a file of the game's in the DCX its own copy has, compressed with zstd.
+fn put_compressed(files: &GameFiles, out: &dyn Sink, path: &str, plain: &[u8]) -> Result<()> {
+    let (header, _) = fs_dcx::decompress(&files.read(path)?)?;
+    let data = fs_dcx::compress(&header.with_algorithm(fs_dcx::Algorithm::Zstd), plain)?;
+    out.put(path.trim_start_matches('/'), data)
+}
+
 /// Move the enemies and write what changed: maps, scripts and health bar names.
 fn move_enemies(
     files: &GameFiles,
@@ -646,11 +667,7 @@ fn move_enemies(
     let pool = enemies::pool(sources, model)?;
     let plan = enemies::shuffle(&pool, seed, foes);
     let applied = enemies::apply(reg, sources, &pool, &plan, foes)?;
-    let write = |path: String, plain: Vec<u8>| -> Result<()> {
-        let (header, _) = fs_dcx::decompress(&files.read(&path)?)?;
-        let data = fs_dcx::compress(&header.with_algorithm(fs_dcx::Algorithm::Zstd), &plain)?;
-        out.put(path.trim_start_matches('/'), data)
-    };
+    let write = |path: String, plain: Vec<u8>| put_compressed(files, out, &path, &plain);
     let twins = far::follow(files, sources, &applied.maps, &applied.scripts)?;
     applied
         .maps
@@ -861,7 +878,7 @@ pub fn check(
     known_patch(&sources.reg.version())?;
     merge_mods(game, &mut sources, mods, say)?;
     let model = extract_model(game, &sources, mods)?;
-    let graph = logic::elden_ring();
+    let graph = graph_for(options)?;
     let bound = logic::Bound::new(&graph, &model);
     let units = items::units(&model, &bound, &sources.reg)?;
     let keys = bound.key_items();

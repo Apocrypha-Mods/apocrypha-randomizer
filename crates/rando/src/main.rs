@@ -90,6 +90,12 @@ struct Sliders {
     /// scripts, talk and text. A me3 profile beside the seed loads them all.
     #[arg(long = "with-mod", value_name = "PATH")]
     with_mods: Vec<PathBuf>,
+    /// How many of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's Great Runes,
+    /// each restored or not, open Leyndell's gate, 0 to 4 (default 2, as the game). The
+    /// seed's script counts them, and the proof asks the same. The gate also waits on
+    /// the Roundtable Hold having been entered, as the game's does.
+    #[arg(long, default_value_t = 2, value_parser = clap::value_parser!(u8).range(0..=4))]
+    leyndell_runes: u8,
 }
 
 impl Sliders {
@@ -99,6 +105,8 @@ impl Sliders {
         o.set(true, &self.bias).map_err(format_err)?;
         o.dlc_separate = self.dlc == "separate";
         o.auto_upgrade = self.auto_upgrade;
+        o.set_leyndell_runes(self.leyndell_runes)
+            .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();
         Ok(o)
     }

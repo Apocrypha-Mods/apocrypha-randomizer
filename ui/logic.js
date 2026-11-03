@@ -26,6 +26,9 @@ export const PLACES = [
 /** What takes a bias: every category of item, and gathering. */
 export const LEANS = [...CATEGORIES, ["gathering", "Gathering"]];
 
+/** How many Great Runes open Leyndell, as `--leyndell-runes`: 2 is the game's own. */
+export const LEYNDELL_RUNES = [0, 1, 2, 3, 4].map((n) => [n, String(n)]);
+
 /** The most models a map may gain, as `models=N`: the game's own limit is not known. */
 export const MODEL_LIMITS = [
   [20, "20"],
@@ -43,6 +46,7 @@ export const defaults = () => ({
   scale: true,
   autoUpgrade: false,
   dlc: "mixed",
+  leyndellRunes: 2,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -75,6 +79,7 @@ export function request(seed, s, stack = null) {
     enemies: enemies(s),
     noScaling: !s.scale,
     autoUpgrade: !!s.autoUpgrade,
+    leyndellRunes: s.leyndellRunes ?? 2,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;
