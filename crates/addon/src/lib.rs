@@ -163,6 +163,7 @@ fn first_files() -> Vec<String> {
 /// Every piece a seed is known to read.
 fn known_pieces(files: &GameFiles) -> Vec<String> {
     let mut paths = Sources::paths(files);
+    paths.extend(rando::far::paths(files));
     for language in LANGUAGES {
         for binder in ["item_dlc02", "menu_dlc02"] {
             paths.push(format!("/msg/{language}/{binder}.msgbnd.dcx"));

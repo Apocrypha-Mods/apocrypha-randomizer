@@ -16,6 +16,8 @@ use gamedata::sources::{Text, text_of};
 use gamedata::{GameFiles, Sources, elden_ring};
 use rayon::prelude::*;
 
+pub mod far;
+
 pub use enemies::Options as EnemyOptions;
 pub use items::Options as ItemOptions;
 
@@ -630,14 +632,24 @@ fn move_enemies(
         let data = fs_dcx::compress(&header.with_algorithm(fs_dcx::Algorithm::Zstd), &plain)?;
         out.put(path.trim_start_matches('/'), data)
     };
+    let twins = far::follow(files, sources, &applied.maps, &applied.scripts)?;
     applied
         .maps
         .par_iter()
+        .chain(twins.maps.par_iter())
         .try_for_each(|(m, msb)| write(format!("/map/mapstudio/{m}.msb.dcx"), msb.write()?))?;
     applied
         .scripts
         .par_iter()
+        .chain(twins.scripts.par_iter())
         .try_for_each(|(m, script)| write(format!("/event/{m}.emevd.dcx"), script.write()?))?;
+    say(&format!(
+        "enemies: {} later versions of tiles follow, {} scripts; {} differ from their tile, {} changed enemies unmatched there",
+        twins.maps.len(),
+        twins.scripts.len(),
+        twins.differing,
+        twins.unmatched
+    ));
     bar_text(files, out, &applied.bar_names, &applied.bar_sources)?;
     say(&format!(
         "enemies: {} maps changed, {} scripts, {} new NpcParam rows",

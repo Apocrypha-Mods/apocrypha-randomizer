@@ -1959,7 +1959,7 @@ The indices marked are the clearest a scan of every column found: each value -1 
 Tests: `fs-msb` 14 (entry round trip and resize, insert and remove, refusals, and mutation fuzz of entries and of inserting damaged entries); `fs-dvdbnd` 17; `fs-tool` names 15. On the stock copy, `real_maps` 12 and `real_files` 5 pass. Clippy and fmt are clean.
 
 Open:
-- **Whether `gamedata` should read the `_10` maps,** so that the enemy randomizer moves their enemies as well: a question for Nova.
+- [x] **Whether the `_10` maps' enemies should move too:** yes, by Nova's decision; see the next section but one.
 - **An added entry in the game,** in the lab.
 
 ## Merchant rows behind unexplained flags, and what nothing gives (2026-11-03)
@@ -2044,3 +2044,17 @@ missable, and at most 15 rows never counted; `real_items.rs` that no key item la
 counts are unchanged (3,506 treasures, 133 one-time drops, 4,488 repeat drops, 2,169 gathering spots, 414 script awards, 112 gifts, 191 boss
 rewards, 1,293 shop rows). `apoc-rando check`, two threads beside other work (load 9 to 13), seeds 0 to 999: 5,628 slots, 260 holding key
 items, placed and proven in 241 s, none failing. The full 10,000 were not run here.
+
+## Later versions of tiles follow the seed (Nova, 2026-11-03)
+
+No game or lab run.
+
+**What the `_10` to `_12` maps are.** Each sits beside a tile of the same coordinates, `_10` beside `_00`, `_11` beside `_01`, `_12` beside `_02`: 67 twins in blocks around Leyndell (m60_44–47_52–55), east Limgrave (m60_44–47_36–39), Shadow of the Erdtree's centre (m61_44–47_44–47) and a few coarser tiles. 61 are byte for byte their tile. Of the six that differ, `m60_45_52_10` links to the Ashen Capital (`m11_05接続ポイント`) where its tile links to Leyndell (`m11_00`), and `m61_44_45_10` to the finished spiral tower of Enir-Ilim (`m20_01_00_00_完全螺旋塔接続参照ポイント`). So they read as the ground after a change in the world, loaded in place of the tile; that is from these links, not seen in play. What changes east Limgrave was not found. They are not distant copies, as first told to Nova.
+
+**The seed's enemies follow.** `rando::far`: after the enemies move, a twin that was its tile's copy is written as a copy of the tile as the seed left it. In a twin that differs, each changed enemy is found by its old bytes, its entity id and model, or a unique name and model, and given the new NpcParam row, AI, equipment, talk, place, entity id and model (added to the twin's list if missing), with the model counts redone. A changed script follows only into a twin whose script was its tile's copy. The add-on fetches the twins with the rest (`rando::far::paths`).
+
+Seed 1, `bosses=100,ordinary=100,mix=10`: 38 twins written, six of them differing. 124 of the enemies changed on those six's tiles found no part, 105 because the twin does not have them (61 in `m60_45_36_10`, 41 in `m60_45_52_10`): they stay as the game has them there, as do enemies only a twin has. No changed script had a twin to follow into.
+
+**Proven.** `rando`'s tests on 2.7.2, the real-file ones among them; clippy and fmt clean; the add-on builds.
+
+**Not seen.** Any of this in the game. A lab run would burn the Erdtree on a seed and look at the ashen outskirts' enemies.
