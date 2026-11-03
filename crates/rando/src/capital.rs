@@ -1,11 +1,11 @@
-//! Leyndell's gate asks what the area map asks: two of five Great Runes held (Nova,
+//! Leyndell's gate asks what the area map asks: two of six Great Runes held (Nova,
 //! 2026-11-03).
 //!
 //! The gate (m60_45_52 event 1045522500) waits on flag 182 and on flag 105. In the game,
 //! common event 730, started from common event 0 with (182, 2), turns 182 on when two of
 //! flags 170 to 179 are on: flags of the bosses' reward rows and of common event 6905,
 //! which stay with the reward, not with a moved rune. So every seed rewrites that one
-//! start: event 0 starts [`COUNT_EVENT`] there instead, and five events of ours, one a
+//! start: event 0 starts [`COUNT_EVENT`] there instead, and six events of ours, one a
 //! rune, each turn a flag of [`HELD`] on once the player holds that rune, unrestored or
 //! restored. [`COUNT_EVENT`] turns 182 on when as many of those are on as the seed's
 //! option asks (`leyndell_runes`, 0 to 4, the game's 2 by default); at 0 it turns 182 on
@@ -14,14 +14,13 @@
 //! Each flag stays on once set, so a rune restored at its Divine Tower (event 90005110
 //! takes the unrestored one and gives a lot) still counts, and so does one whose tower
 //! now gives something else. Each event ends at once if its flag is on, as 730 does, so on
-//! a reload nothing is counted twice. Morgott's rune stands behind the gate and the Great
-//! Rune of the Unborn is not on the map's list, so neither counts. Event 730's other
+//! a reload nothing is counted twice. Morgott's rune stands behind the gate, so it does not
+//! count; Rennala's Great Rune of the Unborn does, as in the game, by Nova's choice. Event 730's other
 //! starts (flags 180, 181 and 183 to 187), flags 170 to 179 and all that reads them stay
 //! as the game has them.
 //!
 //! Written in every seed, whatever moves: the map asks for runes whether or not they
-//! moved, and with runes where the game puts them the game asks the same (but Rennala's
-//! no longer counts). With other mods, this builds on their `common.emevd`.
+//! moved, and with runes where the game puts them the game asks the same. With other mods, this builds on their `common.emevd`.
 
 use std::collections::HashSet;
 
@@ -34,11 +33,13 @@ pub const GATE: u32 = 182;
 pub const GAME_COUNT: i64 = 730;
 /// Our flags, one a rune, on once that rune has been held. Block 0, beside the game's own
 /// rune counters; no script, talk script or table of the game names them.
-pub const HELD: [u32; 5] = [400, 401, 402, 403, 404];
+pub const HELD: [u32; 6] = [400, 401, 402, 403, 404, 405];
 /// Our event that turns [`GATE`] on.
 pub const COUNT_EVENT: i64 = 731;
 /// Our events, one a rune, in the order of [`RUNES`].
-pub const RUNE_EVENTS: [i64; 5] = [732, 733, 734, 735, 736];
+pub const RUNE_EVENTS: [i64; 6] = [732, 733, 734, 735, 736, 737];
+/// The most Great Runes the gate can be set to ask for.
+pub const MOST: u8 = 4;
 
 /// A Great Rune the gate counts: its name, as the area map names both forms, and its
 /// goods ids. The unrestored one is a boss's reward; the restored one is given at the
@@ -50,7 +51,7 @@ pub struct Rune {
     pub restored: u32,
 }
 
-pub const RUNES: [Rune; 5] = [
+pub const RUNES: [Rune; 6] = [
     Rune {
         name: "Godrick's Great Rune",
         unrestored: 8148,
@@ -75,6 +76,13 @@ pub const RUNES: [Rune; 5] = [
         name: "Malenia's Great Rune",
         unrestored: 8153,
         restored: 196,
+    },
+    // Rennala's, which the game's gate counted too (her reward's flag 177), by Nova's
+    // choice (2026-11-03). It has one form: no tower restores it.
+    Rune {
+        name: "Great Rune of the Unborn",
+        unrestored: 10080,
+        restored: 10080,
     },
 ];
 
@@ -140,7 +148,7 @@ pub fn count_event(rest: u8, needed: u8) -> Event {
                 &[
                     packed([ALL, 0, 0, 0]),
                     HELD[0],
-                    HELD[4],
+                    HELD[HELD.len() - 1],
                     AT_LEAST,
                     u32::from(needed),
                 ],
@@ -186,7 +194,7 @@ pub fn starts_game_count(i: &Instruction) -> bool {
 /// `common` with the gate counting `needed` runes held. Refuses a script (another mod's) that does
 /// not start 730 for 182 exactly once from event 0, or already holds our events' ids.
 pub fn apply(common: &Emevd, needed: u8) -> Result<Emevd> {
-    if usize::from(needed) >= RUNES.len() {
+    if needed > MOST {
         return Err(format_err(format!(
             "the capital's gate can ask for 0 to 4 Great Runes, not {needed}"
         )));
@@ -291,9 +299,9 @@ mod tests {
             .iter()
             .map(|i| words(i).nth(1).unwrap())
             .collect();
-        assert_eq!(started, [732, 733, 734, 735, 736]);
+        assert_eq!(started, [732, 733, 734, 735, 736, 737]);
         assert_eq!(after.events[1], before.events[1]);
-        assert_eq!(after.events.len(), 2 + 6);
+        assert_eq!(after.events.len(), 2 + 7);
         // The game's 730 is no longer started for 182.
         assert!(!zero.instructions.iter().any(starts_game_count));
     }
@@ -303,7 +311,7 @@ mod tests {
         for n in 0..=4 {
             let e = &apply(&common(), n).unwrap().events[2];
             assert_eq!(e.id, COUNT_EVENT);
-            assert_eq!(read(&e.instructions[2]).1[1..], [400, 404, 4, u32::from(n)]);
+            assert_eq!(read(&e.instructions[2]).1[1..], [400, 405, 4, u32::from(n)]);
         }
         assert!(apply(&common(), 5).is_err());
         let e = count_event(0, 2);
@@ -320,7 +328,7 @@ mod tests {
             ]
         );
         assert_eq!(read[0].1[1], 182);
-        assert_eq!(read[2].1[1..], [400, 404, 4, 2]);
+        assert_eq!(read[2].1[1..], [400, 405, 4, 2]);
         assert_eq!(read[4].1, [0, 182, 1]);
         let combine = lookup(0, 0).unwrap();
         assert_eq!(combine.byte(&e.instructions[3], "group"), Some(0));

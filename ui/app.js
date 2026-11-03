@@ -151,7 +151,7 @@ function groups() {
       ),
       pick(
         "Great Runes for Leyndell",
-        "How many of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's Great Runes, restored or not, open the capital's gate. The game asks for 2.",
+        "How many of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's Great Runes, restored or not, and Rennala's Great Rune of the Unborn open the capital's gate. The game asks for 2.",
         L.LEYNDELL_RUNES,
         st.leyndellRunes ?? 2,
         (v) => (st.leyndellRunes = v),

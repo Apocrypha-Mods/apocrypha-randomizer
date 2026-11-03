@@ -1396,15 +1396,15 @@ mod tests {
                 .as_ref()
                 .map(|a| (a.n, a.items.len()))
         };
-        assert_eq!(gate(&elden_ring()), Some((2, 5)));
-        for n in 1..=5 {
+        assert_eq!(gate(&elden_ring()), Some((2, 6)));
+        for n in 1..=6 {
             let mut g = elden_ring();
             g.set_leyndell_runes(n).unwrap();
-            assert_eq!(gate(&g), Some((n, 5)));
+            assert_eq!(gate(&g), Some((n, 6)));
         }
         let mut g = elden_ring();
         g.set_leyndell_runes(0).unwrap();
         assert_eq!(gate(&g), None);
-        assert!(elden_ring().set_leyndell_runes(6).is_err());
+        assert!(elden_ring().set_leyndell_runes(7).is_err());
     }
 }

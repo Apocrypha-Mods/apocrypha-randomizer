@@ -2321,3 +2321,13 @@ a restored rune counts; the count holds after a reload; flags 400 to 404 survive
 12032500, 3499's 3486, Enia's talk) act as if two runes were held; and at any N they now follow the runes, not the bosses.
 Should 105 be set too at 0, or the gate's whole test dropped? Whether `if_item` counts a rune in the chest is not read from the
 exe; Great Runes are key items, which by general knowledge cannot be stored.
+
+## Leyndell's gate: Nova's answers (2026-11-03)
+
+No game or lab run. The merge before this (d9e3f4e) was proven with `apoc-rando check`, seeds 0 to 9,999, four threads: none failing, in 1,170.6 s.
+
+- **At 0 runes** the gate still asks for flag 105, the Roundtable Hold entered, as the game does. Kept.
+- **The other readers of 182** (m11_10 event 11100796, m12_03 event 12032500, common event 3499, talk `t324001110`) now follow the runes held, as the gate does. Kept.
+- **Rennala's Great Rune of the Unborn counts**, as it did in the game (her reward's flag 177). A sixth rune in `rando::capital::RUNES`, goods 10080 in its one form, with event 737 and flag 405, and a sixth name on the area map's edge. The count event now reads the whole of `HELD`, not 400 to 404: the first build left 405 out, and the unit test caught it. The option stays 0 to 4.
+
+**Proven.** The tests of `rando` (real files among them: event 737 and flag 405 are free in the game, and the script changes only where meant), `logic`, `items` and `addon`; the page's node tests; clippy and fmt clean.

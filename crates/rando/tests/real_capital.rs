@@ -60,7 +60,8 @@ fn scripts(s: &Sources) -> impl Iterator<Item = &Emevd> {
 }
 
 /// The Divine Towers' calls of event 90005110 name the restored rune first and the
-/// unrestored one fifth; ours are those, Morgott's left out, and the area map names them.
+/// unrestored one fifth; ours are those, Morgott's left out, with Rennala's Great Rune of
+/// the Unborn, and the area map names them.
 #[test]
 fn the_runes_are_the_towers_own_and_the_maps() {
     let g = game_or_skip!();
@@ -78,8 +79,14 @@ fn the_runes_are_the_towers_own_and_the_maps() {
     assert_eq!(towers.len(), 6, "{towers:?}");
     let morgott = (193, 8150);
     assert!(towers.remove(&morgott));
+    // Rennala's has no tower: it is ours too, by Nova's choice, in its one form.
+    let unborn = (10_080, 10_080);
     let ours: BTreeSet<(u32, u32)> = RUNES.iter().map(|r| (r.restored, r.unrestored)).collect();
-    assert_eq!(towers, ours);
+    assert!(ours.contains(&unborn));
+    assert_eq!(
+        towers,
+        ours.iter().copied().filter(|&r| r != unborn).collect()
+    );
     for r in RUNES {
         for id in [r.restored, r.unrestored] {
             assert_eq!(g.sources.text("GoodsName", id as i32), Some(r.name));
@@ -145,7 +152,7 @@ fn our_flags_and_events_are_free_in_the_game() {
     assert!(fields >= 5, "{fields} flag fields read");
 }
 
-/// For every number of runes: event 0 differs by the one start, six events are added
+/// For every number of runes: event 0 differs by the one start, seven events are added
 /// and read back as built, and every other event is the game's.
 #[test]
 fn the_script_changes_only_where_meant_and_reads_back() {
@@ -155,7 +162,7 @@ fn the_script_changes_only_where_meant_and_reads_back() {
         let after = capital::apply(before, n).unwrap();
         let again = Emevd::read(&after.write().unwrap()).unwrap();
         assert_eq!(again, after, "{n}: reads back as written");
-        assert_eq!(after.events.len(), before.events.len() + 6);
+        assert_eq!(after.events.len(), before.events.len() + 7);
         for (old, new) in before.events.iter().zip(&after.events) {
             assert_eq!(old.id, new.id);
             if old.id != 0 {
@@ -164,7 +171,7 @@ fn the_script_changes_only_where_meant_and_reads_back() {
         }
         let (old0, new0) = (&before.events[0], &after.events[0]);
         assert_eq!(new0.parameters, old0.parameters);
-        assert_eq!(new0.instructions.len(), old0.instructions.len() + 5);
+        assert_eq!(new0.instructions.len(), old0.instructions.len() + 6);
         let changed: Vec<usize> = old0
             .instructions
             .iter()
@@ -180,13 +187,13 @@ fn the_script_changes_only_where_meant_and_reads_back() {
             .iter()
             .map(|i| words(i)[1])
             .collect();
-        assert_eq!(added, [732, 733, 734, 735, 736]);
+        assert_eq!(added, [732, 733, 734, 735, 736, 737]);
         let game_730 = before.events.iter().find(|e| e.id == 730).unwrap();
         let count = after.events.iter().find(|e| e.id == COUNT_EVENT).unwrap();
         assert_eq!(count, &capital::count_event(game_730.rest, n));
         assert_eq!(
             words(&count.instructions[2])[1..],
-            [400, 404, 4, u32::from(n)]
+            [400, 405, 4, u32::from(n)]
         );
         // 730's own shape, counting ours in place of 170 to 179.
         let shape = |e: &fs_emevd::Event| -> Vec<(u32, u32)> {

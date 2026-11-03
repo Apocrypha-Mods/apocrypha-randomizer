@@ -354,7 +354,7 @@ fn the_capitals_gate_asks_for_two_great_runes() {
     let any = edge.need.any.as_ref().unwrap();
     assert_eq!(any.n, 2);
     assert!(any.bosses.is_empty());
-    assert_eq!(any.items.len(), 5);
+    assert_eq!(any.items.len(), 6);
     let bound = Bound::new(graph, model);
     assert!(bound.key_items().iter().any(|k| k.contains("Great Rune")));
     assert!(bound.walk(&bound.vanilla()).goal);
@@ -363,7 +363,7 @@ fn the_capitals_gate_asks_for_two_great_runes() {
         .into_iter()
         .map(|g| {
             g.into_iter()
-                .filter(|i| !i.ends_with("Great Rune"))
+                .filter(|i| !i.contains("Great Rune"))
                 .collect()
         })
         .collect();
@@ -391,7 +391,7 @@ fn the_capitals_gate_asks_the_seeds_number_of_runes() {
             .into_iter()
             .map(|g| {
                 g.into_iter()
-                    .filter(|i| !i.ends_with("Great Rune"))
+                    .filter(|i| !i.contains("Great Rune"))
                     .collect()
             })
             .collect();

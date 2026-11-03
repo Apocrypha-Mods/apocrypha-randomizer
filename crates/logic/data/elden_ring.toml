@@ -680,12 +680,13 @@ from = "altus"
 to = "leyndell"
 any = { n = 2, items = [
     "Godrick's Great Rune", "Radahn's Great Rune", "Rykard's Great Rune",
-    "Mohg's Great Rune", "Malenia's Great Rune",
+    "Mohg's Great Rune", "Malenia's Great Rune", "Great Rune of the Unborn",
 ] }
 note = """
 Two Great Runes held (Nova, 2026-11-03), each unrestored or restored; `n` is the game's 2,
 and a seed sets it from its option (`--leyndell-runes`, 0 to 4; at 0 this asks nothing).
-Morgott's stands behind this gate and the Great Rune of the Unborn is left out.
+Morgott's stands behind this gate. Rennala's Great Rune of the Unborn counts, as it did in
+the game (her reward's flag 177), by Nova's choice (2026-11-03).
 The game now tests the same: every seed rewrites how flag 182 comes on (`rando::capital`).
 The gate (m60_45_52 event 1045522500) waits on flag 182 and flag 105, set on entering the
 Roundtable Hold, which Limgrave reaches with nothing. In the unmodded game common event 730
