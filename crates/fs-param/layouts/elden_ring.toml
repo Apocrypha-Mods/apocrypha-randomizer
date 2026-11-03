@@ -264,18 +264,27 @@ name = "runes"
 offset = 0x2C
 kind = "i32"
 confidence = "probable"
-evidence = "0 in 4,306 rows, otherwise mostly round numbers such as 500, 1000 and 3000."
+evidence = """
+0 in 4,306 rows, otherwise mostly round numbers such as 500, 1000 and 3000. A row's
+own number for its place (2026-11-03): of the 109 kinds of enemy (row id / 10000)
+seen at three or more tiers with this set, it differs between tiers in 107, while
+their hp is the same at every tier, and it rises with the tier, 0.52 of tier 7060's
+at 7010 and 5.8 times at 7120 (medians). No tier effect scales it on a first journey
+(SpEffectParam +0xF4 is 1 in every scale_a tier). Bosses paid through GameAreaParam
+hold 0 (Margit's 21300014). Not settled by a kill whose row is known."""
 
 [[layout.field]]
 name = "team"
 offset = 0x133
 kind = "u8"
-confidence = "probable"
+confidence = "confirmed"
 evidence = """
 Separates who talks from who fights: 176 of 211 parts on 26 have a talk script, and
 all 18,437 on 6 are enemies but 30. Merchants and friends are 26, summonable allies
 2, invaders 27; bosses are 6, 7, 33 and the like; Patches and Gideon, who turn only
-by script, are 26 and 0."""
+by script, are 26 and 0. The scripts' set_team (2004[2]) gives a character a value of
+this byte's set in 824 of 826 uses, and turns those on 26 to 27 (hostile) 326 times
+and allies on 2 to 0 148 times (2026-11-03; real_events.rs holds it)."""
 
 [[layout.field]]
 name = "scale_a"
@@ -488,7 +497,10 @@ confidence = "probable"
 evidence = """
 Two near-identical round numbers per row (80000, 120000, 10000) on rows whose
 ids look like boss ids (10000800, 30020800): the runes for a defeat, likely
-alone and with help. To be confirmed in play."""
+alone and with help. Seen in the lab (2026-11-02): a Soldier of Godrick on Margit's
+spot, its row carrying Margit's NpcParam runes of 0, paid 12,000 on its death,
+Margit's row 10000850 here, alone. Only 2 of 216 rows differ between the two, and
+which is paid with help is not seen."""
 
 [[layout.field]]
 name = "defeat_flag"
@@ -600,3 +612,204 @@ pick_action_button is: what picking the asset gives. The lots are plants,
 nodes and the like (Golden Sunflower, Knot Resin, Ghost Glovewort), none of
 which any map treasure or script gives; 120 such models are placed 18,056
 times."""
+
+# ---------------------------------------------------------------------------
+# Effects. Rows are named by what the talismans and foods that point at them
+# say in their captions (EquipParamAccessory +0x04, EquipParamGoods +0x04), and
+# by the enemies' strength tiers (NpcParam scale_a and scale_b). A column's
+# neutral value is its commonest; the talismans below move only the columns
+# named. Element order is read off the -drake talismans: physical, magic, fire,
+# lightning, holy.
+[[layout]]
+type = "SP_EFFECT_PARAM_ST"
+row_size = 912
+tables = ["SpEffectParam"]
+
+[[layout.field]]
+name = "duration"
+offset = 0x08
+kind = "f32"
+confidence = "probable"
+evidence = "Seconds: 30, 60, 120 and 180 on the timed foods (Boiled Crab 60, Gold-Pickled Fowl Foot 180); 0 or -1 on lasting effects."
+
+[[layout.field]]
+name = "health_rate"
+offset = 0x10
+kind = "f32"
+confidence = "confirmed"
+evidence = """
+Margit's 2521 times his tier's 1.656 is the 4,174 known from play, Morgott's 2521
+times 4.125 his 10,399. Crimson Amber Medallion ("Raises maximum HP") 1.06, +1 1.07,
++2 1.08; Primal Glintstone Blade ("maximum HP is reduced") 0.85. Base tiers run 1.0 to
+7.42, the DLC's 7.05 to 16.6."""
+
+[[layout.field]]
+name = "stamina_rate"
+offset = 0x18
+kind = "f32"
+confidence = "confirmed"
+evidence = """
+Viridian Amber Medallion ("Raises maximum stamina") 1.11, +1 1.13, +2 1.15;
+Greenspill Crystal Tear 1.15. Base tiers 1.0 to 2.03."""
+
+[[layout.field]]
+name = "damage_taken_rate"
+offset = 0x1C
+kind = "f32"
+count = 7
+stride = 4
+confidence = "confirmed"
+evidence = """
+Daedicar's Woe ("Increases damage taken") 2.0 in all seven and in damage_taken_rate_b;
+Radagon's and Marika's Scarseals ("increases damage taken") 1.1, Soreseals 1.15;
+Crucible Scale Talisman ("Reduces damage taken from critical hits") 0.7. 1.0 in every
+tier."""
+
+[[layout.field]]
+name = "damage_taken_rate_b"
+offset = 0x1D0
+kind = "f32"
+confidence = "confirmed"
+evidence = "Moves with damage_taken_rate in every talisman that moves it (Daedicar's Woe 2.0, Crucible Scale 0.7)."
+
+[[layout.field]]
+name = "skill_attack_rate"
+offset = 0x38
+kind = "f32"
+count = 4
+stride = 4
+confidence = "probable"
+evidence = """
+Raised by the talismans of one kind of attack: Warrior Jar Shard ("attack power of
+skills") 1.1, Axe Talisman ("charge attacks") 1.1, Dagger Talisman ("critical hits")
+1.17, Godfrey Icon ("charged spells and skills") 1.15; Spear Talisman moves the first
+alone. An attack rate that applies to some attacks. The base tiers leave it at 1.0;
+the DLC's run 1.0 to 2.2, so the DLC's enemies hit harder by it."""
+
+[[layout.field]]
+name = "skill_attack_rate_e"
+offset = 0x1DC
+kind = "f32"
+confidence = "probable"
+evidence = "A fifth column of skill_attack_rate, moved with the other four by every talisman and tier that moves them."
+
+[[layout.field]]
+name = "attack_rate"
+offset = 0x48
+kind = "f32"
+count = 4
+stride = 4
+confidence = "probable"
+evidence = """
+Blue Dancer Charm ("Raises attack power with lower equipment load") moves the first
+alone, 1.15. The base tiers raise all four together from 1.0 to 3.8 (Margit's 7030
+1.49, Morgott's 7110 2.67); the DLC's hold them at 3.75 to 3.85 and raise
+skill_attack_rate instead. The enemies' attack rate by their tier."""
+
+[[layout.field]]
+name = "attack_rate_e"
+offset = 0x1E0
+kind = "f32"
+confidence = "probable"
+evidence = "A fifth column of attack_rate, equal to the other four in every tier row."
+
+[[layout.field]]
+name = "tier_rate_c"
+offset = 0x68
+kind = "f32"
+count = 4
+stride = 4
+confidence = "probable"
+evidence = """
+Four columns the tiers raise together, 1.0 to 1.23 over the base tiers and 1.22 to
+1.26 over the DLC's, with a fifth at +0x1D4. No talisman or food moves them, so what
+they rate is not read; defence is a likely reading, not settled."""
+
+[[layout.field]]
+name = "tier_rate_c_e"
+offset = 0x1D4
+kind = "f32"
+confidence = "probable"
+evidence = "A fifth column of tier_rate_c, equal to the other four in every tier row."
+
+[[layout.field]]
+name = "guard_break_rate"
+offset = 0xC8
+kind = "f32"
+confidence = "probable"
+evidence = """
+Hammer Talisman ("Enhances stamina-reducing attacks against blockers") 1.4,
+Stonebarb Cracked Tear ("Makes attacks more likely to break enemy stances") 1.3. Base
+tiers 1.0 to 1.39."""
+
+[[layout.field]]
+name = "rune_gain_rate"
+offset = 0xE0
+kind = "f32"
+confidence = "confirmed"
+evidence = """
+Gold Scarab ("Increases runes obtained from defeated enemies") 1.2, Gold-Pickled
+Fowl Foot ("Boosts rune acquisition") 1.3, Golden Horn Tender 1.4. The player's side;
+1.0 in every tier."""
+
+[[layout.field]]
+name = "rune_drop_rate"
+offset = 0xF4
+kind = "f32"
+confidence = "probable"
+evidence = """
+1.0 in every scale_a tier, and 5, 4, 3 then 2 down the scale_b tiers (7400 to 7600),
+whose health rates fall the same way: the reading that later journeys pay more for
+early places. Not settled."""
+
+[[layout.field]]
+name = "negation_rate"
+offset = 0x260
+kind = "f32"
+count = 5
+stride = 4
+confidence = "confirmed"
+evidence = """
+Dragoncrest Shield Talisman ("physical damage negation") moves the first (0.98 to
+0.95), Spelldrake ("magical") the second, Flamedrake ("fire") the third, Boltdrake
+("lightning") the fourth, Haligdrake ("holy") the fifth; Pearldrake ("non-physical")
+the last four; Boiled Crab the first. Each also moves the same column of
+negation_rate_b. 1.0 in every tier."""
+
+[[layout.field]]
+name = "negation_rate_b"
+offset = 0x274
+kind = "f32"
+count = 5
+stride = 4
+confidence = "confirmed"
+evidence = "Moves beside negation_rate, column for column, in every -drake talisman and the Boiled Crab and Pickled Livers (0.9 to 0.75)."
+
+[[layout.field]]
+name = "player_attack_rate"
+offset = 0x28C
+kind = "f32"
+count = 5
+stride = 4
+confidence = "confirmed"
+evidence = """
+Exalted Flesh ("Temporarily boosts physical attack") moves the first, 1.15; the Magic,
+Fire, Lightning and Sacred Scorpion Charms ("Raises magic / fire / lightning / holy
+attack") the second to the fifth, 1.08, each beside its column of a second group
+from +0x2A0 (1.2 and 1.12). 1.0 in every tier: the enemies' tiers use attack_rate."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "EQUIP_PARAM_ACCESSORY_ST"
+row_size = 96
+tables = ["EquipParamAccessory"]
+
+[[layout.field]]
+name = "sp_effect"
+offset = 0x04
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+A SpEffectParam row in all 157 rows, and the effect does what the talisman's caption
+says: Crimson Amber Medallion's raises health_rate, Arsenal Charm's +0xE4, the
+-drake talismans' negation_rate (see SP_EFFECT_PARAM_ST)."""

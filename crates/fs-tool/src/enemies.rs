@@ -353,6 +353,85 @@ pub fn boss_commands(game: PathBuf, out: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// Every event that changes a boss's stage: one that waits on the boss's own
+/// state (an effect it has, 4[5] or 4[34]; its health as a share, 4[2], or as a
+/// value above nothing, 4[14]) and does not call the defeat. Prints the wait and
+/// everything the event does, with what the pool says of the boss.
+pub fn boss_phases(game: PathBuf) -> Result<()> {
+    let s = Sources::open(&game)?;
+    let model = gamedata::elden_ring::extract(&s)?;
+    let pool = ::enemies::pool(&s, &model)?;
+    let moving: BTreeSet<u32> = pool.bosses().filter_map(|b| b.entity).collect();
+    let bar = catalogue::named("boss_health_bar");
+    let defeat = catalogue::named("boss_defeated");
+    let mut bars: BTreeMap<u32, String> = BTreeMap::new();
+    for (_, script) in &s.scripts {
+        for u in catalogue::uses(script, Some(&s.common_func), bar.bank, bar.id) {
+            if let (Some(b), Some(t)) = (u.word(bar.arg("boss").word), u.word(bar.arg("name").word))
+            {
+                let name = s.text("NpcName", t as i32).unwrap_or("?").to_string();
+                bars.entry(b).or_insert(name);
+            }
+        }
+    }
+    let word = |i: &fs_emevd::Instruction, w: usize| catalogue::Entry::word(i, w);
+    for (m, script) in &s.scripts {
+        for run in catalogue::runs(script, Some(&s.common_func)) {
+            if run
+                .instructions
+                .iter()
+                .any(|i| (i.bank, i.id) == (defeat.bank, defeat.id))
+            {
+                continue;
+            }
+            let waits: Vec<(u32, String)> = run
+                .instructions
+                .iter()
+                .filter_map(|i| {
+                    let e = word(i, 1)?;
+                    bars.contains_key(&e).then_some(())?;
+                    let what = match (i.bank, i.id) {
+                        (4, 5) => format!("has effect {}", word(i, 2)? as i32),
+                        (4, 34) => format!("has effect type {}", word(i, 2)? as i32),
+                        (4, 2) => format!(
+                            "health share, test {} against {}",
+                            word(i, 2)?,
+                            f32::from_bits(word(i, 3)?)
+                        ),
+                        (4, 14) if word(i, 3)? > 0 => {
+                            format!("health, test {} against {}", word(i, 2)?, word(i, 3)?)
+                        }
+                        _ => return None,
+                    };
+                    Some((e, what))
+                })
+                .collect();
+            for (e, what) in waits {
+                println!(
+                    "{m} event {} ({}) {} [{e}] {}: {what}",
+                    run.event.id,
+                    run.caller.map_or("top".into(), |c| format!("from {c}")),
+                    bars[&e],
+                    if moving.contains(&e) {
+                        "moves"
+                    } else {
+                        "stays"
+                    },
+                );
+                for i in &run.instructions {
+                    let words: Vec<i64> = (0..i.args.len() / 4)
+                        .filter_map(|w| word(i, w))
+                        .map(|v| i64::from(v as i32))
+                        .collect();
+                    let name = catalogue::lookup(i.bank, i.id).map_or("", |c| c.name.as_str());
+                    println!("    {}[{}] {name} {words:?}", i.bank, i.id);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Every use of one instruction in every script: map, event, arguments.
 pub fn instruction_uses(game: PathBuf, bank: u32, id: u32) -> Result<()> {
     let s = Sources::open(&game)?;
