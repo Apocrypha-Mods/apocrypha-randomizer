@@ -18,6 +18,7 @@
 //! fields are read from the blobs at offsets worked out from the data.
 //! `apoc-fs check` holds every MSB in the game to coming back byte for byte.
 
+pub mod entry;
 pub mod layout;
 
 use fs_bytes::{self as rd, Error, Result, align_up, format_err};
@@ -163,6 +164,141 @@ impl Msb {
             .find(|t| t.name == name)
             .unwrap_or_else(|| panic!("no MSB table {name}"))
     }
+
+    fn table_mut(&mut self, name: &str) -> Result<&mut Table> {
+        self.tables
+            .iter_mut()
+            .find(|t| t.name == name)
+            .ok_or_else(|| format_err(format!("no MSB table {name}")))
+    }
+
+    /// Where an entry of `ty` goes so that its table stays grouped by type:
+    /// after the last entry of that type, or at the end if there is none.
+    pub fn place_for(&self, table: &str, ty: i32) -> usize {
+        let f = layout::field(table, "type");
+        let es = &self.table(table).entries;
+        es.iter()
+            .rposition(|e| f.get(e, 0) == Some(i64::from(ty)))
+            .map_or(es.len(), |i| i + 1)
+    }
+
+    /// Put `entry` into `table` at `at`, keeping what the map's other entries
+    /// say true: every index into that table the layout knows of
+    /// ([`layout::Field::refers`]) that pointed at `at` or later moves up one,
+    /// the new entry and those after it of its type get their place among
+    /// their type (`type_index`), and a part's model counts one more use.
+    ///
+    /// The layout knows the indices the game's maps show most clearly, not
+    /// necessarily all, so an entry is best added after the last of its type
+    /// in a table with few references into it ([`Msb::place_for`]).
+    pub fn insert(&mut self, table: &str, at: usize, mut entry: Vec<u8>) -> Result<()> {
+        let len = self.table(table).entries.len();
+        if at > len {
+            return Err(format_err(format!("{table} has {len} entries, not {at}")));
+        }
+        entry::Entry::read(table, &entry)?;
+        let ty = layout::field(table, "type");
+        let index = layout::field(table, "type_index");
+        let t = ty.get(&entry, 0);
+        let before = self.table(table).entries[..at]
+            .iter()
+            .filter(|e| ty.get(e, 0) == t)
+            .count();
+        index.set(&mut entry, 0, before as i64)?;
+        let entries = &mut self.table_mut(table)?.entries;
+        for e in entries[at..].iter_mut().filter(|e| ty.get(e, 0) == t) {
+            let v = index.get(e, 0).unwrap_or(0);
+            index.set(e, 0, v + 1)?;
+        }
+        let model = (table == "PARTS_PARAM_ST")
+            .then(|| layout::field(table, "model").get(&entry, 0))
+            .flatten();
+        entries.insert(at, entry);
+        // The new entry's own indices count as the map's did before it.
+        self.shift(table, at, 1)?;
+        if let Some(m) = model {
+            self.count_use(m, 1)?;
+        }
+        Ok(())
+    }
+
+    /// Take entry `at` out of `table`, the inverse of [`Msb::insert`]. Refused
+    /// while a known index still points at it.
+    pub fn remove(&mut self, table: &str, at: usize) -> Result<Vec<u8>> {
+        let len = self.table(table).entries.len();
+        if at >= len {
+            return Err(format_err(format!("{table} has {len} entries, not {at}")));
+        }
+        let ty = layout::field(table, "type");
+        let index = layout::field(table, "type_index");
+        let entries = &mut self.table_mut(table)?.entries;
+        let entry = entries.remove(at);
+        if let Err(e) = self.shift(table, at, -1) {
+            // Nothing has moved yet: the check comes before any change.
+            self.table_mut(table)?.entries.insert(at, entry);
+            return Err(e);
+        }
+        let entries = &mut self.table_mut(table)?.entries;
+        let t = ty.get(&entry, 0);
+        for e in entries[at..].iter_mut().filter(|e| ty.get(e, 0) == t) {
+            let v = index.get(e, 0).unwrap_or(0);
+            index.set(e, 0, v - 1)?;
+        }
+        if table == "PARTS_PARAM_ST"
+            && let Some(m) = layout::field(table, "model").get(&entry, 0)
+        {
+            self.count_use(m, -1)?;
+        }
+        Ok(entry)
+    }
+
+    fn count_use(&mut self, model: i64, by: i64) -> Result<()> {
+        let f = layout::field("MODEL_PARAM_ST", "instances");
+        let models = &mut self.table_mut("MODEL_PARAM_ST")?.entries;
+        if let Some(m) = usize::try_from(model).ok().and_then(|m| models.get_mut(m)) {
+            let n = f.get(m, 0).unwrap_or(0);
+            f.set(m, 0, n + by)?;
+        }
+        Ok(())
+    }
+
+    /// Move every known index into `table` at or past `at` by `by` (+1 to
+    /// make room, -1 to close a gap, which fails, changing nothing, if
+    /// something points at `at`).
+    fn shift(&mut self, table: &str, at: usize, by: i64) -> Result<()> {
+        let at = at as i64;
+        let fields: Vec<&layout::Field> = layout::elden_ring()
+            .iter()
+            .filter(|f| f.refers.as_deref() == Some(table))
+            .collect();
+        if by < 0 {
+            for t in &self.tables {
+                for f in fields.iter().filter(|f| f.table == t.name) {
+                    for e in t.entries.iter().filter(|e| f.applies(e)) {
+                        if (0..f.count).any(|i| f.get(e, i) == Some(at)) {
+                            return Err(format_err(format!(
+                                "{}.{} still points at {table} entry {at}",
+                                f.table, f.name
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+        for t in &mut self.tables {
+            for f in fields.iter().filter(|f| f.table == t.name) {
+                for e in t.entries.iter_mut().filter(|e| f.applies(e)) {
+                    for i in 0..f.count {
+                        let Some(v) = f.get(e, i) else { continue };
+                        if v >= at {
+                            f.set(e, i, v + by)?;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -183,6 +319,206 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    fn text(s: &str) -> Vec<u8> {
+        s.encode_utf16()
+            .chain([0])
+            .flat_map(u16::to_le_bytes)
+            .collect()
+    }
+
+    fn put(b: &mut [u8], at: usize, v: i64, wide: bool) {
+        if wide {
+            b[at..at + 8].copy_from_slice(&v.to_le_bytes());
+        } else {
+            b[at..at + 4].copy_from_slice(&(v as i32).to_le_bytes());
+        }
+    }
+
+    /// A part laid out as the game's are: header, name, model path, an
+    /// entity section and a type section.
+    fn part(name: &str, ty: i32, index: i32, model: i32, collision: i32) -> Vec<u8> {
+        let mut b = vec![0u8; 0xC0];
+        put(&mut b, 0x0C, ty.into(), false);
+        put(&mut b, 0x10, index.into(), false);
+        put(&mut b, 0x14, model.into(), false);
+        put(&mut b, 0, 0xC0, true);
+        b.extend(text(name));
+        let here = b.len() as i64;
+        put(&mut b, 0x18, here, true);
+        b.extend(text(""));
+        b.resize(b.len().next_multiple_of(8), 0);
+        let here = b.len() as i64;
+        put(&mut b, 0x60, here, true);
+        b.extend([0u8; 0x40]);
+        let here = b.len() as i64;
+        put(&mut b, 0x68, here, true);
+        let s = b.len();
+        b.extend([0u8; 0x60]);
+        put(&mut b, s + 0x1C, collision.into(), false);
+        b
+    }
+
+    fn model(name: &str, ty: i32, instances: i32) -> Vec<u8> {
+        let mut b = vec![0u8; 0x28];
+        put(&mut b, 0x08, ty.into(), false);
+        put(&mut b, 0x18, instances.into(), false);
+        put(&mut b, 0, 0x28, true);
+        b.extend(text(name));
+        let here = b.len() as i64;
+        put(&mut b, 0x10, here, true);
+        b.extend(text(""));
+        b.resize(b.len().next_multiple_of(8), 0);
+        b
+    }
+
+    /// A treasure (event type 4) on part `on`.
+    fn treasure(on: i32) -> Vec<u8> {
+        let mut b = vec![0u8; 0x30];
+        put(&mut b, 0x0C, 4, false);
+        put(&mut b, 0, 0x30, true);
+        b.extend(text("treasure"));
+        b.resize(b.len().next_multiple_of(8), 0);
+        let here = b.len() as i64;
+        put(&mut b, 0x18, here, true);
+        b.extend((-1i32).to_le_bytes());
+        b.extend((-1i32).to_le_bytes());
+        b.extend([0u8; 0x18]);
+        let here = b.len() as i64;
+        put(&mut b, 0x20, here, true);
+        let s = b.len();
+        b.extend([0u8; 0x40]);
+        put(&mut b, s + 0x08, on.into(), false);
+        b
+    }
+
+    fn small_map() -> Msb {
+        let mut m = sample();
+        for t in &mut m.tables {
+            t.entries.clear();
+        }
+        m.tables[0].entries = vec![
+            model("c1000", 2, 2),
+            model("h0001", 5, 1),
+            model("AEG1", 13, 1),
+        ];
+        m.tables[1].entries = vec![treasure(3)];
+        m.tables[5].entries = vec![
+            part("c1000_9000", 2, 0, 0, 2),
+            part("c1000_9001", 2, 1, 0, 2),
+            part("h0001", 5, 0, 1, -1),
+            part("AEG1_000", 13, 0, 2, -1),
+        ];
+        m
+    }
+
+    #[test]
+    fn an_added_part_moves_the_indices_that_point_past_it() {
+        use layout::field;
+        let mut m = small_map();
+        let before = m.write().unwrap();
+        let at = m.place_for("PARTS_PARAM_ST", 2);
+        assert_eq!(at, 2, "after the last enemy");
+        let mut e =
+            entry::Entry::read("PARTS_PARAM_ST", &m.table("PARTS_PARAM_ST").entries[0]).unwrap();
+        e.set_name("c1000_9002").unwrap();
+        m.insert("PARTS_PARAM_ST", at, e.write()).unwrap();
+        let parts = &m.table("PARTS_PARAM_ST").entries;
+        let names: Vec<_> = parts
+            .iter()
+            .map(|p| layout::entry_name(p).unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "c1000_9000",
+                "c1000_9001",
+                "c1000_9002",
+                "h0001",
+                "AEG1_000"
+            ]
+        );
+        let coll = field("PARTS_PARAM_ST", "collision_part");
+        assert!(
+            parts[..3].iter().all(|p| coll.get(p, 0) == Some(3)),
+            "the collision moved to 3"
+        );
+        assert_eq!(
+            field("PARTS_PARAM_ST", "type_index").get(&parts[2], 0),
+            Some(2)
+        );
+        let tr = &m.table("EVENT_PARAM_ST").entries[0];
+        assert_eq!(field("EVENT_PARAM_ST", "treasure_part").get(tr, 0), Some(4));
+        assert_eq!(
+            field("EVENT_PARAM_ST", "part").get(tr, 0),
+            Some(-1),
+            "-1 stays"
+        );
+        let models = &m.table("MODEL_PARAM_ST").entries;
+        assert_eq!(
+            field("MODEL_PARAM_ST", "instances").get(&models[0], 0),
+            Some(3)
+        );
+        // Taking it out again gives the map back, byte for byte.
+        m.remove("PARTS_PARAM_ST", at).unwrap();
+        assert_eq!(m.write().unwrap(), before);
+    }
+
+    /// Damaged entries handed to insert, at any place, give errors or a map
+    /// that still writes; never a panic. A sound one comes back out whole.
+    #[test]
+    fn inserting_damaged_entries_never_panics() {
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = move || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let base = small_map();
+        for _ in 0..5000 {
+            let mut m = base.clone();
+            let t = ["PARTS_PARAM_ST", "MODEL_PARAM_ST", "EVENT_PARAM_ST"][(next() % 3) as usize];
+            let src = &m.table(t).entries;
+            let mut e = src[(next() as usize) % src.len()].clone();
+            for _ in 0..next() % 4 {
+                let i = (next() as usize) % e.len();
+                e[i] = next() as u8;
+            }
+            let at = (next() as usize) % (src.len() + 2);
+            if m.insert(t, at, e.clone()).is_ok() {
+                assert!(m.write().is_ok());
+                if let Ok(back) = m.remove(t, at) {
+                    assert_eq!(back.len(), e.len());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_part_still_pointed_at_is_not_removed() {
+        let mut m = small_map();
+        let before = m.write().unwrap();
+        assert!(
+            m.remove("PARTS_PARAM_ST", 2).is_err(),
+            "the enemies stand on it"
+        );
+        assert!(
+            m.remove("PARTS_PARAM_ST", 3).is_err(),
+            "the treasure sits on it"
+        );
+        assert!(m.remove("MODEL_PARAM_ST", 0).is_err(), "parts use it");
+        assert_eq!(m.write().unwrap(), before, "a refusal changes nothing");
+        assert!(m.remove("PARTS_PARAM_ST", 9).is_err());
+        assert!(
+            m.insert("PARTS_PARAM_ST", 9, part("x", 2, 0, 0, -1))
+                .is_err()
+        );
+        assert!(
+            m.insert("PARTS_PARAM_ST", 0, vec![1, 2, 3]).is_err(),
+            "not an entry"
+        );
     }
 
     #[test]

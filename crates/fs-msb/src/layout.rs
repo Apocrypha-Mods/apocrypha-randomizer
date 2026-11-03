@@ -44,6 +44,10 @@ pub struct Field {
     pub count: usize,
     pub confidence: Confidence,
     pub evidence: String,
+    /// The table this value is an index into (-1 for none), so that adding
+    /// or removing an entry there can move it ([`crate::Msb::insert`]).
+    #[serde(default)]
+    pub refers: Option<String>,
 }
 
 fn one() -> usize {
@@ -69,6 +73,14 @@ impl Field {
         };
         let at = base + self.offset + index * 4;
         (at + 4 <= entry.len()).then_some(at)
+    }
+
+    /// Whether an entry of this type has the field.
+    pub fn applies(&self, entry: &[u8]) -> bool {
+        self.types.is_empty()
+            || field_opt(&self.table, "type")
+                .and_then(|t| t.get(entry, 0))
+                .is_some_and(|t| self.types.contains(&(t as i32)))
     }
 
     /// The value (an f32 as its bits), or `None` if the entry is too short.
@@ -120,10 +132,14 @@ pub fn elden_ring() -> &'static [Field] {
 
 /// The field `name` of `table`.
 pub fn field(table: &str, name: &str) -> &'static Field {
+    field_opt(table, name).unwrap_or_else(|| panic!("no MSB field {table}.{name}"))
+}
+
+/// The field `name` of `table`, if the layout has it.
+pub fn field_opt(table: &str, name: &str) -> Option<&'static Field> {
     elden_ring()
         .iter()
         .find(|f| f.table == table && f.name == name)
-        .unwrap_or_else(|| panic!("no MSB field {table}.{name}"))
 }
 
 /// An entry's name: the UTF-16 string its first word points at.
@@ -142,6 +158,34 @@ mod tests {
         for f in elden_ring() {
             assert!(crate::TABLES.contains(&f.table.as_str()), "{}", f.table);
             assert!(!f.evidence.trim().is_empty(), "{}.{}", f.table, f.name);
+            if let Some(r) = &f.refers {
+                assert!(
+                    crate::TABLES.contains(&r.as_str()),
+                    "{}.{} refers to {r}",
+                    f.table,
+                    f.name
+                );
+                assert_eq!(
+                    f.kind,
+                    Kind::I32,
+                    "{}.{}: an index is signed",
+                    f.table,
+                    f.name
+                );
+            }
+        }
+        // Every table has the type and type index adding an entry needs.
+        for t in [
+            "MODEL_PARAM_ST",
+            "EVENT_PARAM_ST",
+            "POINT_PARAM_ST",
+            "ROUTE_PARAM_ST",
+            "PARTS_PARAM_ST",
+        ] {
+            assert!(
+                field_opt(t, "type").is_some() && field_opt(t, "type_index").is_some(),
+                "{t}"
+            );
         }
     }
 
