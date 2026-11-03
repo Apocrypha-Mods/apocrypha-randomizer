@@ -2331,3 +2331,5 @@ No game or lab run. The merge before this (d9e3f4e) was proven with `apoc-rando 
 - **Rennala's Great Rune of the Unborn counts**, as it did in the game (her reward's flag 177). A sixth rune in `rando::capital::RUNES`, goods 10080 in its one form, with event 737 and flag 405, and a sixth name on the area map's edge. The count event now reads the whole of `HELD`, not 400 to 404: the first build left 405 out, and the unit test caught it. The option stays 0 to 4.
 
 **Proven.** The tests of `rando` (real files among them: event 737 and flag 405 are free in the game, and the script changes only where meant), `logic`, `items` and `addon`; the page's node tests; clippy and fmt clean.
+
+**Proven again** after this section (2019b70): `apoc-rando check`, seeds 0 to 9,999, four threads, none failing, in 1,178.4 s; 294 slots hold key items, one more with the Great Rune of the Unborn a key.
