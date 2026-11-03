@@ -349,6 +349,9 @@ enum Command {
         /// List the machines whose expressions hold one of these numbers.
         #[arg(long, value_delimiter = ',')]
         find: Vec<i32>,
+        /// Follow each expression with its bytes in hex.
+        #[arg(long)]
+        raw: bool,
     },
     /// Write one file out of the archives, by path or by hash.
     Extract {
@@ -618,9 +621,10 @@ fn main() {
             scripts,
             groups,
             find,
+            raw,
         } => {
             let groups: Vec<i64> = groups.into_iter().map(|g| g as i64).collect();
-            talk_dump::run(game, &scripts, &groups, &find)
+            talk_dump::run(game, &scripts, &groups, &find, raw)
         }
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::GraceDanger {

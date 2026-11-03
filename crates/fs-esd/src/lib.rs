@@ -28,8 +28,10 @@ pub mod calls;
 pub mod choice;
 pub mod commands;
 pub mod cond;
+pub mod edit;
 pub mod expr;
 pub mod handover;
+pub mod menu;
 pub mod reach;
 
 use fs_bytes::{self as rd, Error, Result, format_err};

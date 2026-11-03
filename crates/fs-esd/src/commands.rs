@@ -29,6 +29,21 @@ pub const TAKE_ITEM: Id = (1, 52);
 /// extra first argument holds.
 pub const MENU_ENTRY: Id = (1, 0x13);
 
+/// Adds an entry to the talk menu as [`MENU_ENTRY`] does, with two more
+/// arguments: the Twin Maiden Husks' lists of bell bearings and of the stock
+/// they open (`1[0x95](99, 26000004, -1, 9999999, 0)`, "Leave", last).
+pub const MENU_ENTRY_COUNTED: Id = (1, 0x95);
+
+/// Empties the talk menu: in each of the 68 menus that lead to a shop
+/// ([`crate::menu::shop_menus`], 2.7.2), one state runs it, and the machine
+/// comes back to that state after the shop closes, before the menu's entries
+/// are added again.
+pub const CLEAR_MENU: Id = (1, 0x14);
+
+/// Shows the talk menu built so far: in the same menus one state runs it, and
+/// a state after it tests the choice (function 23).
+pub const SHOW_MENU: Id = (1, 0x0A);
+
 /// Sets loop counter `k` (argument 0) to argument 1; function 100 reads it back.
 /// Menus are filled in loops that start a counter at 0 and add 1 until it passes
 /// a bound.

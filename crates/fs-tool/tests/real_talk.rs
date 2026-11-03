@@ -205,3 +205,90 @@ fn conditions_read_as_one_value() {
     eprintln!("conditions: {ok}/{all} understood, {asks} ask for a flag or an item");
     assert_eq!(ok, all, "every condition reads as one value");
 }
+
+#[test]
+fn every_shop_menu_is_found_and_takes_a_new_entry() {
+    use fs_esd::menu::{Gift, add_gift, shop_menus};
+    let s = sources_or_skip!();
+    let shops: HashSet<(i32, i32)> = resolved(s, OPEN_SHOP)
+        .iter()
+        .filter_map(|r| Some((r.args.first().copied()??, r.args.get(1).copied()??)))
+        .collect();
+    let (mut menus, mut reached) = (0, HashSet::new());
+    for (_, name, esd) in &s.talk {
+        let found = shop_menus(esd);
+        menus += found.len();
+        let mut changed = esd.clone();
+        for m in &found {
+            reached.extend(m.ranges.iter().copied());
+            // Whether the machine comes back to empty the menu from some state
+            // past the menu itself, as the gift entry's state will.
+            let g = &esd.groups[m.group];
+            let back = esd.states_of(g).iter().any(|st| {
+                let i = esd.index_of(st).unwrap();
+                let mut todo = esd.conditions_in(st.conditions);
+                let mut to_clear = false;
+                while let Some(c) = todo.pop() {
+                    to_clear |= esd.state_at(c.next_state).map(|(j, _)| j) == Some(m.clear);
+                    todo.extend(esd.conditions_in(c.subconditions));
+                }
+                ![m.clear, m.show, m.choose].contains(&i)
+                    && to_clear
+                    && esd.states_of(g).first().and_then(|f| esd.index_of(f)) != Some(i)
+            });
+            assert!(
+                back,
+                "{name} machine {:#x} never empties its menu again",
+                g.id
+            );
+            let gift = Gift {
+                text: 1,
+                lot: 2,
+                flag: 3,
+                hidden_by: vec![4],
+            };
+            add_gift(&mut changed, m.group, &gift).unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+        let back = fs_esd::Esd::read(&changed.write().unwrap()).unwrap();
+        assert_eq!(back, changed, "{name}");
+        assert_eq!(back.write().unwrap(), changed.write().unwrap());
+    }
+    eprintln!(
+        "{menus} shop menus open {} of {} ranges",
+        reached.len(),
+        shops.len()
+    );
+    assert_eq!(menus, 68);
+    // Every range of the named merchants (100000 to 100499, and the
+    // expansion's 102000s) is opened from some menu. On 2.7.2, 7 of 48 are not:
+    // a nomadic merchant's 100550 to 100579, and lists in the 122000s to
+    // 129000s and 600000s.
+    let missed: Vec<_> = shops.difference(&reached).collect();
+    assert!(
+        missed
+            .iter()
+            .all(|r| !(100_000..100_500).contains(&r.0) && !(102_000..103_000).contains(&r.0)),
+        "{missed:?}"
+    );
+}
+
+#[test]
+fn the_husks_take_bell_bearings_for_flags_that_open_shops() {
+    let s = sources_or_skip!();
+    let husks = &s.talk.iter().find(|(_, n, _)| n == "t600001110").unwrap().2;
+    let offers = fs_esd::choice::offers(husks);
+    let flag_of = |goods: i32| {
+        offers
+            .iter()
+            .find(|h| h.goods == goods)
+            .map(|h| h.flags.iter().copied().collect::<Vec<_>>())
+    };
+    assert_eq!(flag_of(8913), Some(vec![11_109_713]), "Sellen's");
+    assert_eq!(flag_of(2_008_901), Some(vec![11_109_791]), "Ymir's");
+    // The plain reading, which the model's handovers use, does not see them.
+    assert!(fs_esd::choice::handovers(husks).is_empty());
+    let ranges = fs_esd::menu::ranges_by_flag(husks);
+    assert_eq!(ranges[&11_109_713].iter().next(), Some(&(100_050, 100_074)));
+    assert_eq!(ranges[&11_109_790].iter().next(), Some(&(102_250, 102_289)));
+    assert_eq!(ranges.len(), 16);
+}
