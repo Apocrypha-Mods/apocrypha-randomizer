@@ -13,6 +13,10 @@
 //!    exe's path formats say a map has.
 //! 5. Other ids swept over their whole range, in the same formats.
 //! 6. Every word of text tried in every folder and extension named so far.
+//! 7. Every word as one more folder before a file named so far (fonts and
+//!    sound by language).
+//! 8. Navigation links between neighbouring open-world tiles.
+//! 9. Two names in the style of older games' files.
 //!
 //! With 64-bit hashes against 120,000 entries, a wrong path matching by chance
 //! is about one in 10^14 a try, so even the trillions tried here are unlikely
@@ -707,20 +711,28 @@ fn id_templates() -> Vec<String> {
 }
 
 /// Each word of text with a path's folder and extension: `/dir/` + word + `.ext`.
-/// The hash of a joined path comes from the parts' hashes, so this needs no
-/// joining until a hit.
 fn words_in_folders(n: &mut Namer, words: &[String], places: &[(String, String)], jobs: usize) {
+    let around: Vec<(String, String)> = places
+        .iter()
+        .map(|(d, e)| (format!("{d}/"), format!(".{e}")))
+        .collect();
+    words_between(n, words, &around, jobs);
+}
+
+/// Each word of text between a head and a tail: head + word + tail. The hash
+/// of a joined path comes from the parts' hashes, so this needs no joining
+/// until a hit.
+fn words_between(n: &mut Namer, words: &[String], around: &[(String, String)], jobs: usize) {
     let filter = Filter::new(n.wanted.iter().copied());
     let wanted = &n.wanted;
-    let parts: Vec<(u64, u64)> = places
+    let parts: Vec<(u64, u64)> = around
         .iter()
-        .map(|(d, e)| (hash_path(&format!("{d}/")), pow_factor(e.len() as u32 + 1)))
+        .map(|(h, t)| (hash_path(h), pow_factor(t.len() as u32)))
         .collect();
-    let tails: Vec<u64> = places
+    let tails: Vec<u64> = around
         .iter()
-        .map(|(_, e)| {
-            format!(".{e}")
-                .bytes()
+        .map(|(_, t)| {
+            t.bytes()
                 .fold(0, |h, c| hash_more(h, c.to_ascii_lowercase()))
         })
         .collect();
@@ -740,7 +752,7 @@ fn words_in_folders(n: &mut Namer, words: &[String], places: &[(String, String)]
                 if filter.may_hold(h) && wanted.contains(&h) {
                     hits.lock()
                         .unwrap()
-                        .push(format!("{}/{w}.{}", places[i].0, places[i].1));
+                        .push(format!("{}{w}{}", around[i].0, around[i].1));
                 }
             }
         })
@@ -749,6 +761,68 @@ fn words_in_folders(n: &mut Namer, words: &[String], places: &[(String, String)]
         n.attempt(&p);
     }
 }
+
+/// A word as one more folder before a file already named, where the file's
+/// folder holds no ids: `/font/` + word + `/font.gfx`, as the exe's
+/// `font:/%s/font.gfx` has it, and sound by language.
+fn folders_known(n: &Namer) -> Vec<(String, String)> {
+    let mut around = BTreeSet::new();
+    for p in n.named.values() {
+        if let Some((dir, file)) = p.rsplit_once('/')
+            && !dir.bytes().any(|c| c.is_ascii_digit())
+            && dir.matches('/').count() <= 2
+        {
+            around.insert((format!("{dir}/"), format!("/{file}")));
+        }
+    }
+    // The fonts' folder holds no file directly; the exe gives the file's name.
+    around.insert(("/font/".to_string(), "/font.gfx".to_string()));
+    around.into_iter().collect()
+}
+
+/// Every pair of neighbouring open-world tiles: the exe's `map:/nvc/%s_%s.nvc`
+/// is a navigation link between two maps. On 2.7.2 every link runs from a
+/// tile to its neighbour east, or to one of the three north of that, at the
+/// small tiles' levels 00 and 10; all eight neighbours and every level are
+/// tried here.
+fn nav_links(n: &mut Namer) {
+    const LEVELS: [i32; 6] = [0, 1, 2, 10, 11, 12];
+    const AROUND: [(i32, i32); 8] = [
+        (-1, -1),
+        (-1, 0),
+        (-1, 1),
+        (0, -1),
+        (0, 1),
+        (1, -1),
+        (1, 0),
+        (1, 1),
+    ];
+    for area in [60, 61] {
+        for x in 0..100i32 {
+            for y in 0..100i32 {
+                for la in LEVELS {
+                    let a = format!("/map/nvc/m{area}_{x:02}_{y:02}_{la:02}_");
+                    for (dx, dy) in AROUND {
+                        let (bx, by) = (x + dx, y + dy);
+                        if !(0..100).contains(&bx) || !(0..100).contains(&by) {
+                            continue;
+                        }
+                        for lb in LEVELS {
+                            n.attempt_both(&format!("{a}m{area}_{bx:02}_{by:02}_{lb:02}.nvc"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Names in the style of older games' files, each kept because its hash
+/// matched an entry: material definitions from before `matbin`.
+const LEFTOVERS: &[&str] = &[
+    "/mtd/allmaterialbnd.mtdbnd.dcx",
+    "/mtd/speedtree.mtdbnd.dcx",
+];
 
 fn pow_factor(e: u32) -> u64 {
     HASH_FACTOR.wrapping_pow(e)
@@ -822,7 +896,9 @@ fn words_from(strings: &[&str]) -> Vec<String> {
     for s in strings {
         let last = s.rsplit(['/', '\\']).next().unwrap_or(s);
         let stem = last.split('.').next().unwrap_or(last);
-        for w in [stem, last] {
+        // The folders a path passes through, as `enus` in `sound\aei\enus\`.
+        let folders = s.rsplit(['/', '\\']).skip(1);
+        for w in [stem, last].into_iter().chain(folders) {
             let ok = (2..=60).contains(&w.len())
                 && w.bytes()
                     .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'-' | b'.'));
@@ -880,6 +956,18 @@ pub fn name_all(c: &Corpus, exe: &[String], cache: &Path, jobs: usize) -> Result
     for _ in 0..2 {
         let places = places_known(&n);
         words_in_folders(&mut n, &words, &places, jobs);
+    }
+
+    n.source("words as folders");
+    let around = folders_known(&n);
+    words_between(&mut n, &words, &around, jobs);
+
+    n.source("nav links");
+    nav_links(&mut n);
+
+    n.source("older games' names");
+    for p in LEFTOVERS {
+        n.attempt(p);
     }
     Ok(n)
 }
@@ -1027,6 +1115,29 @@ mod tests {
         let w = words_from(&["N:\\x\\AEG001_000.flver", "_02_044_PC_TextSelect_fla.Main"]);
         assert!(w.contains(&"aeg001_000".to_string()));
         assert!(w.contains(&"02_044_pc_textselect".to_string()));
+        let w = words_from(&["N:\\GR\\sound\\aei\\enus\\cs_c2030.moaei"]);
+        assert!(w.contains(&"enus".to_string()), "a folder is a word too");
+    }
+
+    #[test]
+    fn a_word_can_be_a_folder_before_a_named_file() {
+        let mut n = wanting(&["/font/thai/font.gfx", "/sound/x.bnk"]);
+        n.attempt("/sound/x.bnk");
+        let words = ["thai".to_string()];
+        let around = folders_known(&n);
+        words_between(&mut n, &words, &around, 1);
+        assert!(n.named.contains_key(&hash_path("/font/thai/font.gfx")));
+    }
+
+    #[test]
+    fn nav_links_join_neighbouring_tiles() {
+        let mut n = wanting(&[
+            "/map/nvc/m60_32_41_00_m60_33_40_00.nvc.dcx",
+            "/map/nvc/m61_47_36_10_m61_48_37_10.nvc.dcx",
+            "/map/nvc/m60_32_41_00_m60_35_40_00.nvc.dcx",
+        ]);
+        nav_links(&mut n);
+        assert_eq!(n.named.len(), 2, "a tile three away is no neighbour");
     }
 
     #[test]
