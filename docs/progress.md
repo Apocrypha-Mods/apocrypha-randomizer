@@ -6,7 +6,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
-| 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Our own name list names 120,287 of the 120,408 entries (2026-11-03). Open: the last 121, 101 of them drawing parameters. |
+| 1. Read the game's files | done 2026-11-03 | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Our own name list names 120,287 of the 120,408 entries; the 121 left are files the randomizer never reads, and Nova closed the gate on that (2026-11-03). |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
@@ -241,11 +241,11 @@ load before a run.
       On 2.7.2.0 it names 116,598 of 120,408 entries (96.8%) in about 35 minutes.
       Of the 3,810 left, 3,674 are NVMC files in `Data2` and `DLC`, and 136 are
       others. The list is game data, so it stays in `scratch/`.
-- [ ] **The name-list count, closer** (2026-11-03, below). The list names 120,287 of
+- [x] **The name-list count, closer** (2026-11-03, below). The list names 120,287 of
       120,408 entries. It names all the NVMC files (navigation links between tiles)
       and 15 more besides, and `apoc-fs check --names` finds no name without an
-      entry. 121 are left: 101 drawing parameters, 10 binders and 10 others. The
-      gate wants a whole match, so it stays open.
+      entry. 121 are left: 101 drawing parameters, 10 binders and 10 others, none
+      of them read by the randomizer. Nova closed the gate on that (2026-11-03).
 - [x] **Step 3: the game accepts files we write** (below).
 - [x] **`oozextract` in what ships:** no legal opinion, as the project went
       GPL-3.0-or-later on 2026-11-02 (PLAN.md §6b).
@@ -1927,7 +1927,7 @@ The 121 left, all but 2 in `Data0`:
 - 10 binders: six whose members carry no names, and four of ray-tracing shaders (`shader\sat\raytracing\…`, `speedtree\…\shader_raytracing`).
 - 1 font, 3 TPF, 2 DDS, 2 Wwise packages (`AKPK`), and 2 files in `Data2` of unknown kind.
 
-So the gate's first half holds (every entry extracts), and the list names every entry but these 121. The gate is not marked passed.
+So the gate's first half holds (every entry extracts), and the list names every entry but these 121. None is a file the randomizer reads, and Nova closed the gate on that (2026-11-03).
 
 **The 99 maps and 45 scripts were never lost.** The name list had them all along; the tests and the developer tool swept map ids only to `_03` in the last part. Their ids end in 10 (48 maps), 11 (14), 12 (5) and 99 (32), and the scripts are `m60`, `m61` and 43 ending in 10. `Dvd::map_ids` now sweeps all 10^8 ids, the hash carried across the digits, in well under a second; the real-file tests and `apoc-fs msb-columns` read all 1,347 maps and 589 scripts by name. What they hold:
 - **`_10`:** 2,860 enemies and 261 treasures. Every treasure's lot is one other maps place, and 421 of the 422 enemy entity ids are also in other maps: alternative versions of tiles that exist already.
@@ -1950,6 +1950,5 @@ The indices marked are the clearest a scan of every column found: each value -1 
 Tests: `fs-msb` 14 (entry round trip and resize, insert and remove, refusals, and mutation fuzz of entries and of inserting damaged entries); `fs-dvdbnd` 17; `fs-tool` names 15. On the stock copy, `real_maps` 12 and `real_files` 5 pass. Clippy and fmt are clean.
 
 Open:
-- **The name list's remainder** (above).
 - **Whether `gamedata` should read the `_10` maps,** so that the enemy randomizer moves their enemies as well: a question for Nova.
 - **An added entry in the game,** in the lab.
