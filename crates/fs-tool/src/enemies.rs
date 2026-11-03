@@ -233,34 +233,41 @@ pub fn dump(game: PathBuf, out: PathBuf) -> Result<()> {
 /// in the entry, for finding what lies where.
 pub fn find(game: PathBuf, map: String, values: Vec<u32>) -> Result<()> {
     let s = Sources::open(&game)?;
-    let Some((_, msb)) = s.maps.iter().find(|(m, _)| m.to_string() == map) else {
+    let maps: Vec<_> = s
+        .maps
+        .iter()
+        .filter(|(m, _)| map == "all" || m.to_string() == map)
+        .collect();
+    if maps.is_empty() {
         return Err(fs_bytes::format_err("no such map"));
-    };
-    for t in &msb.tables {
-        for e in &t.entries {
-            let words: Vec<u32> = e
-                .chunks_exact(4)
-                .map(|w| u32::from_le_bytes(w.try_into().unwrap()))
-                .collect();
-            for v in &values {
-                if let Some(at) = words.iter().position(|w| w == v) {
-                    let floats: Vec<String> = words
-                        .iter()
-                        .enumerate()
-                        .take(64)
-                        .filter_map(|(i, w)| {
-                            let f = f32::from_bits(*w);
-                            (f.is_finite() && f.abs() > 0.01 && f.abs() < 5000.0)
-                                .then(|| format!("{:x}:{f:.1}", i * 4))
-                        })
-                        .collect();
-                    println!(
-                        "{v} {} {} at {:x}: {}",
-                        t.name,
-                        entry_name(e).unwrap_or_default(),
-                        at * 4,
-                        floats.join(" ")
-                    );
+    }
+    for (m, msb) in maps {
+        for t in &msb.tables {
+            for e in &t.entries {
+                let words: Vec<u32> = e
+                    .chunks_exact(4)
+                    .map(|w| u32::from_le_bytes(w.try_into().unwrap()))
+                    .collect();
+                for v in &values {
+                    if let Some(at) = words.iter().position(|w| w == v) {
+                        let floats: Vec<String> = words
+                            .iter()
+                            .enumerate()
+                            .take(64)
+                            .filter_map(|(i, w)| {
+                                let f = f32::from_bits(*w);
+                                (f.is_finite() && f.abs() > 0.01 && f.abs() < 5000.0)
+                                    .then(|| format!("{:x}:{f:.1}", i * 4))
+                            })
+                            .collect();
+                        println!(
+                            "{v} {m} {} {} at {:x}: {}",
+                            t.name,
+                            entry_name(e).unwrap_or_default(),
+                            at * 4,
+                            floats.join(" ")
+                        );
+                    }
                 }
             }
         }

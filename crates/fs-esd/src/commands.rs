@@ -23,6 +23,17 @@ pub const SET_EVENT_FLAG: Id = (1, 11);
 /// setting the flag that puts Glintstone Cometshard on sale.
 pub const TAKE_ITEM: Id = (1, 52);
 
+/// Adds an entry to the talk menu: argument 0 the number the choice reads back
+/// as (function 23), argument 1 its text, then -1. Miriel's script compares
+/// function 23 with the same numbers it adds here. `5[0x13]` adds it when its
+/// extra first argument holds.
+pub const MENU_ENTRY: Id = (1, 0x13);
+
+/// Sets loop counter `k` (argument 0) to argument 1; function 100 reads it back.
+/// Menus are filled in loops that start a counter at 0 and add 1 until it passes
+/// a bound.
+pub const SET_COUNTER: Id = (1, 0x64);
+
 /// Opens a shop on a range of ShopLineupParam rows: argument 0 the first row,
 /// argument 1 the last (100000 to 100024, 100050 to 100074, …). 37 of the 47
 /// distinct first rows are rows of the table; the ranges cover 550 of its

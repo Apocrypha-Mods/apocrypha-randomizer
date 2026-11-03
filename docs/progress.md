@@ -496,7 +496,8 @@ scripts:
       catalogue names is checked against the maps' parts, groups, map events and
       regions (`real_maps.rs`), 87% to 100% of each; spEffect targets 933 of 1,018.
 - [ ] **The conditions quest events wait on** (3[3], 3[12], 4[0], 4[5] and
-      others): read, they would open more of the 54 gifts still shut.
+      others): read, they would open more of the 16 gifts still shut (2026-11-03),
+      all but the never-given Boluses missable.
 - [ ] **The other 242 instructions** are uncatalogued (276 of 316 before
       2026-11-03, when 34 were added). Conditions are named by the exe's own
       classes; commands such as `2004[26]`, `2004[41]`, `2004[42]` and `2010[2]`
@@ -626,7 +627,8 @@ through a call are not followed, which leaves Miriel's out.
 **Conditions** (`cond.rs`). An expression parses as a stack program:
 - calls (0x84–0x8A, the function's number first);
 - arithmetic, comparisons, and/or;
-- register stores (0xA6–0xAD) and loads (0xAF–0xB6);
+- register stores (0xA7–0xAE) and loads (0xAF–0xB6), and 0xA6 after a call
+  (corrected 2026-11-03);
 - the machine's own values (0xB9, 0xBA);
 - floats and doubles.
 
@@ -649,8 +651,10 @@ of calls, so every command it reports comes with what holds where it runs.
 
 - [ ] **The other commands**, as later phases need them.
 - [x] **Conditions' evaluators** for flags and items held (above).
-- [ ] **Register 8** (0xAE), in two conditions.
-- [ ] **Following items through calls** in handovers (Miriel).
+- [x] **Register 8** (0xAE), in two conditions: it stores register 7
+      (2026-11-03).
+- [x] **Following items through calls** in handovers (Miriel): menu trades,
+      `fs_esd::choice` (2026-11-03).
 
 ## Phase 4: item randomizer
 
@@ -2142,3 +2146,24 @@ Assassin's (m60_40_52_00). Not run in the game.
 **Questions for Nova.** Should a moved body on a spot with no tier (the 4,819 above) take its map's commonest tier, so a
 creature from late ground landing on a small creature's spot keeps hitting like the place around it? And should Godrick's
 second stage, now carried with him, play without its cutscene as Malenia's does (as built), or should he move without it?
+
+## Shut gifts, talk registers and Miriel's books (2026-11-03)
+
+No game or lab run.
+
+**16 gifts stay shut, down from 39** (`apoc-fs gift-shut` on 2.7.2). Missable stays at 96 of 112, and no gift became less missable, so no slot newly takes a key item.
+
+- **Which ways are kept.** `flow` keeps 16 ways to each instruction, the shortest. Common event 4339 turns 2051459723 on by many ways, and the 16 shortest all asked for 4323 on, which nothing sets; longer ones ask for it off. Now ways asking fewest flags *on* go first (`flow::trim`; a flag off costs a reader nothing), and the model keeps open ways before those waiting on a flag nothing explains (`open_first`). Dropping ways still only shuts. This opens 23: the 22 Jolán exchanges of `t412006100` (lots 107600 to 107900, Swordhand of Night Jolán and Jolán and Anna at each level, now after Metyr in m25 while holding the other ash) and Varré's Pureblood Knight's Medal (100320), which now asks for the pick-up of lot 100330 (flag 400033) and no longer for 1035449235. All 23 were and stay missable.
+- **Holding exactly one.** Function 47 with comparison 0 and count 1, or comparison 2 and count 0, now asks for the item, read as the exe numbers event comparisons (`==`, `!=`, `>`, …). The Jolán menu tries `(3, id, 0, 1, 0)` for eleven ashes in turn and takes the one it finds, so it cannot pass on none. Before this, those ways asked for no item. It also makes the Academy Glintstone Key a quest item (Thops asks for exactly one); nothing else in the model changed.
+- **4323** is the death flag of the character of `t409006100`: it fills the first slot of the shared NPC routine, the slot where other scripts pass theirs (3263, set by an event after `if_character_dead`). No event, param or map entry holds it (`apoc-fs msb-find <game> all 4323`), so the game must set it at the death. Gifts waiting on it stay shut; those above opened by other ways.
+- **Register 8.** 0xA6 is not a store: stores are 0xA7 to 0xAE (registers 0 to 7), loads 0xAF to 0xB6. In the grace menu's `t000001000` (machine 0x7FFFFFC3), one condition stores seven values that the next tests as registers 0 to 6, and 0xAE stores flag 9104 that the fourth tests as the next machine tests 9104 itself; read the old way, every load falls one off. All 116,771 conditions now read as one value, and `conditions_read_as_one_value` asks for every one. The two (`t000001000`, `t000003000`) ask for 11009260, 400001 and 9104 off before setting 4653; the model does not change. Registers are not followed across conditions.
+- **Books picked from a menu** (`fs_esd::choice`). Miriel's script fills a menu in a loop (entry `I + n` while goods `J + n` are held and flag `F + n` is off) and takes goods `G + choice`, setting flag `H + choice`, with every number passed down calls. A pair is read only where the offer and the trade agree on both. Miriel gives 17 (8850 to 8866 with 1037469300 to 1037469316), the same 11 the area map had by hand, which are removed. Seluvis's `t307006000` takes three scrolls the same way, so his six rows 100279 to 100284 (Cometshard, Star Shower, both Glintstone Shards, Glintblade Phalanx, Carian Slicer) are now counted when the scroll is held: shop rows on an unexplained flag go from 245 to 239 by the model's terms.
+- **Tools.** `apoc-fs talk-dump` writes machines out (`--find` lists machines naming numbers); `script-dump` prints each run with its call's arguments filled in; `msb-find` takes `all`; `gift-blockers` prints up to 64 ways.
+
+**Tried and not kept.** The grace ranges of 3062 and 3063 again, with the new ordering: ranges up to 128 flags and a grace's flag read as its map. Still 16 shut, and graces carry coarse tiles (m60_09_10_02) that would put a map in the wrong area, so not kept.
+
+**Gaps found.** Bank 5 runs the bank 1 command of its id when its first argument holds (`5[0x13]`, `5[0xb]`); a flag set by `5[0xb]` is not read as set in talk, which only shuts ways and marks more missable.
+
+**What holds the 16.** 3062 and 3063 under Seluvis's and Rya's quests (3745, 3747 and the rest wait on them); 182 (`3[10]`); 3646 and 1035449235 (`3[12]` counters; 1035449235 counts Varré's invasions, which need online play); 7607 to 7609, 1044362703 and 1044362709 under Sellen's; 2049392705 and 2049392708; and the Boluses' 10009335.
+
+**Proven.** On 2.7.2 with `APOC_ER_STOCK`: the workspace's tests apart from `native`, 272 passed, none failed; clippy clean. `apoc-rando check`, seeds 0 to 999, sliders default, two threads: none failing, in 215 s. Not seen in the game: any of the opened gifts or Seluvis's rows.

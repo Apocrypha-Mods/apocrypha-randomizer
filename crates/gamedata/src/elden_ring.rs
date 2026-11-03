@@ -358,7 +358,8 @@ pub fn extract(s: &Sources) -> Result<Model> {
     // What talk takes from the player or asks them to hold: (type, id).
     let mut quest_goods: BTreeSet<(i32, i32)> = BTreeSet::new();
     for (map, name, esd) in &s.talk {
-        for h in fs_esd::handover::handovers(esd) {
+        let chosen = fs_esd::choice::handovers(esd);
+        for h in fs_esd::handover::handovers(esd).into_iter().chain(chosen) {
             for f in h.flags {
                 handed.entry(f).or_default().insert(h.goods);
             }
@@ -967,7 +968,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             out.extend(explain.ways(atoms, 0));
         }
         l.missable = explain.fleeting.get();
-        out.sort_by_key(Vec::len);
+        out.sort_by_key(open_first);
         out.dedup();
         out.truncate(MAX_WAYS);
         // A way that asks nothing makes the rest moot; no way at all is never.
@@ -1107,8 +1108,17 @@ impl Names<'_> {
     }
 }
 
-/// How many ways to keep for one gift or flag: the shortest.
+/// How many ways to keep for one gift or flag: those with fewest flags nothing
+/// explains, then the shortest ([`open_first`]).
 const MAX_WAYS: usize = 8;
+
+/// How ways are ordered before only [`MAX_WAYS`] are kept: a way waiting on a
+/// flag nothing explains is never open, so open ways go first, then short ones.
+/// Which ways are dropped only decides which stay shut, never opens one.
+fn open_first(w: &Way) -> (usize, usize) {
+    let unexplained = w.iter().filter(|c| matches!(c, Cond::Flag(_))).count();
+    (unexplained, w.len())
+}
 /// How deep a flag is followed back to what sets it. Long quests chain further than
 /// four steps, and at the limit a way stays shut, so a deeper one only opens gifts
 /// whose every step was read.
@@ -1248,7 +1258,7 @@ impl Explain<'_> {
                     next.push(both);
                 }
             }
-            next.sort_by_key(Vec::len);
+            next.sort_by_key(open_first);
             next.dedup();
             next.truncate(MAX_WAYS);
             ways = next;
@@ -1294,7 +1304,7 @@ impl Explain<'_> {
         for e in events.into_iter().flatten() {
             out.extend(self.event_way(e, f, depth + 1));
         }
-        out.sort_by_key(Vec::len);
+        out.sort_by_key(open_first);
         out.dedup();
         out.truncate(MAX_WAYS);
         if out.is_empty() {
@@ -1351,7 +1361,7 @@ impl Explain<'_> {
                     next.push(both);
                 }
             }
-            next.sort_by_key(Vec::len);
+            next.sort_by_key(open_first);
             next.dedup();
             next.truncate(MAX_WAYS);
             ways = next;

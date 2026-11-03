@@ -30,6 +30,7 @@ mod mounts;
 mod msb_columns;
 mod names;
 mod scripts;
+mod talk_dump;
 mod test_kit;
 
 #[derive(Parser)]
@@ -209,7 +210,8 @@ enum Command {
     },
     /// A map's creature models as bytes.
     MsbModels { game: PathBuf, map: String },
-    /// Every map entry holding one of these numbers, with the floats near its start.
+    /// Every map entry holding one of these numbers, with the floats near its start
+    /// (`all` for every map).
     MsbFind {
         game: PathBuf,
         map: String,
@@ -334,6 +336,20 @@ enum Command {
         #[arg(long, value_delimiter = ',')]
         uses: Vec<String>,
     },
+    /// Talk scripts' machines written out, or with `--find`, which machines
+    /// hold some numbers.
+    TalkDump {
+        game: PathBuf,
+        /// Scripts to print, as `t409006100`, or `all`.
+        #[arg(long, value_delimiter = ',')]
+        scripts: Vec<String>,
+        /// Only these machines, by id.
+        #[arg(long, value_delimiter = ',', value_parser = number)]
+        groups: Vec<usize>,
+        /// List the machines whose expressions hold one of these numbers.
+        #[arg(long, value_delimiter = ',')]
+        find: Vec<i32>,
+    },
     /// Write one file out of the archives, by path or by hash.
     Extract {
         game: PathBuf,
@@ -383,6 +399,21 @@ fn script_dump(game: PathBuf, events: &[i64], uses: &[String]) -> fs_bytes::Resu
                         &i.args[..i.args.len().min(4)]
                     );
                 }
+            }
+        }
+        // Each run of the events asked for, with its call's arguments copied in.
+        for run in fs_emevd::catalogue::runs(script, Some(&s.common_func)) {
+            if run.call.is_none() || !events.contains(&{ run.event.id }) {
+                continue;
+            }
+            println!("{map} run of {} from {:?}", run.event.id, run.caller);
+            for i in &run.instructions {
+                let words: Vec<i32> = i
+                    .args
+                    .chunks_exact(4)
+                    .map(|c| i32::from_le_bytes(c.try_into().unwrap()))
+                    .collect();
+                println!("  {}[{}] {words:?}", i.bank, i.id);
             }
         }
     }
@@ -582,6 +613,15 @@ fn main() {
         Command::GiftShut { game } => gift_audit::shut(game),
         Command::NameModels { game, value } => gift_audit::name_models(game, value),
         Command::ScriptDump { game, events, uses } => script_dump(game, &events, &uses),
+        Command::TalkDump {
+            game,
+            scripts,
+            groups,
+            find,
+        } => {
+            let groups: Vec<i64> = groups.into_iter().map(|g| g as i64).collect();
+            talk_dump::run(game, &scripts, &groups, &find)
+        }
         Command::TestWeak { game, out } => test_kit::weak_enemies(game, out),
         Command::GraceDanger {
             game,

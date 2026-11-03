@@ -25,6 +25,7 @@
 //! holds every ESD in the game to coming back byte for byte.
 
 pub mod calls;
+pub mod choice;
 pub mod commands;
 pub mod cond;
 pub mod expr;

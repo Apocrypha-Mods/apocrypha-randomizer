@@ -119,6 +119,38 @@ fn open_shop_opens_a_range_of_shop_rows() {
 }
 
 #[test]
+fn a_book_chosen_from_a_menu_is_followed_through_calls() {
+    let s = sources_or_skip!();
+    let pairs = |script: &str| -> Vec<(i32, Vec<u32>)> {
+        s.talk
+            .iter()
+            .filter(|(_, n, _)| n == script)
+            .flat_map(|(_, _, e)| fs_esd::choice::handovers(e))
+            .map(|h| (h.goods, h.flags.into_iter().collect()))
+            .collect()
+    };
+    // Miriel: the five scrolls, eleven prayerbooks and the Academy Scroll, each
+    // with its own flag.
+    let miriel = pairs("t330006000");
+    let want: Vec<(i32, Vec<u32>)> = (0..17)
+        .map(|i| (8850 + i, vec![1_037_469_300 + i as u32]))
+        .collect();
+    assert_eq!(miriel, want);
+    // Seluvis takes the scrolls the same way.
+    let seluvis = pairs("t307006000");
+    assert!(
+        seluvis.contains(&(8850, vec![1_034_509_450])),
+        "{seluvis:?}"
+    );
+    assert!(
+        seluvis.contains(&(8866, vec![1_034_509_455])),
+        "{seluvis:?}"
+    );
+    // A script with no such menu gives none.
+    assert!(pairs("t316211400").is_empty());
+}
+
+#[test]
 fn handing_over_a_book_puts_its_spells_on_sale() {
     let s = sources_or_skip!();
     let flags_for = |script: &str, goods: i32| -> Vec<u32> {
@@ -171,5 +203,5 @@ fn conditions_read_as_one_value() {
         }
     }
     eprintln!("conditions: {ok}/{all} understood, {asks} ask for a flag or an item");
-    assert!(ok * 100 >= all * 99);
+    assert_eq!(ok, all, "every condition reads as one value");
 }
