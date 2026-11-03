@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | done 2026-11-03 | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Our own name list names 120,287 of the 120,408 entries; the 121 left are files the randomizer never reads, and Nova closed the gate on that (2026-11-03). |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies, and else for what events and talk ask before turning their flag on; 18 rows are never counted (2026-11-03: 15 behind 4 flags nothing sets that was read, 3 waiting on such flags further back), down from 58. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the claims settled from scripts and guides but not yet seen in play (`docs/area-map-review.md`), and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
 | 6. Output and merging | done 2026-10-31 | A seed on Nightreign Movement and ELDEN VINS together ran in the lab: the seed's files served over both, the world loaded, and a moved boss fought under its own name (below). |
@@ -1210,7 +1210,9 @@ places. The 293 that matter fall in a few groups:
   to be unused leftovers, not a source we are missing. The randomizer leaves
   them alone.
 - **The 99 map files not found by name** hold 20 of them. Their parts are
-  named `m463600_0000` and so on.
+  named `m463600_0000` and so on. (2026-11-03: not so. Every lot numbered
+  after a map is numbered after one that is read; see the section of that
+  date at the end.)
 - **15 are numbered after an enemy's entity id** (564 enemy entity ids are
   lot rows, and 533 of those lots are already reached through scripts).
 - **Low ids,** such as 40500–40666 (Smithing Stone [1], Golden Rune [1]) with
@@ -1229,11 +1231,14 @@ The groups below are what was found as the gaps were worked through:
       Sunflowers, Knot Resin, Ghost Glovewort and so on. 199 more models carry
       a lot but are placed in no map we read; their items mostly have no
       name, so they look unused.
-- [ ] **Tutorials** (the 50000s: "About Sites of Grace"). Their lots are not
-      referenced; the game probably gives tutorials some other way.
-- [ ] **Unflagged enemy lots on NpcParam rows that no map places.**
-- [ ] **133 treasures whose lot is not a row**, and 54 whose lot holds no
-      item.
+- [x] **Tutorials** (the 50000s: "About Sites of Grace"). Their lots are not
+      referenced; the game probably gives tutorials some other way. Left out
+      (2026-11-03, at the end): they give only tutorial notes.
+- [x] **Unflagged enemy lots on NpcParam rows that no map places.** Left out
+      (2026-11-03): unflagged, so repeat drops even if found, which are not
+      shuffled.
+- [x] **133 treasures whose lot is not a row**, and 54 whose lot holds no
+      item. Left out (2026-11-03): there is nothing to give at either.
 - [x] **The 99 maps and 45 scripts not found by name** are named (2026-11-03,
       below). The model does not read them yet: the maps' treasures use only
       lots other maps place, and their enemies are not moved.
@@ -1338,7 +1343,8 @@ the walk counts a row as got only once they are met:
 - **Nothing explains it:** the row is never counted. On 2026-10-29 that is
   58 rows behind 26 flags. `apoc-fs logic` lists them; among them are Patches'
   stock, Thiollier's poisons, Seluvis's copies of the scroll spells, and the
-  Husks' Spirit Calling Bell.
+  Husks' Spirit Calling Bell. On 2026-11-03, 15 rows behind 4 flags, and 3 more
+  whose flags wait on such flags (the section of that date, at the end).
 
 Counts are not modelled: holding one Dragon Heart opens every communion row.
 
@@ -1569,8 +1575,11 @@ expansion is drafted with less confidence than the base game.
 - [x] **Shop requirements** (below).
 - [x] **Gift conditions** read from talk (below); NPC quest phases are open.
 - [ ] **The play-through review** of the coverage report.
-- [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
-      play, above). The 99 maps named on 2026-11-03 place none of them.
+- [x] **The 293 flagged, named lots** are taken to be unused (one checked in
+      play, above). The 99 maps named on 2026-11-03 place none of them. Sorted
+      from the files on 2026-11-03 (at the end): 282 on 2.7.2, none in an
+      unread map, and one, the "O Mother" gesture's, still unexplained. Only
+      the Confessor lot has been looked for in play.
 
 ## The mod manager add-on
 
@@ -1952,3 +1961,86 @@ Tests: `fs-msb` 14 (entry round trip and resize, insert and remove, refusals, an
 Open:
 - **Whether `gamedata` should read the `_10` maps,** so that the enemy randomizer moves their enemies as well: a question for Nova.
 - **An added entry in the game,** in the lab.
+
+## Merchant rows behind unexplained flags, and what nothing gives (2026-11-03)
+
+No game or lab run: read from the files on 2.7.2. `apoc-fs logic` lists the rows, and the new `apoc-fs gaps` sorts what nothing gives.
+
+**Shop rows read like gifts.** A row whose on-sale flag no boss or handover explains now takes the ways events and talk turn the flag on
+(`Terms::ways`), followed back with the same reader as gifts. An `on_sale` entry in the area map still speaks first. A row is missable, and
+takes no key item, when a way needs a flag off that an event or a pick-up turns on, or when an event or talk can turn its flag off again. A
+way through a flag that must be off now also counts as lost when that flag is a location's pick-up flag. That applies to gifts too, and
+changed none: 53 gifts with ways, 37 shut, 96 missable, as before.
+
+**Seluvis's scroll spells.** His script (t307006000, the part `c0000_9001` in m60_34_50) passes the scrolls through calls, which `fs_esd`
+does not follow, so three `on_sale` entries are written, as Miriel's were: goods 8850 to 8854 beside flag 1034509450, 8866 beside 1034509455.
+1034509451 is in no constant and is read as the first flag plus the scroll's place, which pairs the Royal House Scroll with Glintblade Phalanx
+as Sellen's and Miriel's scripts do (`sure = false`). The entries are `missable` (new): Seluvis is gone once Ranni's quest moves on, which is
+general knowledge, not read from the scripts.
+
+| Flag | Rows | What the files show | Now |
+|---|---|---|---|
+| 6953 | 11 merchants' rows: Hefty Scimitar, the Steel and Silver Grooved sets, Reverse-Bladed Sword | no event, talk script or table sets it; the number turns up only unaligned in six enemy lot rows | never counted |
+| 9440 | Ymir's Fleeting Microcosm | common event, once both bells have rung (2050400600, 2053460600), in the player's world | both bells' maps and the Hole-Laden Necklace; 20,000 runes |
+| 10009516 | Ancient Dragon Smithing Stone (t302001000, Stormveil) | talk sets it, nothing read on the way | counted; 20,000 runes |
+| 11009455 | Corhyn's Immutable Shield | talk sets it, nothing asked | counted; 13,000 runes |
+| 11109770 to 773 | the Husks' Black Flame's Protection, Lord's Divine Fortification, Fevor's Cookbook [3], Law of Causality | m11_10 event, once 3968 is on and while the matching gift of t324001110 is untaken (400282, 400283, 68210, 400285) | the Roundtable and Maliketh; missable, either-or with the gift |
+| 14009267 | Sellen's Shard Spiral | common event, on her quest's flags, some set by nothing (7609, 1044362703, 1044362709) | still shut |
+| 16009208 | Ash of War: Eruption, Assassin's Gambit (t326) | t300001600 sets it on 3105 | counted; missable |
+| 1034509360 | Carian Filigreed Crest (t224006000) | talk sets it on 3765 and 1034499205 | counted; missable |
+| 1034509450, 451, 455 | Seluvis's six scroll spells | above | the scroll; missable |
+| 1036439209 | Boiled Prawn (t331006000) | talk sets it on 4145 | counted; missable |
+| 1038419270, 271 | Patches' six rows | common events on his quest's flags | counted; missable |
+| 1040529255 | Corhyn's Great Heal, Lightning Fortification | talk sets it with state -1, which is not read | never counted |
+| 1040549205 | Corhyn's Discus of Light | talk sets it, nothing asked | counted; 11,000 runes |
+| 1042369416 | the Husks' Spirit Calling Bell, Lone Wolf Ashes | common event on Renna's quest flags and the grace range flag 3062 | still shut |
+| 1044529255 | Boiled Crab | m60_44_52's event while 4145 is off | that map; missable |
+| 1050400800 | Greyoll's Roar | m60_50_40's event after a test not read (4[15]) | never counted; paid in Dragon Hearts, so not shuffled either way |
+| 11109781 | the Husks' Glintstone Scrap | talk command 5[11], not read | never counted |
+| 2045429330, 331 | Thiollier's twelve poisons and his Concoction | talk sets them, and turns them off | counted; missable |
+| 2051459206 | Ymir's Glintstone Nail and Nails | m61_51_45's event after either bell, holding the necklace | counted; 12,000 runes each |
+
+So 58 rows on 26 flags never counted become 15 rows on 4 flags, and 3 rows whose read ways all stand on flags nothing explains. Of the 37
+rows now read from events and talk, 28 are missable and the 6 open and not missable all cost 11,000 runes or more, over the 3,000-rune cap
+for key items. With Seluvis's 6, no slot that can take a key item is gained or lost. The vanilla walk still reaches all 54 areas and the goal,
+and every location keeps its area.
+
+Talk readings that ask nothing are the weak ones: the bell bearings' flags, which the Husks set on a handover passed through a call, also
+read as asking nothing, though an `on_sale` entry speaks for them. Rows read that way cost too much to take a key item today; if the cap is
+raised, they should be looked at first.
+
+**What nothing gives, sorted** (`Gaps`, printed by `apoc-fs model`, listed lot by lot by `apoc-fs gaps --all`):
+
+- **133 treasures whose lot is not a row.** The game has nothing to give there, and many of their names say so: `ダミー化` (made a dummy),
+  `削除` (deleted), `テスト` (test), `設定外し中` (setting removed). Left out.
+- **54 treasures whose lot is an empty row**, 23 of them in m60_43_31 and 15 in m13_00, several named dummy or old (`旧`). They stay
+  locations with no slot. Whether the game shows anything there was not seen.
+- **985 unreached enemy lots.** All but one are unflagged (70010000, an unnamed good), so even if found they would be repeat drops, which are
+  not shuffled. For 788 of them no script, talk script or other table holds the id; most of the other 197 are named by NpcParam rows no
+  map places. Left out.
+- **The flagged lots with a named item: 282** (293 before items whose text reads `[ERROR]` were counted as unnamed). Sorted by id:
+
+| Sort | Lots | Reading |
+|---|---|---|
+| tutorial | 29 | the 50000s, tutorial notes only (goods type 7). `show_tutorial` (2007[15]) takes TutorialParam rows, which hold no lot. Left out. |
+| npc | 70 | the 100000s: NPC quest and death rewards (Blaidd's set, Gostoc's Bell Bearing, the Blackguard's mask). No script, talk script or table holds their ids, and the 59 lots in this range that NpcParam rows name are others, all reached. Left out: how the game gives them is not read, and a death's reward could not take a key item anyway. |
+| map, leftover | 146 | numbered after a map that is read, and every item is got elsewhere in the model. None of their flags is in a script, talk script or table but one (Nomadic Warrior's Cookbook [11], whose flag a shop row shares). The Confessor set's lot, looked for in play, is among them. Left out. |
+| map, unknown | 1 | 2050450510, the "O Mother" gesture, in m61_50_45: given nowhere else in the model. To look for in play. |
+| low id | 30 | old test rows (Smithing Stone [1] at 40500 and up) and items the game gives another way: the Flask of Wondrous Physick (lot 2700; common event 780 sets its flag 6700), the Small Golden Effigy (lot 2230; common event 701 names its flag 60230), the Roped Fire Pot. Left out. |
+| test, other | 6 | the 9000000s and odd ranges. Left out. |
+
+The earlier figure of 20 lots in the 99 maps not found by name does not hold: read as `10XXYY…` for `m60_XX_YY`, every lot numbered after a
+map is numbered after one that is read.
+
+`crates/gamedata/tests/real_model.rs` holds that no map-numbered lot but one gives an item got nowhere else, that the Confessor lot is a
+leftover and "About Sites of Grace" a tutorial, that the empty treasures are counted, and two rows read from events and talk (Ymir's Nails on
+the necklace, the Husks' Black Flame's Protection missable). `real_graph.rs` holds Seluvis's Glintblade Phalanx on the Royal House Scroll and
+missable, and at most 15 rows never counted; `real_items.rs` that no key item lands on any missable slot.
+
+**Not seen in the game:** none of this. Whether the rows now counted go on sale as read, whether the empty treasures show anything, and where
+"O Mother" comes from.
+
+**Proven.** With `APOC_ER_STOCK` on 2.7.2: the `gamedata`, `logic` and `items` tests (unit and real), clippy and fmt clean. `apoc-fs model`
+counts are unchanged (3,506 treasures, 133 one-time drops, 4,488 repeat drops, 2,169 gathering spots, 414 script awards, 112 gifts, 191 boss
+rewards, 1,293 shop rows). `apoc-rando check`, two threads beside other work (load 9 to 13), seeds 0 to 999: 5,628 slots, 260 holding key
+items, placed and proven in 241 s, none failing. The full 10,000 were not run here.

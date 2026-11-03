@@ -128,7 +128,8 @@ pub struct Location {
     pub given_if: Option<Vec<Way>>,
     /// A gift that waits on a flag an event can turn off again: an NPC's
     /// quest stage, which the game can move past before the gift is taken. It
-    /// may be missed, so no key item is put there.
+    /// may be missed, so no key item is put there. A shop row whose on-sale
+    /// flag can be lost the same way, or turned off again, is marked too.
     #[serde(skip_serializing_if = "is_false")]
     pub missable: bool,
 }
@@ -176,6 +177,11 @@ pub struct Terms {
     /// Sellen puts Glintstone Cometshard on sale for the Conspectus Scroll.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub handed: Vec<Item>,
+    /// When neither a boss nor a handover explains the flag: the ways events
+    /// and talk turn it on, read as a gift's ways are, any one enough. `None`
+    /// when nothing sets it, or nothing that sets it was read.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ways: Option<Vec<Way>>,
 }
 
 fn is_false(v: &bool) -> bool {
@@ -256,8 +262,43 @@ pub struct Grace {
 pub struct Gaps {
     /// Per lot table, ids of rows with items that nothing references.
     pub unreached_lots: BTreeMap<String, Vec<i32>>,
-    /// Treasures whose lot is not a row.
+    /// Treasures whose lot is not a row. The game has nothing to give there;
+    /// many of their names say dummy, deleted or test.
     pub treasure_without_lot: usize,
+    /// Treasures whose lot is a row with no item in it, nor in the rows it
+    /// runs on into. They stay locations, but have no slot to fill.
+    pub treasure_empty: usize,
+    /// The unreached map lots that carry a flag and give an item with a name,
+    /// sorted by what their ids and items say ([`LotSort`]).
+    pub flagged_named: BTreeMap<LotSort, Vec<i32>>,
+}
+
+/// What an unreached lot is taken to be, from its id and its items. None of
+/// these is a slot: nothing the model reads gives them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LotSort {
+    /// Gives only tutorial notes (goods type 7: "About Sites of Grace").
+    Tutorial,
+    /// In the 100000s, the NPCs' range: a quest's or a death's reward whose id
+    /// no script, talk script or table holds.
+    Npc,
+    /// Numbered after a map that is read, giving only items the model gets
+    /// elsewhere: leftovers, like the Confessor set's lot in m60_36_43, which
+    /// was looked for in play and is not there.
+    MapLeftover,
+    /// Numbered after a map that is read, with an item the model gets nowhere
+    /// else: a source not yet found, or one the game never gives. On 2.7.2, the
+    /// "O Mother" gesture's lot alone.
+    MapUnknown,
+    /// Numbered after a map whose file was not found by name.
+    MapNotRead,
+    /// Below 100000: old test rows, and items the game gives some other way (the
+    /// Flask of Wondrous Physick, the Small Golden Effigy).
+    LowId,
+    /// The 9000000s, test rows.
+    Test,
+    Other,
 }
 
 #[derive(Debug, Clone, Default, Serialize)]

@@ -179,6 +179,38 @@ fn shop_rows_wait_for_what_puts_them_on_sale() {
     );
 }
 
+/// Rows whose on-sale flag no boss or handover explains: Seluvis's scroll
+/// spells wait for their scrolls and take no key item, as he can be gone before
+/// they are bought; Ymir's Glintstone Nails wait for the two bells. Few rows are
+/// left never counted.
+#[test]
+fn shop_rows_on_flags_events_and_talk_set() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let phalanx = (0..m.locations.len())
+        .find(|&i| m.locations[i].shop_row() == Some(100283))
+        .unwrap();
+    assert_eq!(
+        b.location_terms[phalanx].needs[0].items,
+        vec!["Royal House Scroll"]
+    );
+    assert!(b.missable(phalanx) && !m.locations[phalanx].missable);
+    let nails = terms_of(&b, "Glintstone Nails", |r| r == 102302);
+    assert!(nails.unexplained.is_none());
+    let ways = nails.ways.as_ref().unwrap();
+    assert!(
+        ways.iter()
+            .all(|w| w.contains(&logic::Req::Holds("Hole-Laden Necklace"))),
+        "{ways:?}"
+    );
+    let never = b
+        .location_terms
+        .iter()
+        .filter(|t| t.unexplained.is_some())
+        .count();
+    assert!(never <= 15, "{never} shop rows never counted");
+}
+
 #[test]
 fn gifts_wait_for_what_their_talk_asks() {
     let m = model_or_skip!();
@@ -229,15 +261,17 @@ fn quest_gifts_open_on_the_stages_events_set() {
     let w = b.walk(&b.vanilla());
     // Gifts that wait on an NPC's quest stage: the stage flags are explained
     // by the events that set them, and such a gift may be missed.
+    use gamedata::model::Kind;
+    // Shop rows may be missable too, by their on-sale flag; nothing else is.
+    assert!(
+        m.locations
+            .iter()
+            .all(|l| !l.missable || matches!(l.kind, Kind::Gift | Kind::Shop))
+    );
     let missable: Vec<usize> = (0..m.locations.len())
-        .filter(|&i| m.locations[i].missable)
+        .filter(|&i| m.locations[i].missable && m.locations[i].kind == Kind::Gift)
         .collect();
     assert!(missable.len() > 60, "{} missable gifts", missable.len());
-    assert!(
-        missable
-            .iter()
-            .all(|&i| m.locations[i].kind == gamedata::model::Kind::Gift)
-    );
     let got = missable.iter().filter(|&&i| w.taken[i]).count();
     assert!(got >= 25, "only {got} quest gifts got in the vanilla walk");
     let is_missable = |item: &str| {

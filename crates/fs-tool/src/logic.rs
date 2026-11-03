@@ -45,11 +45,54 @@ pub fn run(game: PathBuf) -> Result<()> {
     for (f, names) in &unexplained {
         println!("  {f}: {}", names.join(", "));
     }
+    // Shop rows whose flag is read from what events and talk ask.
+    let mut read: BTreeMap<u32, Vec<String>> = BTreeMap::new();
+    let shops = model
+        .locations
+        .iter()
+        .zip(&b.location_terms)
+        .zip(&b.location_unused)
+        .filter(|((l, _), unused)| l.kind == Kind::Shop && !**unused);
+    for ((l, t), _) in shops {
+        let (Some(f), Some(ways)) = (l.terms.as_ref().and_then(|t| t.on_sale), &t.ways) else {
+            continue;
+        };
+        let shut = ways
+            .iter()
+            .all(|w| w.iter().any(|r| matches!(r, logic::Req::Never(_))));
+        let name = l
+            .items
+            .first()
+            .and_then(|i| i.name.as_deref())
+            .unwrap_or("?");
+        let tag = match (shut, l.missable) {
+            (true, _) => " [shut]",
+            (false, true) => " [missable]",
+            _ => "",
+        };
+        let read_ways = l.terms.as_ref().and_then(|t| t.ways.as_ref());
+        read.entry(f)
+            .or_default()
+            .push(format!("{name}{tag} {read_ways:?}"));
+    }
+    println!(
+        "shop rows whose on-sale flag is read from events and talk: {} ({} flags)",
+        read.values().map(Vec::len).sum::<usize>(),
+        read.len()
+    );
+    for (f, rows) in &read {
+        println!("  {f}:");
+        for r in rows {
+            println!("    {r}");
+        }
+    }
     // Gifts whose every way waits on a flag nothing explains.
     let mut blocked: BTreeMap<u32, Vec<&str>> = BTreeMap::new();
     let mut gifts = 0;
     for (l, t) in model.locations.iter().zip(&b.location_terms) {
-        let Some(ways) = &t.ways else { continue };
+        let Some(ways) = t.ways.as_ref().filter(|_| l.kind == Kind::Gift) else {
+            continue;
+        };
         gifts += 1;
         let never = |w: &Vec<logic::Req>| {
             w.iter().find_map(|r| match r {
@@ -69,7 +112,11 @@ pub fn run(game: PathBuf) -> Result<()> {
     );
     println!(
         "gifts that wait on a quest stage an event can move past, so no key item goes there: {}",
-        model.locations.iter().filter(|l| l.missable).count()
+        model
+            .locations
+            .iter()
+            .filter(|l| l.kind == Kind::Gift && l.missable)
+            .count()
     );
     for (f, names) in &blocked {
         println!("  {f}: {}", names.join(", "));

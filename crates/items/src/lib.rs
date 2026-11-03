@@ -542,7 +542,7 @@ fn dependable(bound: &Bound, unit: &Unit, options: &Options) -> bool {
     let location = &bound.model.locations[unit.location];
     unit.sure()
         && bound.location_area[unit.location].is_some()
-        && !location.missable
+        && !bound.missable(unit.location)
         && !bound.may_close(unit.location)
         && !unit.unlimited
         && unit.price <= KEY_PRICE_CAP

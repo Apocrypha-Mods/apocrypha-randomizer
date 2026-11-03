@@ -60,8 +60,24 @@ pub fn run(game: PathBuf, dump: Option<PathBuf>) -> Result<()> {
         "  treasure whose lot is not a row: {}",
         model.gaps.treasure_without_lot
     );
+    println!(
+        "  treasure whose lot holds no item: {}",
+        model.gaps.treasure_empty
+    );
     for (t, ids) in &model.gaps.unreached_lots {
         println!("  {t}: {} lots with items that nothing gives", ids.len());
+    }
+    println!(
+        "  of those in ItemLotParam_map, flagged with a named item: {}",
+        model
+            .gaps
+            .flagged_named
+            .values()
+            .map(Vec::len)
+            .sum::<usize>()
+    );
+    for (sort, ids) in &model.gaps.flagged_named {
+        println!("    {sort:?}: {}", ids.len());
     }
 
     println!("\nby area:");

@@ -353,6 +353,8 @@ pub fn extract(s: &Sources) -> Result<Model> {
     // What holds on each way a talk script gives a lot, or turns a flag on.
     let mut gift_ways: HashMap<i32, BTreeSet<BTreeSet<Atom>>> = HashMap::new();
     let mut talk_sets: HashMap<u32, BTreeSet<BTreeSet<Atom>>> = HashMap::new();
+    // Flags talk turns off: a shop row on sale behind one can go off sale.
+    let mut talk_clears: HashSet<u32> = HashSet::new();
     // What talk takes from the player or asks them to hold: (type, id).
     let mut quest_goods: BTreeSet<(i32, i32)> = BTreeSet::new();
     for (map, name, esd) in &s.talk {
@@ -380,6 +382,11 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 && let Ok(flag) = u32::try_from(*flag)
             {
                 talk_sets.entry(flag).or_default().insert(r.needs.clone());
+            }
+            if let (SET_EVENT_FLAG, [Some(flag), Some(0)]) = (command, &r.args[..])
+                && let Ok(flag) = u32::try_from(*flag)
+            {
+                talk_clears.insert(flag);
             }
 
             for (_, a, b) in SHOP_RANGES.iter().filter(|s| s.0 == command) {
@@ -592,6 +599,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             .filter(|&v| v != 0)
             .map(|v| v as u32);
         l.position = on.map(|p| position(p));
+        model.gaps.treasure_empty += usize::from(l.items.is_empty());
         model.locations.push(l);
     }
 
@@ -840,6 +848,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
                         name: names.of(ItemKind::Goods, id),
                     })
                     .collect(),
+                ways: None,
             }),
             given_if: None,
             missable: false,
@@ -918,6 +927,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
         ids.sort();
         model.gaps.unreached_lots.insert(t.into(), ids);
     }
+    model.gaps.flagged_named = sort_unreached(s, &model, &lots, &names)?;
     model.quest_items = quest_goods
         .into_iter()
         .filter_map(|(t, id)| {
@@ -977,8 +987,84 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 .any(|f| Some(*f) != l.flag && !PASSING.contains(f) && event_sets.contains_key(f))
         });
     }
+    explain_shops(&mut model.locations, &explain, &talk_sets, &talk_clears);
 
     Ok(model)
+}
+
+/// The unreached map lots that carry a flag and a named item, sorted by what
+/// their ids and items say.
+fn sort_unreached(
+    s: &Sources,
+    model: &Model,
+    lots: &Lots,
+    names: &Names,
+) -> Result<BTreeMap<LotSort, Vec<i32>>> {
+    let goods = layout("EquipParamGoods");
+    let tutorial: HashSet<i32> = s
+        .reg
+        .table("EquipParamGoods")?
+        .rows
+        .iter()
+        .filter(|r| goods.field("goods_type").get(&r.data, 0) == 7)
+        .map(|r| r.id)
+        .collect();
+    let given: HashSet<(ItemKind, i32)> = model
+        .locations
+        .iter()
+        .flat_map(|l| &l.items)
+        .map(|i| (i.kind, i.id))
+        .collect();
+    let maps: HashSet<[u8; 3]> = s
+        .maps
+        .iter()
+        .map(|(m, _)| [m.0[0], m.0[1], m.0[2]])
+        .collect();
+    let mut out: BTreeMap<LotSort, Vec<i32>> = BTreeMap::new();
+    for &id in &model.gaps.unreached_lots[LOT_MAP] {
+        let items = lot_items(lots.row(LOT_MAP, id).unwrap(), names);
+        // A name the game's text gives as "[ERROR]…" is cut content's.
+        let named = |i: &Item| i.name.as_deref().is_some_and(|n| !n.starts_with("[ERROR]"));
+        if lots.flag(LOT_MAP, id).is_none() || !items.iter().any(named) {
+            continue;
+        }
+        let sort = match lot_map(id) {
+            _ if items
+                .iter()
+                .all(|i| i.kind == ItemKind::Goods && tutorial.contains(&i.id)) =>
+            {
+                LotSort::Tutorial
+            }
+            Err(sort) => sort,
+            Ok(map) if !maps.contains(&map) => LotSort::MapNotRead,
+            Ok(_) if items.iter().all(|i| given.contains(&(i.kind, i.id))) => LotSort::MapLeftover,
+            Ok(_) => LotSort::MapUnknown,
+        };
+        out.entry(sort).or_default().push(id);
+    }
+    Ok(out)
+}
+
+/// The map a lot is numbered after: `AABBxxxx` for `mAA_BB`, `10XXYYxxxx` and
+/// `20XXYYxxxx` for the open worlds' tiles `m60_XX_YY` and `m61_XX_YY`, as the
+/// maps' own treasure lots are. Ids of no map are sorted by their range.
+pub fn lot_map(id: i32) -> std::result::Result<[u8; 3], LotSort> {
+    let tile = |world: u8| {
+        [
+            world,
+            (id / 1_000_000 % 100) as u8,
+            (id / 10_000 % 100) as u8,
+        ]
+    };
+    Ok(match id {
+        ..100_000 => return Err(LotSort::LowId),
+        100_000..200_000 => return Err(LotSort::Npc),
+        9_000_000..10_000_000 => return Err(LotSort::Test),
+        10_000_000..60_000_000 => [(id / 1_000_000) as u8, (id / 10_000 % 100) as u8, 0],
+        1_000_000_000..2_000_000_000 => tile(60),
+        2_000_000_000.. => tile(61),
+        _ => return Err(LotSort::Other),
+    })
 }
 
 /// An asset model's row in AssetEnvironmentGeometryParam: AEG099_683 is
@@ -1068,6 +1154,46 @@ fn mark_either_or(locations: &mut [Location]) {
             .and_then(|lot| lot.ids.first())
             .is_some_and(|id| GIVEN_INSTEAD.contains(id));
         l.missable |= shared || instead;
+    }
+}
+
+/// Shop rows whose on-sale flag no boss or handover explains take the ways
+/// events and talk turn it on ([`Terms::ways`]), read as a gift's are: Corhyn
+/// puts the Immutable Shield on sale as he is talked to, and the Twin Maiden
+/// Husks resell a gift a quest's end left untaken. A row is missable when a way
+/// can be lost: it needs a flag off that an event or a pick-up turns on (the
+/// Husks' resale stops once the gift is taken), or the flag can be turned off
+/// again, by an event or by talk.
+fn explain_shops(
+    locations: &mut [Location],
+    explain: &Explain,
+    talk_sets: &HashMap<u32, BTreeSet<BTreeSet<Atom>>>,
+    talk_clears: &HashSet<u32>,
+) {
+    for l in locations.iter_mut().filter(|l| l.kind == Kind::Shop) {
+        let Some(t) = l.terms.as_mut() else { continue };
+        let Some(f) = t
+            .on_sale
+            .filter(|_| t.after_boss.is_none() && t.handed.is_empty())
+        else {
+            continue;
+        };
+        explain.fleeting.set(false);
+        let mut ways = explain.flag(f, 0);
+        if ways == [vec![Cond::Flag(f)]] {
+            continue;
+        }
+        // A way that asks nothing makes the rest moot.
+        if ways.iter().any(Vec::is_empty) {
+            ways = vec![Vec::new()];
+        }
+        let lost_in_talk = talk_sets.get(&f).into_iter().flatten().flatten().any(|a| {
+            matches!(a, Atom::Flag(g, false)
+                if *g != f && !PASSING.contains(g)
+                    && (explain.event_sets.contains_key(g) || explain.got.contains(g)))
+        });
+        l.missable |= explain.fleeting.get() || lost_in_talk || talk_clears.contains(&f);
+        t.ways = Some(ways);
     }
 }
 
@@ -1193,11 +1319,12 @@ impl Explain<'_> {
             let options = match (&lit.test, lit.holds) {
                 (Test::Flag(g), true) if *g != f => self.flag(*g, depth),
                 (Test::Flag(_), true) => continue,
-                // Off, so lost once an event can turn it on, if this way can happen.
+                // Off, so lost once an event can turn it on, if this way can happen,
+                // or once the location whose pick-up sets it is taken.
                 (Test::Flag(g), false) => {
                     lost |= *g != f
-                        && self.event_sets.contains_key(g)
-                        && !self.talk_sets.contains_key(g);
+                        && ((self.event_sets.contains_key(g) && !self.talk_sets.contains_key(g))
+                            || self.got.contains(g));
                     continue;
                 }
                 (Test::Other { .. }, holds) => match (lit.test.reading(), holds) {
@@ -1312,5 +1439,15 @@ mod tests {
         assert_eq!(asset_model("AEG463_670"), Some(463_670));
         assert_eq!(asset_model("c4720"), None);
         assert_eq!(asset_model("AEG099"), None);
+    }
+
+    #[test]
+    fn a_lots_map_is_read_from_its_id() {
+        assert_eq!(lot_map(1_036_430_010), Ok([60, 36, 43]));
+        assert_eq!(lot_map(2_050_450_510), Ok([61, 50, 45]));
+        assert_eq!(lot_map(12_020_700), Ok([12, 2, 0]));
+        assert_eq!(lot_map(50_000), Err(LotSort::LowId));
+        assert_eq!(lot_map(101_580), Err(LotSort::Npc));
+        assert_eq!(lot_map(9_930_001), Err(LotSort::Test));
     }
 }
