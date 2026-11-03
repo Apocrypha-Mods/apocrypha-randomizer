@@ -240,6 +240,35 @@ pub fn elden_ring() -> Graph {
     toml::from_str(ELDEN_RING).expect("data/elden_ring.toml parses")
 }
 
+impl Graph {
+    /// Leyndell's gate (`altus` to `leyndell`) asks for `n` of its Great Runes, the seed's
+    /// option; at 0 it asks nothing. The data file holds the runes and the game's 2.
+    pub fn set_leyndell_runes(&mut self, n: usize) -> Result<(), String> {
+        let edge = self
+            .edges
+            .iter_mut()
+            .find(|e| e.from == "altus" && e.to == "leyndell")
+            .ok_or("the area map has no edge from altus to leyndell")?;
+        let any = edge
+            .need
+            .any
+            .as_mut()
+            .ok_or("the altus to leyndell edge asks for no runes")?;
+        if n > any.items.len() {
+            return Err(format!(
+                "Leyndell's gate names {} Great Runes, fewer than {n}",
+                any.items.len()
+            ));
+        }
+        if n == 0 {
+            edge.need.any = None;
+        } else {
+            any.n = n;
+        }
+        Ok(())
+    }
+}
+
 /// What getting a location asks besides reaching it: all of it.
 #[derive(Debug, Clone, Default)]
 pub struct Terms<'a> {
@@ -1353,5 +1382,29 @@ mod tests {
         let b = Bound::new(&g, &m);
         assert!(b.problems.iter().any(|p| p.contains("Nothing Such")));
         assert!(b.problems.iter().any(|p| p.contains("Nowhere")));
+    }
+
+    #[test]
+    fn leyndell_asks_the_seeds_number_of_runes() {
+        let gate = |g: &Graph| {
+            g.edges
+                .iter()
+                .find(|e| e.from == "altus" && e.to == "leyndell")
+                .unwrap()
+                .need
+                .any
+                .as_ref()
+                .map(|a| (a.n, a.items.len()))
+        };
+        assert_eq!(gate(&elden_ring()), Some((2, 5)));
+        for n in 1..=5 {
+            let mut g = elden_ring();
+            g.set_leyndell_runes(n).unwrap();
+            assert_eq!(gate(&g), Some((n, 5)));
+        }
+        let mut g = elden_ring();
+        g.set_leyndell_runes(0).unwrap();
+        assert_eq!(gate(&g), None);
+        assert!(elden_ring().set_leyndell_runes(6).is_err());
     }
 }

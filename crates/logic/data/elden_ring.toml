@@ -683,17 +683,16 @@ any = { n = 2, items = [
     "Mohg's Great Rune", "Malenia's Great Rune",
 ] }
 note = """
-Two Great Runes held (Nova, from play, 2026-11-03). Morgott's stands behind this gate and
-the Great Rune of the Unborn is left out, so the list asks the most. The script reading
-below counted bosses' rewards instead; it was set aside by Nova's decision, and a lab
-run (two of these bosses beaten with no rune held, then two runes held with no boss
-beaten) would settle which the gate tests.
-The gate (m60_45_52 event 1045522500) tests flag 182, which common event 730 turns on
-when two of flags 170 to 179 are on, and flag 105, set on entering the Roundtable Hold.
-Flags 171 to 175 are on these bosses' reward rows (ItemLotParam_map 10010, 10301, 10041,
-10221, 10121), and common event 6905 sets 171 to 177 from the rewards' flags: 176 for Malenia
-(510200), 177 for Rennala (197). All stay with the reward, not with a moved rune, and no
-script tests a rune held. 173 is Morgott's, who stands behind this gate."""
+Two Great Runes held (Nova, 2026-11-03), each unrestored or restored; `n` is the game's 2,
+and a seed sets it from its option (`--leyndell-runes`, 0 to 4; at 0 this asks nothing).
+Morgott's stands behind this gate and the Great Rune of the Unborn is left out.
+The game now tests the same: every seed rewrites how flag 182 comes on (`rando::capital`).
+The gate (m60_45_52 event 1045522500) waits on flag 182 and flag 105, set on entering the
+Roundtable Hold, which Limgrave reaches with nothing. In the unmodded game common event 730
+turns 182 on when two of flags 170 to 179 are on, flags of the bosses' reward rows and of
+common event 6905, which stay with the reward, not with a moved rune. A seed's common event
+0 starts event 731 there instead, which turns 182 on when n of flags 400 to 404 are on; events
+732 to 736 turn each on once its rune is held in either form, and it stays on."""
 
 [[edge]]
 from = "leyndell"

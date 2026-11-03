@@ -133,8 +133,16 @@ struct Run {
     /// The page places the native module; this says so in the spoiler log.
     #[serde(default)]
     auto_upgrade: bool,
+    /// As `apoc-rando --leyndell-runes`, 0 to 4.
+    #[serde(default = "game_runes")]
+    leyndell_runes: u8,
     #[serde(default)]
     stack: Stack,
+}
+
+/// What Leyndell's gate asks in the game itself.
+fn game_runes() -> u8 {
+    rando::DEFAULT_LEYNDELL_RUNES
 }
 
 #[derive(Debug, Serialize)]
@@ -342,6 +350,9 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.set(true, &request.bias).map_err(format_err)?;
     options.dlc_separate = request.dlc_separate;
     options.auto_upgrade = request.auto_upgrade;
+    options
+        .set_leyndell_runes(request.leyndell_runes)
+        .map_err(format_err)?;
     let mut foes = EnemyOptions::default();
     foes.set(&request.enemies).map_err(format_err)?;
     foes.dlc_separate = true;

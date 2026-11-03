@@ -42,6 +42,12 @@ test("every option reaches the request", () => {
   assert.equal(r.noScaling, true);
   assert.equal(r.autoUpgrade, true);
 });
+test("Leyndell asks the game's 2 Great Runes unless set", () => {
+  assert.equal(L.request(1, L.defaults()).leyndellRunes, 2);
+  assert.equal(L.request(1, L.settled({})).leyndellRunes, 2);
+  assert.equal(L.request(1, { ...L.defaults(), leyndellRunes: 0 }).leyndellRunes, 0);
+  assert.deepEqual(L.LEYNDELL_RUNES.map(([n]) => n), [0, 1, 2, 3, 4]);
+});
 test("only what can lean is given a bias", () => {
   const r = L.request(1, L.defaults());
   for (const dead of ["merchants", "starting-gear", "keepsakes", "npc-gear"]) assert.doesNotMatch(r.bias, new RegExp(dead));

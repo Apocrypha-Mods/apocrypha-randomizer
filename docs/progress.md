@@ -2270,3 +2270,54 @@ No game or lab run. The merge before this (fc9a06d) was proven with `apoc-rando 
 **Proven.** On 2.7.2: the tests of `fs-esd`, `gamedata`, `logic`, `items` and `rando`, real files among them; clippy and fmt clean.
 
 **Proven again** after this section (82271d1): `apoc-rando check`, seeds 0 to 9,999, four threads, none failing, in 1,219.5 s.
+
+## Leyndell's gate counts Great Runes held, as many as the seed asks (Nova, 2026-11-03)
+
+No game or lab run: read from the scripts and tables, so **none of this is seen in the game**.
+
+**What the gate tests.** m60_45_52 event 1045522500 waits on flags 182 and 105. Common event 0 starts common event 730
+eight times, `(180 + k, k)` for k 0 to 7: each turns its flag on once at least k of flags 170 to 179 are on, in the player's own
+world. 170 to 179 come from the bosses' reward rows (171 to 176 on lots 10010, 10301, 10041, 10221, 10121, 10201) and from
+event 6905 (171 to 177 from the rewards' flags, 177 Rennala's). Event 720 does the same for the restored runes' flags 190 to 199
+into 160 to 167. Of all scripts' runs, only 730's start for 182 sets 182; no range clears or sets it, and talk only reads it.
+Readers of 182 besides the gate: m11_10 event 11100796, m12_03 event 12032500, common event 3499 (sets 3486), and talk
+`t324001110` (`f15(182)`). 90005720's 182 is a dummy point, not a flag.
+
+**The runes.** The towers' calls of 90005110 name the restored rune first and the unrestored fifth: Godrick 191/8148, Radahn
+192/8149, Rykard 194/8151, Mohg 195/8152, Malenia 196/8153, Morgott 193/8150. The captions settle which is which: 8148 is
+"devoid of any benediction", so the bosses' lots give 8148 to 8153 and the towers' lots (34100500 and on) give 191 to 196; the
+tower event also runs `2003[24] (3, 8148, 1)`, read as taking the unrestored one. Both names are the area map's.
+
+**What a seed writes** (`rando::capital`), always, so the game asks what the proof asked whatever moved: in `common.emevd`,
+event 0 starts event 731 in place of 730's start for 182, and starts 732 to 736. Each of those waits, in the player's own world,
+on either form of its rune held (`if_item`, goods, state 1, both in an any-group) and turns one of flags 400 to 404 on; it ends
+at once if its flag is on, so a reload counts nothing twice. 731 is 730's shape: end if 182 is on, then 182 on once at least N
+of 400 to 404 are on. The flags stay on, so a rune restored, or taken by its tower for another item, still counts. Morgott's and
+the Great Rune of the Unborn do not count; with runes where the game puts them, Rennala's no longer helps. 730's other starts,
+170 to 179 and their readers stay. With `--with-mod` it builds on the mod's `common.emevd`, and refuses one that does not start
+730 for 182 once or already holds events 731 to 736. The add-on already fetched `common.emevd`.
+
+**The option** (Nova): `--leyndell-runes 0..4`, default 2, refused outside; in the spoiler log's options as "Great Runes to open
+Leyndell"; on the add-on page as "Great Runes for Leyndell" under Items, marked untested. The `altus` → `leyndell` edge asks N of
+the five (`Graph::set_leyndell_runes`, set per seed for `gen` and `check`), nothing at 0. At 0, 731 turns 182 on as the game
+loads; 105 stays asked, as the Roundtable Hold is reached from Limgrave with nothing.
+
+**Free.** Flags 400 to 404 are in no script's word, no talk script and no flag field of the tables; events 731 to 736 in no
+script. That they are saved with the game rests on their block (0 to 999) holding saved flags such as 182, not on the exe.
+
+**Proven.** On 2.7.2 with `APOC_ER_STOCK`: `real_capital.rs` (the runes are the towers' and the map's; our flags and events
+free; for each N the script reads back as written, event 0 differs by that one start and five more, every other event is the
+game's, 731 has 730's shape counting N; only 731 sets 182 after the edit, only 730 before; a seed writes it, on a mod's
+`common.emevd` too); `real_graph.rs` walks the unmodded game to the end at each N, the capital shut with no Great Rune but at 0;
+unit tests of the events, the option and the edge; the `rando`, `logic`, `items` and `addon` tests, none failing; clippy and fmt
+clean; `ui` tests. `apoc-fs logic`: no problems, goal reached. `apoc-rando check`, seeds 0 to 999, two threads, none failing:
+N 2 in 239 s, N 0 in 218 s (285 slots holding key items, against 293), N 4 in 224 s. Seed 7 at N 4: `apoc-rando gen` and the add-on
+module through `tools/addon-run.mjs` wrote the same 28 files (`diff -r`), `event/common.emevd.dcx` among them.
+
+**For the lab.** Two runes held with no boss beaten opens the gate, and two bosses beaten with their runes elsewhere does not;
+a restored rune counts; the count holds after a reload; flags 400 to 404 survive quitting.
+
+**Questions for Nova.** At N 0, 182 is on from the start, so the other readers of 182 (the Roundtable's 11100796, m12_03's
+12032500, 3499's 3486, Enia's talk) act as if two runes were held; and at any N they now follow the runes, not the bosses.
+Should 105 be set too at 0, or the gate's whole test dropped? Whether `if_item` counts a rune in the chest is not read from the
+exe; Great Runes are key items, which by general knowledge cannot be stored.

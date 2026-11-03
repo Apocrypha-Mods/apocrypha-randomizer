@@ -127,7 +127,17 @@ pub struct Options {
     /// Whether enemies move in this seed, so no key or quest item is put on an
     /// enemy's drop. Set by whoever knows the enemy options; not a slider.
     pub enemies_move: bool,
+    /// How many of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's Great Runes,
+    /// each restored or not, open Leyndell's gate: 0 to [`MAX_LEYNDELL_RUNES`], the
+    /// game's 2 by default (Nova, 2026-11-03). The area map and the seed's script both
+    /// take it.
+    pub leyndell_runes: u8,
 }
+
+/// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
+pub const MAX_LEYNDELL_RUNES: u8 = 4;
+/// What the game itself asks.
+pub const DEFAULT_LEYNDELL_RUNES: u8 = 2;
 
 impl Default for Options {
     /// Everything moves, with no lean: the plainest shuffle.
@@ -138,6 +148,7 @@ impl Default for Options {
             dlc_separate: false,
             auto_upgrade: false,
             enemies_move: false,
+            leyndell_runes: DEFAULT_LEYNDELL_RUNES,
         }
     }
 }
@@ -153,6 +164,17 @@ impl Options {
 
     pub fn set_shuffle(&mut self, c: Category, percent: u8) {
         self.shuffle[c.index()] = percent.min(100);
+    }
+
+    /// Set how many Great Runes open Leyndell, refusing more than [`MAX_LEYNDELL_RUNES`].
+    pub fn set_leyndell_runes(&mut self, n: u8) -> Result<(), String> {
+        if n > MAX_LEYNDELL_RUNES {
+            return Err(format!(
+                "Leyndell's gate can ask for 0 to {MAX_LEYNDELL_RUNES} Great Runes, not {n}"
+            ));
+        }
+        self.leyndell_runes = n;
+        Ok(())
     }
 
     pub fn set_bias(&mut self, c: Category, percent: u8) {
@@ -224,7 +246,8 @@ impl fmt::Display for Options {
             f,
             "  auto-upgrade: {}",
             if self.auto_upgrade { "on" } else { "off" }
-        )
+        )?;
+        writeln!(f, "  Great Runes to open Leyndell: {}", self.leyndell_runes)
     }
 }
 
@@ -244,5 +267,18 @@ mod tests {
         assert!(o.set(false, "swords=10").is_err());
         assert!(o.set(false, "weapons=101").is_err());
         assert!(o.set(false, "weapons").is_err());
+    }
+
+    #[test]
+    fn leyndell_asks_two_runes_unless_set_and_never_more_than_four() {
+        let mut o = Options::default();
+        assert_eq!(o.leyndell_runes, 2);
+        assert!(o.to_string().contains("Great Runes to open Leyndell: 2"));
+        for n in 0..=4 {
+            o.set_leyndell_runes(n).unwrap();
+            assert_eq!(o.leyndell_runes, n);
+        }
+        assert!(o.set_leyndell_runes(5).is_err());
+        assert_eq!(o.leyndell_runes, 4);
     }
 }

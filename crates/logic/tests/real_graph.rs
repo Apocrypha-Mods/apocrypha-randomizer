@@ -372,6 +372,34 @@ fn the_capitals_gate_asks_for_two_great_runes() {
     assert!(!w.reached[capital], "the capital opens with no Great Rune");
 }
 
+/// The seed's option sets how many runes the gate asks (0 to 4): the unmodded game is
+/// still walked to the end at each, and with no Great Rune held the capital opens at 0 only.
+#[test]
+fn the_capitals_gate_asks_the_seeds_number_of_runes() {
+    let Some(model) = model() else { return };
+    for n in 0..=4 {
+        let mut graph = logic::elden_ring();
+        graph.set_leyndell_runes(n).unwrap();
+        let bound = Bound::new(&graph, model);
+        assert!(bound.problems.is_empty(), "{n}: {:?}", bound.problems);
+        assert!(
+            bound.walk(&bound.vanilla()).goal,
+            "{n}: the game is not finished"
+        );
+        let without: Vec<Vec<&str>> = bound
+            .vanilla()
+            .into_iter()
+            .map(|g| {
+                g.into_iter()
+                    .filter(|i| !i.ends_with("Great Rune"))
+                    .collect()
+            })
+            .collect();
+        let capital = graph.areas.iter().position(|a| a.id == "leyndell").unwrap();
+        assert_eq!(bound.walk(&without).reached[capital], n == 0, "{n}");
+    }
+}
+
 #[test]
 fn the_husks_open_a_merchants_own_rows_for_their_bearing() {
     let m = model_or_skip!();
