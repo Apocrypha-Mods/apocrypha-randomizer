@@ -2172,7 +2172,7 @@ No game or lab run.
 
 No game or lab run.
 
-**Wildlife.** Nova: animals trade only with animals, so ten birds never become ten random enemies. `Class::Animal` holds ordinary spots on models `c6000` to `c6399`, read from what they drop: feathers and fowl feet (c6001, c6070), beast bones, liver and meat (c6010, c6060, c6100), dragonfly heads (c6080 to c6082), turtle meat (c6090), fangs (c6290, c6291). 4,368 spots. Every base-game one has no strength tier. A boss on such a model (one in the DLC, `c6310`) stays a boss. Crabs (c2270 to c2277), wolves and dogs (c4160s), bears (c4550, c4560) and the like also drop beast matter but fight, and stay ordinary enemies until Nova says otherwise.
+**Wildlife.** Nova: animals trade only with animals, so ten birds never become ten random enemies. `Class::Animal` holds ordinary spots on models `c6000` to `c6399`, read from what they drop: feathers and fowl feet (c6001, c6070), beast bones, liver and meat (c6010, c6060, c6100), dragonfly heads (c6080 to c6082), turtle meat (c6090), fangs (c6290, c6291). 4,368 spots. Every base-game one has no strength tier. A boss on such a model (one in the DLC, `c6310`) stays a boss. Crabs (c2270 to c2277), wolves and dogs (c4160s), bears (c4550, c4560) and the like also drop beast matter but fight, and stay ordinary enemies, by Nova's choice.
 
 **Tiers** (spec 05 §5). `Pool::map_tier` holds each map's commonest NpcParam tier among its enemies with one (463 maps). A body with a tier of its own landing on a spot with none takes that; wildlife, with none of its own, stays without.
 
