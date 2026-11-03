@@ -14,21 +14,13 @@ use rayon::prelude::*;
 use crate::instructions::{Known, describe, known_sets};
 
 /// Every map, found by trying each name the pattern
-/// `/map/mapstudio/mAA_BB_CC_DD.msb.dcx` allows.
+/// `/map/mapstudio/mAA_BB_CC_DD.msb.dcx` allows: all 1,347.
 pub fn load_maps(dvd: &Dvd) -> Vec<(String, Msb)> {
-    let mut names = Vec::new();
-    for a in 10..100 {
-        for b in 0..100 {
-            for c in 0..100 {
-                for d in 0..4 {
-                    let p = format!("/map/mapstudio/m{a:02}_{b:02}_{c:02}_{d:02}.msb.dcx");
-                    if dvd.find(&p).is_some() {
-                        names.push(p);
-                    }
-                }
-            }
-        }
-    }
+    let names: Vec<String> = dvd
+        .map_ids("/map/mapstudio/", ".msb.dcx")
+        .iter()
+        .map(|m| format!("/map/mapstudio/{m}.msb.dcx"))
+        .collect();
     names
         .par_iter()
         .filter_map(|p| {

@@ -1,5 +1,7 @@
 # Fields of Elden Ring's MSB entries, worked out from the game's own maps
-# (build 25080141, 1,248 maps found by name) with `apoc-fs msb-columns`.
+# with `apoc-fs msb-columns` (build 25080141, 1,248 maps found by name) and
+# then on all 1,347 maps of 2.7.2 (2026-11-03: points, routes, groups, type
+# indices and the indices adding an entry must move).
 # See crates/fs-msb/src/layout.rs; fs-tool/tests/real_maps.rs re-checks every
 # confirmed claim. Offsets are bytes; `section` names where the entry holds the
 # offset of the section a field sits in.
@@ -31,6 +33,7 @@ table = "PARTS_PARAM_ST"
 name = "model"
 offset = 0x14
 kind = "i32"
+refers = "MODEL_PARAM_ST"
 confidence = "confirmed"
 evidence = """
 An index into the map's MODEL_PARAM_ST: the model's name is part of the name
@@ -120,6 +123,7 @@ evidence = "-1 in 22,846 of 23,203 enemies; every other value is a row of CharaI
 table = "EVENT_PARAM_ST"
 types = [5]
 name = "generator_part"
+refers = "PARTS_PARAM_ST"
 section = 0x20
 offset = 0x60
 kind = "i32"
@@ -134,6 +138,7 @@ values' shape and from public descriptions of the format; not seen in play."""
 table = "EVENT_PARAM_ST"
 types = [21]
 name = "rider_part"
+refers = "PARTS_PARAM_ST"
 section = 0x20
 offset = 0x00
 kind = "i32"
@@ -147,6 +152,7 @@ rider and mount: their models are a RideParam row's rider (+0x00) and mount
 table = "EVENT_PARAM_ST"
 types = [21]
 name = "mount_part"
+refers = "PARTS_PARAM_ST"
 section = 0x20
 offset = 0x04
 kind = "i32"
@@ -157,6 +163,7 @@ evidence = "The other part of a rider_part's event, or -1."
 table = "EVENT_PARAM_ST"
 types = [4]
 name = "treasure_part"
+refers = "PARTS_PARAM_ST"
 section = 0x20
 offset = 0x08
 kind = "i32"
@@ -185,3 +192,322 @@ offset = 0x38
 kind = "i32"
 confidence = "probable"
 evidence = "-1 in 3,442 of 3,639; the rest rows of ActionButtonParam (4280, 4201, …): the prompt to pick it up, when it is not the default."
+
+# --- What adding an entry needs (2.7.2, all 1,347 maps) -------------------------
+#
+# Every table keeps its entries grouped by type, and each entry holds its
+# place among those of its type. Models and parts are also in ascending type
+# order; points and routes keep their groups in an order of their own.
+
+[[field]]
+table = "MODEL_PARAM_ST"
+name = "type"
+offset = 0x08
+kind = "i32"
+confidence = "confirmed"
+evidence = "Models are grouped by it, in ascending order, in every one of 1,298 maps with models."
+
+[[field]]
+table = "MODEL_PARAM_ST"
+name = "type_index"
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = "The model's place among its type's: 75,291 of 75,291."
+
+[[field]]
+table = "MODEL_PARAM_ST"
+name = "instances"
+offset = 0x18
+kind = "i32"
+confidence = "confirmed"
+evidence = "How many of the map's parts use the model: equal in 75,291 of 75,291, checked by the real-file test."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+name = "type_index"
+offset = 0x10
+kind = "i32"
+confidence = "confirmed"
+evidence = "The event's place among its type's: 10,279 of 10,286 (7 events in 3 maps are not)."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+name = "id"
+offset = 0x08
+kind = "i32"
+confidence = "probable"
+evidence = "Different for every event of a map, in all 523 maps with events."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+name = "part"
+refers = "PARTS_PARAM_ST"
+section = 0x18
+offset = 0x00
+kind = "i32"
+confidence = "probable"
+evidence = "-1, or one of the map's parts in all 261 events with one: the part an event belongs to (mostly collisions)."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+name = "point"
+refers = "POINT_PARAM_ST"
+section = 0x18
+offset = 0x04
+kind = "i32"
+confidence = "probable"
+evidence = "-1, or one of the map's points in all 26 events with one."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+name = "entity_id"
+section = 0x18
+offset = 0x08
+kind = "u32"
+confidence = "probable"
+evidence = "0 or an id shaped like 10000800: 427 distinct, 255 of them words of the event scripts."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [5]
+name = "generator_point"
+refers = "POINT_PARAM_ST"
+section = 0x20
+offset = 0x30
+kind = "i32"
+count = 8
+confidence = "probable"
+evidence = "-1, or one of the map's points, filled from the first: 206 of 214 generators name one. Where the copies appear."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [7]
+name = "objact_part"
+refers = "PARTS_PARAM_ST"
+section = 0x20
+offset = 0x04
+kind = "i32"
+confidence = "probable"
+evidence = "-1, or one of the map's parts in 754 of 827 events of type 7 (ObjActParam): 738 assets, the thing acted on (a lever, a door)."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [15]
+name = "squad_parts"
+refers = "PARTS_PARAM_ST"
+section = 0x20
+offset = 0x10
+kind = "i32"
+count = 32
+confidence = "probable"
+evidence = "-1, or one of the map's parts, filled from the first; enemies (types 2 and 10) in every case. 973 events of type 15, named like 【小隊】 (squad)."
+
+[[field]]
+table = "EVENT_PARAM_ST"
+types = [24]
+name = "asset_part"
+refers = "PARTS_PARAM_ST"
+section = 0x20
+offset = 0x00
+kind = "i32"
+confidence = "probable"
+evidence = "-1, or one of the map's parts in 176 of 178: 175 assets."
+
+# --- Points (regions) -------------------------------------------------------------
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "type"
+offset = 0x08
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+Points are grouped by it in all 874 maps with points, and each holds its place
+among its type's (type_index). -1 is the commonest (9,177; a sound or music
+area, BGM切り替え領域), 1 an invasion point (侵入ポイント), 2 an environment
+map point (Env_Point)."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "type_index"
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = "The point's place among its type's: 50,608 of 50,608."
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "shape"
+offset = 0x10
+kind = "i32"
+confidence = "confirmed"
+evidence = """
+Says how many bytes the shape section (+0x48) holds, without exception over
+50,608 points: 0 none (12,191, a bare point), 1 and 2 four (one size, 19,931),
+3 and 4 eight (two), 5 twelve (three, 15,214, a box), 6 sixty-four (997, made of
+other points)."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "shape_size"
+section = 0x48
+offset = 0x00
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = """
+Floats: as many as the shape has sizes (see shape), the rest belong to the
+next section. A box's three are its width, depth and height, judged from
+values in metres; 2's one is a radius."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "position"
+offset = 0x14
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = "Three floats within map-sized ranges, like a part's position at +0x20."
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "rotation"
+offset = 0x20
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = "Three floats, the middle one mostly the varied one, as a part's rotation."
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "id"
+offset = 0x2C
+kind = "i32"
+confidence = "confirmed"
+evidence = "Different for every point of a map in all 874 maps, and what routes name (718 of 718)."
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "part"
+refers = "PARTS_PARAM_ST"
+section = 0x50
+offset = 0x00
+kind = "i32"
+confidence = "probable"
+evidence = "-1 in 46,495 of 50,608; every other value is one of the map's parts (collisions, assets, map pieces): the part the point goes with."
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "entity_id"
+section = 0x50
+offset = 0x04
+kind = "u32"
+confidence = "confirmed"
+evidence = """
+0, or an id shaped like 10002680: 6,474 distinct, 4,600 of them words of the
+event scripts (probably the areas they test the player against)."""
+
+# --- Routes -------------------------------------------------------------------------
+
+[[field]]
+table = "ROUTE_PARAM_ST"
+name = "type"
+offset = 0x10
+kind = "i32"
+confidence = "confirmed"
+evidence = "3 (68), 4 (285) or -1 (6); routes are grouped by it in all 56 maps with routes."
+
+[[field]]
+table = "ROUTE_PARAM_ST"
+name = "type_index"
+offset = 0x14
+kind = "i32"
+confidence = "confirmed"
+evidence = "The route's place among its type's: 358 of 359."
+
+[[field]]
+table = "ROUTE_PARAM_ST"
+name = "from_point"
+offset = 0x08
+kind = "i32"
+confidence = "confirmed"
+evidence = "The id (+0x2C) of one of the map's points, in 359 of 359 routes; checked by the real-file test."
+
+[[field]]
+table = "ROUTE_PARAM_ST"
+name = "to_point"
+offset = 0x0C
+kind = "i32"
+confidence = "confirmed"
+evidence = "The id of another of the map's points, in 359 of 359."
+
+# --- Parts ----------------------------------------------------------------------------
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "type_index"
+offset = 0x10
+kind = "i32"
+confidence = "confirmed"
+evidence = "The part's place among its type's: 676,654 of 676,654. Parts are grouped by type in ascending order in every map."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+name = "entity_groups"
+section = 0x60
+offset = 0x1C
+kind = "u32"
+count = 8
+confidence = "probable"
+evidence = """
+0, or an id shaped like an entity id, in any of eight places: 748 distinct ids
+over 12,678 uses, so many parts share each one; only 2 are also a part's own
+entity id, and 336 are words of the event scripts. The groups scripts act on
+together (all the enemies of an ambush, say)."""
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [2, 10]
+name = "collision_part"
+refers = "PARTS_PARAM_ST"
+section = 0x68
+offset = 0x1C
+kind = "i32"
+confidence = "probable"
+evidence = "-1, or one of the map's parts, a collision (type 5) every time: 10,870 of 34,852 enemies. The ground the enemy is placed on."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [2, 10]
+name = "draw_part"
+refers = "PARTS_PARAM_ST"
+section = 0x68
+offset = 0x3C
+kind = "i32"
+confidence = "probable"
+evidence = "One of the map's parts in all but 11 of 34,852 enemies: a map piece (33,729) or an enemy (1,112)."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [13]
+name = "collision_parts"
+refers = "PARTS_PARAM_ST"
+section = 0x68
+offset = 0x40
+kind = "i32"
+count = 2
+confidence = "probable"
+evidence = "-1, or a collision (type 5) every time: 143,352 and 121,201 of 624,987 assets."
+
+[[field]]
+table = "PARTS_PARAM_ST"
+types = [13]
+name = "linked_parts"
+refers = "PARTS_PARAM_ST"
+section = 0x68
+offset = 0x48
+kind = "i32"
+count = 2
+confidence = "probable"
+evidence = "-1, or one of the map's parts, an asset or a collision: 481,785 and 465,737 of 624,987 assets."

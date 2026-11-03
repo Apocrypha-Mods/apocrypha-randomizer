@@ -6,7 +6,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | --- | --- | --- |
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
-| 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Open: the name-list count. |
+| 1. Read the game's files | in progress | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Our own name list names 120,287 of the 120,408 entries (2026-11-03). Open: the last 121, 101 of them drawing parameters. |
 | 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies; 58 rows behind 26 unexplained flags are not counted. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the review of the 31 claims still marked, and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
@@ -240,9 +240,12 @@ load before a run.
       ids and words in known folders, each kept only if its hash matches an entry.
       On 2.7.2.0 it names 116,598 of 120,408 entries (96.8%) in about 35 minutes.
       Of the 3,810 left, 3,674 are NVMC files in `Data2` and `DLC`, and 136 are
-      others. The list is game data, so it stays in `scratch/`. It has not been run
-      through `apoc-fs check --names`, and it does not reach the count the gate
-      wanted, which was a match with a whole list.
+      others. The list is game data, so it stays in `scratch/`.
+- [ ] **The name-list count, closer** (2026-11-03, below). The list names 120,287 of
+      120,408 entries. It names all the NVMC files (navigation links between tiles)
+      and 15 more besides, and `apoc-fs check --names` finds no name without an
+      entry. 121 are left: 101 drawing parameters, 10 binders and 10 others. The
+      gate wants a whole match, so it stays open.
 - [x] **Step 3: the game accepts files we write** (below).
 - [x] **`oozextract` in what ships:** no legal opinion, as the project went
       GPL-3.0-or-later on 2026-11-02 (PLAN.md §6b).
@@ -393,9 +396,10 @@ The format matches the public description:
 - **The string area** (names of linked files such as `common_func.emevd`) is
   kept as raw bytes, with linked-file offsets into it.
 
-How the files are named: 544 of the 589 match the pattern
-`/event/mAA_BB_CC_DD.emevd.dcx` or are one of the common scripts, which the
-real-file test checks. The other 45 are named some other way, still unknown.
+How the files are named: all 589 are found by name (2026-11-03, below): the
+two common scripts, `/event/m60.emevd.dcx` and `/event/m61.emevd.dcx`, and 585
+of the pattern `/event/mAA_BB_CC_DD.emevd.dcx`, 43 of them with `10` in the
+last part. The real-file test checks all 589.
 
 #### What the scripts confirm about the param flags
 
@@ -496,7 +500,8 @@ scripts:
 - [ ] **The other 300 or so instructions** are uncatalogued. The ones Phase 5
       needs (enabling and disabling characters, warps, cutscenes) take
       entity ids, so they also come after MSB.
-- [ ] **Names for the other 45 scripts.**
+- [x] **Names for the other 45 scripts** (2026-11-03): `m60`, `m61` and 43
+      maps whose id ends in `10`.
 
 ### MSB
 
@@ -514,8 +519,9 @@ next one starts with its padding included, and only the tables are rebuilt.
 Fields are edited in place inside the blobs. Adding or resizing entries (which
 the enemy randomizer may need) will need the type-specific layouts first.
 
-**Names.** 1,248 of the 1,347 maps match `/map/mapstudio/mAA_BB_CC_DD.msb.dcx`.
-The other 99 are named some other way.
+**Names.** All 1,347 maps match `/map/mapstudio/mAA_BB_CC_DD.msb.dcx`
+(2026-11-03, below). The tests had swept the last part only from 00 to 03;
+99 maps end in 10, 11, 12 or 99.
 
 #### Field layout
 
@@ -547,11 +553,14 @@ So picking up the treasure sets the flag, not a script.
 
 ### Still to do in MSB
 
-- [ ] **Points (regions) and routes** have no fields yet. The enemy
-      randomizer's arena handling will want regions.
-- [ ] **Entity group ids** (the words after the entity id).
-- [ ] **Type-specific layouts** for when entries must be added or resized.
-- [ ] **Names for the other 99 maps.**
+- [x] **Points (regions) and routes** (2026-11-03): type, place, shape and
+      size, position, id, part and entity id; routes join two point ids.
+- [x] **Entity group ids** (2026-11-03): eight words at the entity section's
+      +0x1C.
+- [x] **Entries added, removed and resized** (2026-11-03, below), moving the
+      indices the layout knows. Open: indices the layout does not know, and
+      whether the game accepts an added entry, which only play can show.
+- [x] **Names for the other 99 maps** (2026-11-03).
 
 ### ESD
 
@@ -1225,8 +1234,9 @@ The groups below are what was found as the gaps were worked through:
 - [ ] **Unflagged enemy lots on NpcParam rows that no map places.**
 - [ ] **133 treasures whose lot is not a row**, and 54 whose lot holds no
       item.
-- [ ] **The 99 maps and 45 scripts not found by name** (Phase 2) are not seen
-      at all.
+- [x] **The 99 maps and 45 scripts not found by name** are named (2026-11-03,
+      below). The model does not read them yet: the maps' treasures use only
+      lots other maps place, and their enemies are not moved.
 - [x] **Shops.** Placed where their merchants stand (below). Of the two
       flags, the second puts a row on sale (below); the first is probably
       the item's own got flag, as the Husks' resale events test it.
@@ -1560,7 +1570,7 @@ expansion is drafted with less confidence than the base game.
 - [x] **Gift conditions** read from talk (below); NPC quest phases are open.
 - [ ] **The play-through review** of the coverage report.
 - [ ] **The 293 flagged, named lots** are taken to be unused (one checked in
-      play, above). Naming the 99 maps would account for 20 of them.
+      play, above). The 99 maps named on 2026-11-03 place none of them.
 
 ## The mod manager add-on
 
@@ -1891,3 +1901,55 @@ The whole project is now GPL-3.0-or-later, so the doubt over `oozextract`'s labe
 ## Publish script (2026-11-02)
 
 `tools/publish.sh` builds the package, judges its files by a copy of the website's rules (`tools/check-package.sh`), signs a `release.json` with the offline key, tags the commit and stops; upload is by hand in the creator editor, as `apocrypha-web`'s `docs/addons.md` now has it, where Bodyworks' older script still uploads to a bucket. Seen with a throwaway key as `addons-dev`: the signature verified and the signed hash matched the package. `check-package.sh` passed the module at the root and refused it in a folder, under another name, as a non-Windows file, and refused a program in `.wasm`, an archive in `.json` and a bare name. Not run with the real key `addons-1`, which has not been found.
+
+## Names, and map entries that can be added (2026-11-03)
+
+Checked on 2.7.2 (build 25827938).
+
+**The name list.** `apoc-fs names` now also tries:
+- **navigation links** (`map:/nvc/%s_%s.nvc` in the exe): each joins an open-world tile to a neighbour, east or one of the three to its north, at levels 00 and 10. All 3,674 NVMC files are named this way, 298 of them through tiles with no other file;
+- **a word as one more folder** before a file already named, and in the exe's `font:/%s/font.gfx`: two sound binders under `/sound/enus/`, and 11 of the 12 fonts (`eu_std`, `hangul_map`, `thai` and so on);
+- **two names in older games' style**, kept because their hashes match: `/mtd/allmaterialbnd.mtdbnd.dcx` and `/mtd/speedtree.mtdbnd.dcx`.
+
+On the cached pass over the archives it took 28 min on four threads. It names **120,287 of 120,408 entries** (120,282 paths; 5 hashes are filed in two archives), up from 116,598. `apoc-fs check --names --no-recompress --jobs 4` with that list, in 110 s:
+
+```
+name list: 120282 names (120282 distinct hashes); names 120287/120408 entries; 0 names match no entry
+entries extracted: 120408/120408
+BND4 round-tripped byte for byte: 74417 top-level, 3465 nested, holding 691738 files
+EMEVD round-tripped byte for byte: 589
+MSB round-tripped byte for byte: 1347
+failures: 0
+```
+
+The 121 left, all but 2 in `Data0`:
+- 101 drawing parameters (`filt`, as the named `/param/drawparam/*.gparam.dcx` are). Every id pattern of the named ones was swept, and also 2- to 5-digit variants, a suffix of up to 3 letters and digits after each named stem, and every word of the game's text in that folder. None matched.
+- 10 binders: six whose members carry no names, and four of ray-tracing shaders (`shader\sat\raytracing\…`, `speedtree\…\shader_raytracing`).
+- 1 font, 3 TPF, 2 DDS, 2 Wwise packages (`AKPK`), and 2 files in `Data2` of unknown kind.
+
+So the gate's first half holds (every entry extracts), and the list names every entry but these 121. The gate is not marked passed.
+
+**The 99 maps and 45 scripts were never lost.** The name list had them all along; the tests and the developer tool swept map ids only to `_03` in the last part. Their ids end in 10 (48 maps), 11 (14), 12 (5) and 99 (32), and the scripts are `m60`, `m61` and 43 ending in 10. `Dvd::map_ids` now sweeps all 10^8 ids, the hash carried across the digits, in well under a second; the real-file tests and `apoc-fs msb-columns` read all 1,347 maps and 589 scripts by name. What they hold:
+- **`_10`:** 2,860 enemies and 261 treasures. Every treasure's lot is one other maps place, and 421 of the 422 enemy entity ids are also in other maps: alternative versions of tiles that exist already.
+- **`_11`, `_12`, `_99`:** 23 enemies and one treasure between them; the rest hold no enemies or treasure.
+
+`gamedata` still reads only `_00` to `_03`, so the randomizer does not move these maps' enemies. Their treasures change with the lots anyway.
+
+**MSB entries come apart and go back together** (`fs_msb::entry`). Each table's entries have a fixed header (models 0x28, events 0x30, points 0x68, routes 0x80, parts 0xC0) holding the offsets of their sections at fixed places. Text (the name, and the model file path of models and parts) ends in a zero unit. The next section starts at a multiple of 8 in models, events and parts, and of 4 in points, or straight after when it is text too. Each entry ends padded to 8. All 813,198 entries of the 1,347 maps re-lay byte for byte. So an entry can be renamed and its later sections move.
+
+**Adding and removing entries** (`Msb::insert`, `remove`, `place_for`). The maps keep every table grouped by type, in all 1,347 maps. Each entry holds its place among its type (all 676,654 parts, 75,291 models and 50,608 points; 7 of 10,286 events and 1 of 359 routes are off). Each model counts the parts that use it (75,291 of 75,291). `insert` keeps all three true, and moves every index the layout marks with `refers`. The real-file test adds an enemy after the last enemy in each of the 519 maps that have one, checks that every known index still names the entry it named, and takes it out again: every map comes back byte for byte. `remove` refuses an entry still pointed at.
+
+The indices marked are the clearest a scan of every column found: each value -1 or an entry of the target table, over many entries, pointing at one or two kinds. They are the treasure, ObjAct, squad, generator, rider and asset parts of events, and events' and points' own part and point. Also enemies' collision and draw parts, assets' collision and linked parts, and parts' models. The scan also showed rarer columns not marked, among them composite points' child points, some asset and enemy columns, and parts of map pieces. So an added part is safest after the last of its type in a table few things point into. Whether the game accepts an added entry is not tested: that needs the lab.
+
+**New fields** (`crates/fs-msb/layouts/elden_ring.toml`, each re-checked by `real_maps.rs`):
+- **Points:** type, place among type, shape and its sizes, position, rotation, id, part, entity id. The shape fixes its section's size in all 50,608 points: none, 4, 8, 12 or 64 bytes. Ids are unique in every map. 4,580 of 6,483 point entity ids are words of the event scripts.
+- **Routes:** type and place, and the two point ids they join (718 of 718 ends are point ids).
+- **Entity groups:** eight words at the part's entity section +0x1C. That is 748 ids over 12,678 uses, only 2 of them also a part's own entity id, and 334 words of the scripts.
+- **Events:** id, place among type, part, point and entity id.
+
+Tests: `fs-msb` 14 (entry round trip and resize, insert and remove, refusals, and mutation fuzz of entries and of inserting damaged entries); `fs-dvdbnd` 17; `fs-tool` names 15. On the stock copy, `real_maps` 12 and `real_files` 5 pass. Clippy and fmt are clean.
+
+Open:
+- **The name list's remainder** (above).
+- **Whether `gamedata` should read the `_10` maps,** so that the enemy randomizer moves their enemies as well: a question for Nova.
+- **An added entry in the game,** in the lab.

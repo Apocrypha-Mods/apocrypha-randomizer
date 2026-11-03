@@ -98,26 +98,20 @@ fn a_map_rewritten_as_zstd_reads_back_the_same() {
     assert_eq!(fs_dcx::decompress(&zstd).unwrap().1, plain);
 }
 
-/// Every event script's path, found by trying each name the game's pattern
-/// allows (`/event/mAA_BB_CC_DD.emevd.dcx` and the common scripts) against the
-/// archive index.
+/// Every event script's path, found by trying each name the game's patterns
+/// allow against the archive index: the common scripts, one per area
+/// (`/event/mAA.emevd.dcx`, the open worlds' `m60` and `m61`), and one per map
+/// (`/event/mAA_BB_CC_DD.emevd.dcx`, the last part running to 10 for the
+/// open world's other tiles).
 fn event_scripts(dvd: &Dvd) -> Vec<String> {
     let mut found: Vec<String> = ["common", "common_func", "common_macro"]
         .iter()
         .map(|n| format!("/event/{n}.emevd.dcx"))
+        .chain((0..100).map(|a| format!("/event/m{a:02}.emevd.dcx")))
         .filter(|p| dvd.find(p).is_some())
         .collect();
-    for a in 10..100 {
-        for b in 0..100 {
-            for c in 0..100 {
-                for d in 0..4 {
-                    let p = format!("/event/m{a:02}_{b:02}_{c:02}_{d:02}.emevd.dcx");
-                    if dvd.find(&p).is_some() {
-                        found.push(p);
-                    }
-                }
-            }
-        }
+    for m in dvd.map_ids("/event/", ".emevd.dcx") {
+        found.push(format!("/event/{m}.emevd.dcx"));
     }
     found
 }
@@ -126,9 +120,8 @@ fn event_scripts(dvd: &Dvd) -> Vec<String> {
 fn every_event_script_is_found_by_name_and_round_trips() {
     let dvd = game_or_skip!();
     let paths = event_scripts(dvd);
-    // 544 of the game's 589 scripts have a name of this pattern; the other 45
-    // are named some other way. `apoc-fs check` covers all 589 by content.
-    assert_eq!(paths.len(), 544);
+    // Every one of the game's 589 scripts: 2 common, 2 for areas, 585 for maps.
+    assert_eq!(paths.len(), 589);
     for p in &paths {
         let plain = read_plain(dvd, p);
         let e = fs_emevd::Emevd::read(&plain).unwrap_or_else(|e| panic!("{p}: {e}"));
