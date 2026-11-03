@@ -272,6 +272,13 @@ impl Dvd {
         self.find_hash(crate::hash_path(path))
     }
 
+    /// Every map id whose file `prefix + id + suffix` is in the archives, as
+    /// `map_ids("/map/mapstudio/", ".msb.dcx")` lists every map
+    /// ([`crate::name::map_ids`]).
+    pub fn map_ids(&self, prefix: &str, suffix: &str) -> Vec<String> {
+        crate::name::map_ids(prefix, suffix, |h| self.index.contains_key(&h))
+    }
+
     pub fn read(&self, r: EntryRef) -> Result<Vec<u8>> {
         self.archives[r.archive].read(self.entry(r))
     }
