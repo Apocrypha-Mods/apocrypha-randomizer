@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use enemies::{Options, Size, apply, malenia, pool, shuffle};
+use enemies::{Options, Size, apply, malenia, phases, pool, shuffle};
 use fs_msb::Msb;
 use fs_msb::layout::{entry_name, field};
 use fs_param::layout::for_table;
@@ -284,7 +284,7 @@ fn no_cutscene_is_changed() {
     let cutscenes = |e: &fs_emevd::Emevd| -> Vec<(i64, Vec<u8>)> {
         e.events
             .iter()
-            .filter(|ev| ev.id != 15_002_811)
+            .filter(|ev| !phases::STAGES.iter().any(|st| st.event == ev.id))
             .flat_map(|ev| ev.instructions.iter().map(move |i| (ev.id, i)))
             .filter(|(_, i)| i.bank == 2002)
             .map(|(id, i)| (id, i.args.clone()))
@@ -407,4 +407,89 @@ fn riders_and_mounts_stay_where_their_event_ties_them() {
         in_ride_param * 100 >= pairs * 95,
         "{in_ride_param} of {pairs}"
     );
+}
+
+/// A stage event goes with its boss (`phases`): into the new arena's script and
+/// started there, and no longer started at home; within one script it stays and
+/// names the newcomer's spot. Godrick to Morgott's arena and Malenia to Loretta's,
+/// in her own map, then Godrick to Margit's, in his.
+#[test]
+fn stage_events_go_with_their_bosses() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let at = |e: u32| p.spots.iter().position(|s| s.entity == Some(e)).unwrap();
+    let starts = |script: &fs_emevd::Emevd, event: i64| {
+        script.events[..]
+            .iter()
+            .filter(|e| e.id == 0)
+            .flat_map(|e| &e.instructions)
+            .filter(|i| (i.bank, i.id) == (2000, 0))
+            .any(|i| i.args.get(4..8) == Some((event as u32).to_le_bytes().as_slice()))
+    };
+    let names = |script: &fs_emevd::Emevd, event: i64, value: u32| {
+        script
+            .events
+            .iter()
+            .find(|e| e.id == event)
+            .unwrap()
+            .instructions
+            .iter()
+            .any(|i| i.args.chunks_exact(4).any(|w| w == value.to_le_bytes()))
+    };
+    let (godrick, margit, morgott) = (at(10_000_800), at(10_000_850), at(11_000_800));
+    let (malenia, loretta) = (at(15_000_800), at(15_000_850));
+    let mut from: Vec<usize> = (0..p.spots.len()).collect();
+    from.swap(godrick, morgott);
+    from.swap(malenia, loretta);
+    let out = phases::scripts(&s, &p, &enemies::Plan { from }).unwrap();
+    let script = |m: &str| &out.iter().find(|(id, _)| id.to_string() == m).unwrap().1;
+    let (stormveil, capital, haligtree) = (
+        script("m10_00_00_00"),
+        script("m11_00_00_00"),
+        script("m15_00_00_00"),
+    );
+    assert!(!starts(stormveil, 10_002_811));
+    assert!(starts(capital, 10_002_811) && names(capital, 10_002_811, 11_000_800));
+    assert!(!names(capital, 10_002_811, 10_000_800));
+    assert!(starts(haligtree, 15_002_811) && names(haligtree, 15_002_811, 15_000_850));
+    assert!(!names(haligtree, 15_002_811, 15_000_800));
+
+    let mut from: Vec<usize> = (0..p.spots.len()).collect();
+    from.swap(godrick, margit);
+    let out = phases::scripts(&s, &p, &enemies::Plan { from }).unwrap();
+    let (_, stormveil) = &out[0];
+    assert!(starts(stormveil, 10_002_811) && names(stormveil, 10_002_811, 10_000_850));
+}
+
+/// Over 1,000 seeds with every boss moving, and with half of them mixed out, the
+/// stage events find a script wherever their bosses land: no seed fails, and a
+/// boss with a stage event is never sent out into an open world.
+#[test]
+fn stage_events_fit_every_seed() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    for mix in [0, 50] {
+        let options = Options {
+            bosses: 100,
+            mix,
+            ..Default::default()
+        };
+        let mut moved = 0;
+        for seed in 0..1000 {
+            let plan = shuffle(&p, seed, &options);
+            for (i, &f) in plan.from.iter().enumerate() {
+                if phases::is_home(&p.spots[f]) {
+                    assert!(p.spots[i].boss.is_some(), "seed {seed} mix {mix}");
+                    moved += usize::from(i != f);
+                }
+            }
+            if let Err(e) = phases::scripts(&s, &p, &plan) {
+                panic!("seed {seed} mix {mix}: {e}");
+            }
+        }
+        eprintln!("mix {mix}: {moved} stage bosses moved over 1,000 seeds");
+        assert!(moved > 1000);
+    }
 }

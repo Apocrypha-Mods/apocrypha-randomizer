@@ -126,6 +126,17 @@ enum Command {
     },
     /// How the param fields named as flags show up in the event scripts.
     Flags { game: PathBuf },
+    /// Write tables' raw rows and the item text to a folder, for study outside
+    /// the tool: `<table>.rows` is the row size (u32), then each row's id (i32)
+    /// and bytes; `<text>.tsv` is id, tab, text.
+    ParamRows {
+        game: PathBuf,
+        out: PathBuf,
+        #[arg(long, value_delimiter = ',')]
+        tables: Vec<String>,
+        #[arg(long, value_delimiter = ',')]
+        texts: Vec<String>,
+    },
     /// Statistics for every instruction in the event scripts.
     Instructions {
         game: PathBuf,
@@ -135,6 +146,10 @@ enum Command {
         /// Only these instructions, as `bank:id,bank:id`.
         #[arg(long)]
         only: Option<String>,
+        /// Also check words against the maps' entity ids: enemies, other parts,
+        /// regions and entity groups (slower: reads every map).
+        #[arg(long)]
+        maps: bool,
     },
     /// Column statistics for one MSB table across every map.
     MsbColumns {
@@ -212,6 +227,8 @@ enum Command {
     /// Every command the scripts give each movable boss: map, spot, event,
     /// instruction and arguments, a line each.
     BossCommands { game: PathBuf, out: PathBuf },
+    /// Every event that changes a boss's stage on the boss's own effect or health.
+    BossPhases { game: PathBuf },
     /// Every use of one instruction, with its arguments filled in.
     InstructionUses { game: PathBuf, bank: u32, id: u32 },
     /// The area graph checked against the game, and the vanilla game walked
@@ -296,6 +313,8 @@ enum Command {
     },
     /// Every instruction in every map's script holding one of these numbers.
     ScriptFind { game: PathBuf, values: Vec<i32> },
+    /// The event scripts the game model does not read, and what each holds.
+    UnreadScripts { game: PathBuf },
     /// For each gift that may take a key item: what its talk script asks once
     /// failed conditions count, and what can turn on a flag it needs off.
     GiftAudit { game: PathBuf },
@@ -371,6 +390,61 @@ fn script_dump(game: PathBuf, events: &[i64], uses: &[String]) -> fs_bytes::Resu
 }
 
 /// Which map, event and instruction hold these numbers as whole words.
+/// The event scripts `gamedata` does not read, as its names stop at a map's
+/// last two digits 00 to 03: the open worlds' own (`/event/m60.emevd.dcx`,
+/// `m61`) and the coarse tiles' (`mAA_BB_CC_1x`). What each holds, by the
+/// catalogue's names.
+fn unread_scripts(game: PathBuf) -> fs_bytes::Result<()> {
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game)?;
+    let mut paths = vec![
+        "/event/m60.emevd.dcx".to_string(),
+        "/event/m61.emevd.dcx".to_string(),
+    ];
+    for a in 10..100 {
+        for b in 0..100 {
+            for c in 0..100 {
+                for d in 4..100 {
+                    paths.push(format!("/event/m{a:02}_{b:02}_{c:02}_{d:02}.emevd.dcx"));
+                }
+            }
+        }
+    }
+    let mut found = 0;
+    for p in paths.iter().filter(|p| dvd.find(p).is_some()) {
+        found += 1;
+        let script = fs_emevd::Emevd::read(&fs_dcx::decompress(&dvd.read_path(p)?)?.1)?;
+        let mut kinds: BTreeMap<String, usize> = BTreeMap::new();
+        let mut count = 0;
+        let mut shown = Vec::new();
+        for i in script.events.iter().flat_map(|e| &e.instructions) {
+            count += 1;
+            if let Some(e) = fs_emevd::catalogue::lookup(i.bank, i.id) {
+                *kinds.entry(e.name.clone()).or_default() += 1;
+                if matches!(
+                    e.name.as_str(),
+                    "boss_health_bar" | "boss_defeated" | "award_item_lot" | "award_item_lot_b"
+                ) {
+                    let words: Vec<i32> = i
+                        .args
+                        .chunks_exact(4)
+                        .map(|c| i32::from_le_bytes(c.try_into().unwrap()))
+                        .collect();
+                    shown.push(format!("{} {words:?}", e.name));
+                }
+            }
+        }
+        for s in &shown {
+            println!("    {s}");
+        }
+        println!(
+            "{p}: {} events, {count} instructions; {kinds:?}",
+            script.events.len()
+        );
+    }
+    println!("{found} scripts");
+    Ok(())
+}
+
 fn script_find(game: PathBuf, values: &[i32]) -> fs_bytes::Result<()> {
     let s = gamedata::Sources::open(&game)?;
     let scripts = s.scripts.iter().map(|(m, e)| (m.to_string(), e)).chain([
@@ -439,8 +513,15 @@ fn main() {
         } => enemies::near(game, map, entity, radius),
         Command::EnemyDump { game, out } => enemies::dump(game, out),
         Command::BossCommands { game, out } => enemies::boss_commands(game, out),
+        Command::BossPhases { game } => enemies::boss_phases(game),
         Command::InstructionUses { game, bank, id } => enemies::instruction_uses(game, bank, id),
         Command::Flags { game } => flags::run(game),
+        Command::ParamRows {
+            game,
+            out,
+            tables,
+            texts,
+        } => param_rows(game, out, &tables, &texts),
         Command::MsbColumns {
             game,
             table,
@@ -460,7 +541,12 @@ fn main() {
                 base,
             },
         ),
-        Command::Instructions { game, cache, only } => instructions::run(game, cache, only),
+        Command::Instructions {
+            game,
+            cache,
+            only,
+            maps,
+        } => instructions::run(game, cache, only, maps),
         Command::Labels {
             game,
             table,
@@ -490,6 +576,7 @@ fn main() {
             freeze,
         } => test_kit::kill(game, out, &map, entity, after, over, freeze),
         Command::ScriptFind { game, values } => script_find(game, &values),
+        Command::UnreadScripts { game } => unread_scripts(game),
         Command::GiftAudit { game } => gift_audit::run(game),
         Command::GiftBlockers { game, flags } => gift_audit::blockers(game, &flags),
         Command::GiftShut { game } => gift_audit::shut(game),
@@ -594,6 +681,42 @@ fn param_diff(old: PathBuf, new: PathBuf) -> fs_bytes::Result<()> {
     let gone = old.table_names().filter(|n| !names.iter().any(|m| m == n));
     for name in gone {
         println!("{name}: table removed");
+    }
+    Ok(())
+}
+
+fn param_rows(
+    game: PathBuf,
+    out: PathBuf,
+    tables: &[String],
+    texts: &[String],
+) -> fs_bytes::Result<()> {
+    std::fs::create_dir_all(&out)?;
+    let reg = fs_param::Regulation::open(&game)?;
+    for t in tables {
+        let p = reg.table(t)?;
+        let mut b = (p.row_size as u32).to_le_bytes().to_vec();
+        for r in &p.rows {
+            b.extend_from_slice(&r.id.to_le_bytes());
+            b.extend_from_slice(&r.data);
+        }
+        std::fs::write(out.join(format!("{t}.rows")), b)?;
+        println!("{t}: {} rows of {} bytes", p.rows.len(), p.row_size);
+    }
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game)?;
+    let text = gamedata::sources::text(&dvd)?;
+    for t in texts {
+        let Some(table) = text.get(t) else {
+            println!("{t}: no such text");
+            continue;
+        };
+        let mut lines: Vec<_> = table.iter().collect();
+        lines.sort();
+        let body: String = lines
+            .iter()
+            .map(|(id, s)| format!("{id}\t{}\n", s.replace(['\n', '\t'], " ")))
+            .collect();
+        std::fs::write(out.join(format!("{t}.tsv")), body)?;
     }
     Ok(())
 }

@@ -271,7 +271,7 @@ bank = 4
 id = 0
 name = "if_character_dead"
 length = 16
-confidence = "probable"
+confidence = "confirmed"
 evidence = """
 1,510 uses in event runs, always 16 bytes: byte 0 a condition group, word 1 a
 character, word 2 a state, word 3 always the float 1.0. Of 267 runs that wait in
@@ -280,7 +280,8 @@ shape of a boss's death event; of the 3 that wait for state 0, none do. Knights
 of the Great Jar (m60_47_41 events 1047412300 and 1047412301): the fight summons
 each knight only when this is not yet in state 1, and the Jar's reward flag waits
 for all three in state 1. Read as: the character is dead (state 1). State 0 is not
-read."""
+read. Confirmed from eldenring.exe 2.7.2: bank 4's handler for id 0 (+0x56BBC5)
+builds an EcTestChrDead, the exe's own class name."""
 [[instruction.arg]]
 word = 0
 name = "condition"
@@ -309,7 +310,8 @@ no such rows). The bell events (m61_50_40 2050402600, m61_53_46 2053462600) wait
 on it for the Hole-Laden Necklace, whose caption says it is used at a hallowed
 ruin to sound a hanging bell, and the bell's visual comes on with state 1 and off
 with state 0, as the player's holding it changes. Read as: the player holds (state
-1) or does not hold (state 0) the item. Only goods (category 3) are read."""
+1) or does not hold (state 0) the item. Only goods (category 3) are read. The exe's
+handler for 3[4] (+0x56FCAE) builds an EcTestHasItem."""
 [[instruction.arg]]
 word = 0
 name = "condition"
@@ -335,7 +337,7 @@ evidence = """
 (2050403600, 2053463600) are named as object actions in their maps' own event
 tables: "ObjAct 指遺跡 指笛" and "ObjAct 指遺跡 笛を吹く". Read as: the player did the
 action at that object, which needs nothing but standing there. Read only for the
-bells."""
+bells. The exe's handler for 5[2] (+0x573278) builds an EcTestObjActExecuted."""
 [[instruction.arg]]
 word = 0
 name = "condition"
@@ -668,7 +670,8 @@ length = 12
 confidence = "probable"
 evidence = """
 86 uses, always 12 bytes; word 1 is always a row of EquipParamProtector (64
-distinct), word 2 always -1. A condition (bank 3) on an armor piece."""
+distinct), word 2 always -1. A condition (bank 3) on an armor piece. The exe's
+handler for 3[34] (+0x56FC70) builds an EcTestPlayerEquipping: the player wears it."""
 [[instruction.arg]]
 word = 0
 name = "condition"
@@ -774,3 +777,788 @@ kind = { param = "TutorialParam" }
 word = 1
 name = "flags"
 kind = "packed"
+
+# --- Conditions named by the exe (2026-11-03) ----------------------------------
+#
+# Each condition handler in eldenring.exe 2.7.2 builds an object whose class the
+# exe names through its own run-time type data (EcTestChrDead, EcTestHasItem, ...).
+# The bank's handler is found from the dispatcher at +0x569040 (bank n at the
+# table's +8n), each id's case from that handler's jump table, and the class from
+# the vtable the case's constructor stores. `scratch/py/ec.py`, not committed, did
+# this read-only; no game ran. The words' meanings are from the scripts' data, and
+# entity and region words are checked against the maps (real_maps.rs). A
+# comparison word holds 0 ==, 1 !=, 2 >, 3 <, 4 >=, 5 <=, as read for 3[10].
+
+[[instruction]]
+bank = 3
+id = 2
+name = "if_in_region"
+length = 16
+confidence = "confirmed"
+evidence = """
+1,143 uses, always 16 bytes. The exe's handler (+0x56F89D) builds an
+EcTestRegionSide. Word 1 a character, the player (10000) in 922 of 1,390 values;
+word 2 a region of the maps in 96% of 3,442 distinct values; word 3 is 1 in all but
+2 uses. Godrick's stage event asks it of the player and region 10002156."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "region"
+kind = "region"
+[[instruction.arg]]
+word = 3
+name = "inside"
+kind = "number"
+
+[[instruction]]
+bank = 3
+id = 3
+name = "if_distance"
+length = 20
+confidence = "confirmed"
+evidence = """
+627 uses, always 20 bytes. The exe's handler (+0x56F7E7) builds an EcTestDistance.
+Words 1 and 2 are characters (the player 10000 in 343 and 86 values), word 3 a float
+(1.0 to about 100), word 4 always 1."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "from"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "to"
+kind = "entity"
+[[instruction.arg]]
+word = 3
+name = "distance"
+kind = "number"
+
+[[instruction]]
+bank = 3
+id = 10
+name = "if_flag_count"
+length = 20
+confidence = "confirmed"
+evidence = """
+44 uses, always 20 bytes. The exe's handler (+0x56F53F) builds an
+EcTestMultiEventFlagCount, tested at +0x57FEE0: how many flags of a range are on,
+compared with a value (see `Event tests read from the exe` in docs/progress.md).
+Words 1 and 2 the range, word 3 the comparison, word 4 the count. Named only; not
+followed by `flow`."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "first"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "last"
+kind = "flag"
+[[instruction.arg]]
+word = 3
+name = "comparison"
+kind = "number"
+[[instruction.arg]]
+word = 4
+name = "count"
+kind = "number"
+
+[[instruction]]
+bank = 3
+id = 12
+name = "if_event_value"
+length = 16
+confidence = "confirmed"
+evidence = """
+60 uses, always 16 bytes. The exe's handler (+0x56F5DC) builds an EcTestEventValue,
+tested at +0x57D0D0: a value held in a run of flags from word 1, compared with word
+3. Word 2's low byte reads as the run's length and its next byte as the comparison,
+from the shape of the uses. Named only; not followed by `flow`."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "first"
+kind = "flag"
+[[instruction.arg]]
+word = 2
+name = "how"
+kind = "number"
+[[instruction.arg]]
+word = 3
+name = "value"
+kind = "number"
+
+[[instruction]]
+bank = 3
+id = 17
+name = "if_journey"
+length = 4
+confidence = "probable"
+evidence = """
+78 uses, always 4 bytes. The exe's handler (+0x56FE1C) builds an
+EcTestGameClearCount: how many times the game has been finished. The word's upper
+bytes are not read."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+
+[[instruction]]
+bank = 3
+id = 23
+name = "if_damaged"
+length = 16
+confidence = "confirmed"
+evidence = """
+670 uses, always 16 bytes. The exe's handler (+0x56F74D) builds an
+EcTestEventEntityDamaged. Word 1 is what is hurt, an enemy of the maps in 88% of
+5,992 distinct values; word 2 by whom, 0 (anyone) in 314 uses or the player 10000
+in 162."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "target"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "by"
+kind = "number"
+
+[[instruction]]
+bank = 3
+id = 24
+name = "if_action_button"
+length = 12
+confidence = "confirmed"
+evidence = """
+214 uses, always 12 bytes. The exe's handler (+0x56F9B6) builds an
+EcTestActionButtonRegion. Word 1 is an ActionButtonParam row in every use (119
+distinct; the prompt), word 2 the part it is at, a part of the maps in 96%."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "prompt"
+kind = { param = "ActionButtonParam" }
+[[instruction.arg]]
+word = 2
+name = "at"
+kind = "entity"
+
+[[instruction]]
+bank = 3
+id = 37
+name = "if_weather"
+length = 12
+confidence = "probable"
+evidence = """
+61 uses, always 12 bytes. The exe's handler (+0x56F710) builds an
+EcTestWeatherLotteryParamId; word 1 is a WeatherLotParam row in every use, word 2 a
+state."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "weather"
+kind = { param = "WeatherLotParam" }
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 1
+id = 0
+name = "if_seconds_passed"
+length = 8
+confidence = "confirmed"
+evidence = """
+113 uses, always 8 bytes. The exe's handler (+0x576D86) builds an EcTestPassTime;
+word 1 is a float of seconds (5.0 in 53 values)."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "seconds"
+kind = "number"
+
+[[instruction]]
+bank = 4
+id = 2
+name = "if_health_share"
+length = 24
+confidence = "confirmed"
+evidence = """
+216 uses, always 24 bytes. The exe's handler (+0x56BC48) builds an
+EcTestChrHpRate. Word 1 a character (enemies of the maps, 95%), word 2 a
+comparison (5, at most, in 127), word 3 a float share of health: 45 bosses' arenas
+each wait on their boss at 5 against 0.6 and then set a flag."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "comparison"
+kind = "number"
+[[instruction.arg]]
+word = 3
+name = "share"
+kind = "number"
+
+[[instruction]]
+bank = 4
+id = 3
+name = "if_character_kind"
+length = 16
+confidence = "probable"
+evidence = """
+1,635 uses, always 16 bytes. The exe's handler (+0x56BD5D) builds an EcTestChrType.
+Word 1 the player or another player's slot (10000 to 10004), word 2 a small kind."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "number"
+[[instruction.arg]]
+word = 2
+name = "kind"
+kind = "number"
+
+[[instruction]]
+bank = 4
+id = 5
+name = "if_has_sp_effect"
+length = 20
+confidence = "confirmed"
+evidence = """
+4,967 uses, always 20 bytes. The exe's handler (+0x56BF9F) builds an
+EcTestHasSpEffectId. Word 1 a character (enemies of the maps, 91%), word 2 a
+SpEffectParam row (99% of 366), byte 12 the state: Godrick's stage event waits on
+him having 14785, Malenia's on her not having 18480."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "sp_effect"
+kind = { param = "SpEffectParam" }
+[[instruction.arg]]
+word = 3
+name = "has"
+kind = "packed"
+bytes = ["state"]
+
+[[instruction]]
+bank = 4
+id = 7
+name = "if_character_loaded"
+length = 16
+confidence = "probable"
+evidence = """
+258 uses, always 16 bytes. The exe's handler (+0x56BE31) builds an
+EcTestChrBackReadReady; word 1 a character (enemies of the maps, 92%), word 2 a
+state (1 in 245)."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 4
+id = 9
+name = "if_ai_state"
+length = 16
+confidence = "probable"
+evidence = """
+434 uses, always 16 bytes. The exe's handler (+0x56BF43) builds an
+EcTestChrAiState; word 1 a character (enemies of the maps, 92%), word 2 which state
+(3 in 242)."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "number"
+
+[[instruction]]
+bank = 4
+id = 14
+name = "if_health"
+length = 24
+confidence = "confirmed"
+evidence = """
+290 uses, always 24 bytes. The exe's handler (+0x56BCD3) builds an EcTestChrHpVal:
+the character's health as a number. Word 2 a comparison, word 3 the value. 5 against
+0 (at most nothing) is a death or a fall, as the boss events that call the defeat on
+it show; 5 against 1 is health held at 1, which Malenia's stage event waits on."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "comparison"
+kind = "number"
+[[instruction.arg]]
+word = 3
+name = "value"
+kind = "number"
+
+[[instruction]]
+bank = 4
+id = 34
+name = "if_has_sp_effect_kind"
+length = 16
+confidence = "probable"
+evidence = """
+1,157 uses, always 16 bytes. The exe's handler (+0x56C008) builds an
+EcTestHasSpEffectType; word 1 a character (enemies of the maps, 91%), word 2 one of
+five packed values."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "kind"
+kind = "number"
+
+[[instruction]]
+bank = 5
+id = 0
+name = "if_asset_destroyed"
+length = 16
+confidence = "probable"
+evidence = """
+89 uses, always 16 bytes. The exe's handler (+0x573020) builds an
+EcTestObjectDestoryState (its spelling); word 1 a part of the maps, 83% of 128."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "asset"
+kind = "entity"
+
+[[instruction]]
+bank = 5
+id = 10
+name = "if_asset_loaded"
+length = 16
+confidence = "probable"
+evidence = """
+25 uses, always 16 bytes. The exe's handler (+0x5731BC) builds an
+EcTestObjBackReadReady; word 1 a part of the maps (96%), word 2 a state."""
+[[instruction.arg]]
+word = 0
+name = "condition"
+kind = "packed"
+bytes = ["group"]
+[[instruction.arg]]
+word = 1
+name = "asset"
+kind = "entity"
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+# --- Commands read from their uses (2026-11-03) ---------------------------------
+#
+# Commands build no named object, so these are read from the data and from the
+# events they sit in; probable throughout.
+
+[[instruction]]
+bank = 2004
+id = 1
+name = "set_ai"
+length = 8
+confidence = "probable"
+evidence = """
+864 uses, always 8 bytes: a character (enemies of the maps, 89%), then 0 or 1.
+Godrick's arena turns his to 0 as the map loads and to 1 as the fight starts.
+`apoc-fs test-kill --freeze` sends 0 again and again, and in the lab a character
+walked up to an enemy that stood still (docs/progress.md, 2026-11-02)."""
+[[instruction.arg]]
+word = 0
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2004
+id = 2
+name = "set_team"
+length = 8
+confidence = "probable"
+evidence = """
+477 uses, always 8 bytes: a character (enemies of the maps, 93%), then a value from
+the same set as NpcParam's team byte (+0x133) in 824 of 826 uses with calls filled.
+Characters whose row is on 26 (friends) are set to 27 (hostile) 326 times, 90005703
+among the events; summonable allies on 2 are set to 0 148 times."""
+[[instruction.arg]]
+word = 0
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "team"
+kind = "number"
+
+[[instruction]]
+bank = 2004
+id = 4
+name = "kill"
+length = 8
+confidence = "probable"
+evidence = """
+489 uses, always 8 bytes: a character (enemies of the maps, 84%), then 0 or 1. Boss
+arenas send it to their boss as the map loads once its defeat flag is on. `apoc-fs
+test-kill` sent it with 1 to ten bodies in the lab, with no fault and 67 runes
+arriving; word 1 is read as whether runes are given."""
+[[instruction.arg]]
+word = 0
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "runes"
+kind = "state"
+
+[[instruction]]
+bank = 2004
+id = 5
+name = "set_present"
+length = 8
+confidence = "probable"
+evidence = """
+2,237 uses, always 8 bytes: a character (enemies of the maps, 88%), then 0 or 1.
+With set_present_b, it puts a body away (0) and back (1): Starscourge Radahn's
+meteor event turns both off, waits, and turns both on, and a dead boss's arena turns
+both off as it loads."""
+[[instruction.arg]]
+word = 0
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2004
+id = 39
+name = "set_present_b"
+length = 8
+confidence = "probable"
+evidence = """
+838 uses, always 8 bytes: a character (enemies of the maps, 87%), then 0 or 1, used
+beside set_present (see there). How the two differ is not read."""
+[[instruction.arg]]
+word = 0
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2004
+id = 21
+name = "sp_effect_b"
+length = 8
+confidence = "probable"
+evidence = """
+471 uses, always 8 bytes: a character (enemies of the maps, 80%), then a
+SpEffectParam row in every use (110 distinct). The shape of sp_effect; how it
+differs is not read (Malenia's stage event sends it beside four sp_effects)."""
+[[instruction.arg]]
+word = 0
+name = "target"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "sp_effect"
+kind = { param = "SpEffectParam" }
+
+[[instruction]]
+bank = 2003
+id = 18
+name = "play_animation"
+length = 16
+confidence = "probable"
+evidence = """
+2,290 uses, always 16 bytes: a character or asset (enemies of the maps, 81%), an
+animation id (30000 in 918 values, 20000 in 894), a packed word and the float 1.0.
+Godrick's arena sends him 30000 as the map loads and 20000 as the fight starts, and
+his stage event 20011; see `apoc-fs boss-commands` for which bodies have which."""
+[[instruction.arg]]
+word = 0
+name = "target"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "animation"
+kind = "number"
+
+[[instruction]]
+bank = 2003
+id = 14
+name = "warp_player"
+length = 12
+confidence = "probable"
+evidence = """
+42 uses, always 12 bytes: the map's four bytes, the place to land (a region of the
+maps, 91% of 121), and a number. `apoc-fs test-warp` builds it so, and in the lab it
+carried the character to the maps asked for (docs/progress.md, 2026-11-01)."""
+[[instruction.arg]]
+word = 0
+name = "map"
+kind = "number"
+[[instruction.arg]]
+word = 1
+name = "to"
+kind = "region"
+
+[[instruction]]
+bank = 2002
+id = 3
+name = "play_cutscene"
+length = 12
+confidence = "probable"
+evidence = """
+64 uses, always 12 bytes: a cutscene (its id is a row of the cutscene tables, such
+as CutsceneGparamTimeParam, 98%), a packed word and the player (10000 in every use).
+Godrick's and Malenia's stage events play their arena's cutscene with it."""
+[[instruction.arg]]
+word = 0
+name = "cutscene"
+kind = "number"
+[[instruction.arg]]
+word = 2
+name = "player"
+kind = "number"
+
+[[instruction]]
+bank = 2002
+id = 11
+name = "play_cutscene_and_warp"
+length = 28
+confidence = "probable"
+evidence = """
+60 uses, always 28 bytes: a cutscene (a row of CutsceneMapIdParam in every use), a
+packed word, a region of the maps (100% of 50), a map id, and the player (10000).
+It stands where play_cutscene does on another branch, so it is read as the same with
+a place to put the player after."""
+[[instruction.arg]]
+word = 0
+name = "cutscene"
+kind = { param = "CutsceneMapIdParam" }
+[[instruction.arg]]
+word = 2
+name = "to"
+kind = "region"
+[[instruction.arg]]
+word = 4
+name = "player"
+kind = "number"
+
+[[instruction]]
+bank = 2005
+id = 3
+name = "set_asset_present"
+length = 8
+confidence = "probable"
+evidence = """
+876 uses, always 8 bytes: a part of the maps (87% of 902), then 0 or 1. Godrick's
+arena turns 10001890 and 10001891 one on and the other off as his fight and stage
+change, the shape of swapping one asset for another."""
+[[instruction.arg]]
+word = 0
+name = "asset"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2005
+id = 6
+name = "set_object_action"
+length = 12
+confidence = "probable"
+evidence = """
+317 uses, always 12 bytes: a part of the maps (90%), an ObjActParam row (every value
+but -1), then 0 or 1. Godrick's arena turns 10001540's action 219001 off for the fight
+and on at his death."""
+[[instruction.arg]]
+word = 0
+name = "asset"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "action"
+kind = { param = "ObjActParam" }
+[[instruction.arg]]
+word = 2
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2006
+id = 1
+name = "region_effect_on"
+length = 8
+confidence = "probable"
+evidence = """
+223 uses, always 8 bytes: a region of the maps (93% of 199), then 0 or 1. Godrick's
+arena turns on 10003830 to 10003834 as the player nears the fog and region_effect_off
+takes them away as the fight starts; his death turns on 10003810 and 10003811. Read
+as something shown at a place; what is shown is not read."""
+[[instruction.arg]]
+word = 0
+name = "region"
+kind = "region"
+[[instruction.arg]]
+word = 1
+name = "state"
+kind = "state"
+
+[[instruction]]
+bank = 2006
+id = 2
+name = "region_effect_off"
+length = 4
+confidence = "probable"
+evidence = "235 uses, always 4 bytes: a region of the maps (87% of 115). See region_effect_on."
+[[instruction.arg]]
+word = 0
+name = "region"
+kind = "region"
+
+[[instruction]]
+bank = 2003
+id = 43
+name = "give_item"
+length = 16
+confidence = "probable"
+evidence = """
+127 uses, always 16 bytes: 3 in every use (goods, in ShopLineupParam's coding), an
+item (GoodsName ids 98%: the tutorial notes, such as "About Sites of Grace", 9100),
+a number like 710020, and a count (1 in 124). Gives an item without a lot. These
+notes are not item locations the randomizer moves."""
+[[instruction.arg]]
+word = 0
+name = "category"
+kind = "number"
+[[instruction.arg]]
+word = 1
+name = "item"
+kind = { text = "GoodsName" }
+[[instruction.arg]]
+word = 3
+name = "count"
+kind = "number"
+
+[[instruction]]
+bank = 2009
+id = 3
+name = "grace"
+length = 24
+confidence = "probable"
+evidence = """
+389 uses, always 24 bytes: a BonfireWarpParam event flag (76xxx), then a part of the
+maps (98% of 432; graces are assets placed in the maps, as BonfireWarpParam's own
+entity ids are), then floats. Read as setting up the grace at that asset."""
+[[instruction.arg]]
+word = 0
+name = "flag"
+kind = "flag"
+[[instruction.arg]]
+word = 1
+name = "asset"
+kind = "entity"

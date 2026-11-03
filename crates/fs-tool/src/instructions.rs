@@ -73,12 +73,89 @@ struct Stats {
     words: BTreeMap<usize, HashMap<u32, usize>>,
 }
 
-pub fn run(game: PathBuf, cache: PathBuf, only: Option<String>) -> Result<()> {
+/// The maps' entity ids, as sets a word's values can fall in: enemies (part
+/// types 2 and 10), every other part, regions, and the entity groups parts
+/// belong to. Regions and groups are read from raw words of the entries, not
+/// from `fs_msb`'s layout: a region's id is word 1 of the section whose offset
+/// it holds at +0x50 (7,464 set over 46,420 regions, ids shaped like enemies'),
+/// and a part's groups are the eight words from +0x1C of its entity section
+/// (+0x60), where enemies hold ids such as 1042375810 shared by many parts. A map
+/// event's id is word 2 of the section whose offset it holds at +0x18, or for an
+/// object action (type 7, which 5[2] names) word 0 of its data at +0x20; these
+/// count with the parts.
+pub fn entity_sets(maps: &[(String, fs_msb::Msb)]) -> Vec<Known> {
+    use fs_msb::layout::field;
+    let section = |e: &[u8], at: usize| -> Option<usize> {
+        let b = i64::from_le_bytes(e.get(at..at + 8)?.try_into().unwrap());
+        usize::try_from(b).ok().filter(|&b| b > 0)
+    };
+    let word = |e: &[u8], at: usize| -> Option<u32> {
+        e.get(at..at + 4)
+            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+    };
+    let (mut enemies, mut parts, mut regions, mut groups) = (
+        HashSet::new(),
+        HashSet::new(),
+        HashSet::new(),
+        HashSet::new(),
+    );
+    for (_, m) in maps {
+        for e in &m.table("PARTS_PARAM_ST").entries {
+            let ty = field("PARTS_PARAM_ST", "type").get(e, 0).unwrap_or(-1);
+            if let Some(id) = field("PARTS_PARAM_ST", "entity_id").get(e, 0) {
+                if [2, 10].contains(&ty) {
+                    enemies.insert(id as u32);
+                } else {
+                    parts.insert(id as u32);
+                }
+            }
+            if let Some(s) = section(e, 0x60) {
+                groups.extend((0..8).filter_map(|k| word(e, s + 0x1C + k * 4)));
+            }
+        }
+        for e in &m.table("POINT_PARAM_ST").entries {
+            if let Some(s) = section(e, 0x50) {
+                regions.extend(word(e, s + 4));
+            }
+        }
+        for e in &m.table("EVENT_PARAM_ST").entries {
+            if let Some(s) = section(e, 0x18) {
+                parts.extend(word(e, s + 8));
+            }
+            // An object action (type 7) holds its own id first in its data (+0x20).
+            if word(e, 0x0C) == Some(7)
+                && let Some(s) = section(e, 0x20)
+            {
+                parts.extend(word(e, s));
+            }
+        }
+    }
+    [
+        ("map enemy", enemies),
+        ("map part", parts),
+        ("map region", regions),
+        ("map group", groups),
+    ]
+    .into_iter()
+    .map(|(name, mut values)| {
+        values.retain(|&v| v != 0 && v != u32::MAX);
+        Known {
+            name: name.into(),
+            values,
+        }
+    })
+    .collect()
+}
+
+pub fn run(game: PathBuf, cache: PathBuf, only: Option<String>, maps: bool) -> Result<()> {
     let reg = Regulation::open(&game)?;
     let scripts = crate::scripts::load(&game, &cache)?;
     let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game)?;
     let text = gamedata::sources::text(&dvd)?;
-    let sets = known_sets(&reg, &scripts, &text)?;
+    let mut sets = known_sets(&reg, &scripts, &text)?;
+    if maps {
+        sets.extend(entity_sets(&crate::msb_columns::load_maps(&dvd)));
+    }
 
     let mut stats: BTreeMap<(u32, u32), Stats> = BTreeMap::new();
     let common_hash = format!(

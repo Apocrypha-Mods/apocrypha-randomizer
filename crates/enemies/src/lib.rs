@@ -12,6 +12,7 @@
 
 pub mod companions;
 pub mod malenia;
+pub mod phases;
 pub mod placidusax;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
@@ -522,8 +523,8 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     }
 
     // Mixing: a boss's body goes out into an open world, where there is room,
-    // and the ordinary enemy from there takes the arena. Malenia keeps to
-    // arenas, as her second phase needs a script to run in.
+    // and the ordinary enemy from there takes the arena. Malenia and Godrick keep
+    // to arenas, as their next stages need a script to run in (`phases`).
     for (&dlc, group) in &bosses {
         let mut fields: Vec<usize> = pool
             .spots
@@ -540,8 +541,7 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
         rng.shuffle(&mut fields);
         let mut fields = fields.into_iter();
         for &b in group {
-            if rng.below(100) >= usize::from(options.mix) || malenia::is_home(&pool.spots[from[b]])
-            {
+            if rng.below(100) >= usize::from(options.mix) || phases::is_home(&pool.spots[from[b]]) {
                 continue;
             }
             let Some(f) = fields.next() else { break };
@@ -838,7 +838,7 @@ pub fn apply(
             next
         }))
     };
-    let mut scripts = malenia::scripts(s, pool, plan)?;
+    let mut scripts = phases::scripts(s, pool, plan)?;
     placidusax::apply(s, pool, plan, &mut scripts)?;
     companions::apply(
         s,

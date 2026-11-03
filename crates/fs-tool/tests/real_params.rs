@@ -603,3 +603,114 @@ fn boss_defeat_flags_are_used_by_the_event_scripts() {
     assert!(pct(anywhere.len(), flags.len()) >= 95.0);
     assert!(pct(as_flag.len(), flags.len()) >= 70.0);
 }
+
+/// What a talisman's effect changes, against what its caption says: the
+/// SpEffectParam fields read off the game's own text. Each named talisman moves
+/// the field said and leaves the rest of the named fields at 1.0.
+#[test]
+fn talisman_effects_change_what_their_captions_say() {
+    let reg = regulation_or_skip!();
+    let sp = layout::for_table("SpEffectParam").unwrap();
+    let acc = layout::for_table("EquipParamAccessory").unwrap();
+    let effects: HashMap<i32, Vec<u8>> = reg
+        .table("SpEffectParam")
+        .unwrap()
+        .rows
+        .into_iter()
+        .map(|r| (r.id, r.data))
+        .collect();
+    let talismans = reg.table("EquipParamAccessory").unwrap().rows;
+    let effect_of = |name: &str| -> &Vec<u8> {
+        let id = id_named("AccessoryName", name) as i32;
+        let row = talismans.iter().find(|r| r.id == id).unwrap();
+        &effects[&(acc.field("sp_effect").get(&row.data, 0) as i32)]
+    };
+    let rates = [
+        ("health_rate", 1),
+        ("stamina_rate", 1),
+        ("damage_taken_rate", 7),
+        ("rune_gain_rate", 1),
+        ("negation_rate", 5),
+        ("negation_rate_b", 5),
+        ("player_attack_rate", 5),
+    ];
+    let moved = |row: &[u8]| -> Vec<(String, f32)> {
+        let mut out = Vec::new();
+        for (name, n) in rates {
+            for i in 0..n {
+                let v = sp.field(name).get_f32(row, i);
+                if (v - 1.0).abs() > 1e-4 {
+                    out.push((format!("{name}[{i}]"), v));
+                }
+            }
+        }
+        out
+    };
+    let only = |talisman: &str, want: &[String], above: bool| {
+        let got = moved(effect_of(talisman));
+        let names: Vec<&String> = got.iter().map(|(n, _)| n).collect();
+        assert_eq!(
+            names,
+            want.iter().collect::<Vec<_>>(),
+            "{talisman}: {got:?}"
+        );
+        assert!(
+            got.iter().all(|(_, v)| (*v > 1.0) == above),
+            "{talisman}: {got:?}"
+        );
+    };
+    let one = |s: &str| vec![s.to_string()];
+    only("Crimson Amber Medallion", &one("health_rate[0]"), true);
+    only("Viridian Amber Medallion", &one("stamina_rate[0]"), true);
+    only("Gold Scarab", &one("rune_gain_rate[0]"), true);
+    let seven: Vec<String> = (0..7).map(|i| format!("damage_taken_rate[{i}]")).collect();
+    only("Daedicar's Woe", &seven, true);
+    for (i, t) in [
+        "Dragoncrest Shield Talisman",
+        "Spelldrake Talisman",
+        "Flamedrake Talisman",
+        "Boltdrake Talisman",
+        "Haligdrake Talisman",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let want = vec![
+            format!("negation_rate[{i}]"),
+            format!("negation_rate_b[{i}]"),
+        ];
+        only(t, &want, false);
+    }
+    // Margit's tier, as the health sums of real_enemies.rs use it: health and
+    // attack rise, and none of the player's own rates moves.
+    let tier = &effects[&7030];
+    assert!((sp.field("health_rate").get_f32(tier, 0) - 1.656).abs() < 1e-3);
+    assert!(sp.field("attack_rate").get_f32(tier, 0) > 1.0);
+    let rest: Vec<_> = moved(tier)
+        .into_iter()
+        .filter(|(n, _)| n != "health_rate[0]" && n != "stamina_rate[0]")
+        .collect();
+    assert!(rest.is_empty(), "{rest:?}");
+}
+
+/// A boss's runes come from its GameAreaParam row, not its NpcParam row: Margit's
+/// row pays nothing of its own, and his area's 12,000 is what the lab saw paid at
+/// his spot (docs/progress.md, 2026-11-02).
+#[test]
+fn margits_runes_are_his_areas() {
+    let reg = regulation_or_skip!();
+    let npc = layout::for_table("NpcParam").unwrap();
+    let area = layout::for_table("GameAreaParam").unwrap();
+    let row = |t: &str, id: i32| {
+        reg.table(t)
+            .unwrap()
+            .rows
+            .into_iter()
+            .find(|r| r.id == id)
+            .unwrap()
+            .data
+    };
+    assert_eq!(npc.field("runes").get(&row("NpcParam", 21_300_014), 0), 0);
+    let margit = row("GameAreaParam", 10_000_850);
+    assert_eq!(area.field("rune_reward").get(&margit, 0), 12_000);
+}

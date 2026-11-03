@@ -212,6 +212,30 @@ pub(crate) fn make_room(pool: &Pool, from: &mut [usize]) {
                 continue;
             }
             let home = from[i];
+            let displaced = from[home];
+            // A boss whose next stage needs a script (`phases`) keeps to arenas: if
+            // sending this one home would put it out on open ground, it takes the
+            // arena of a boss that may go there, and that one goes out instead.
+            if crate::phases::is_home(&pool.spots[displaced]) && pool.spots[i].boss.is_none() {
+                let side = pool.spots[i].dlc;
+                let other = (0..from.len()).find(|&j| {
+                    j != home
+                        && j != i
+                        && pool.spots[j].boss.is_some()
+                        && pool.spots[j].dlc == side
+                        && pool.spots[from[j]].dlc == side
+                        && pool.spots[displaced].dlc == side
+                        && !crate::phases::is_home(&pool.spots[from[j]])
+                        && needs(pool, &pool.spots[from[j]]).is_empty()
+                });
+                if let Some(j) = other {
+                    from[home] = home;
+                    from[i] = from[j];
+                    from[j] = displaced;
+                    sent = true;
+                    continue;
+                }
+            }
             from.swap(i, home);
             sent = true;
         }

@@ -590,3 +590,91 @@ fn an_enemy_added_and_taken_out_again_leaves_every_map_as_it_was() {
     eprintln!("maps with an enemy added and taken out: {tried}");
     assert!(tried > 500);
 }
+
+/// Every argument the instruction catalogue calls an entity or a region names
+/// something the maps hold: an enemy, another part or a group of parts for an
+/// entity, a region for a region. Small ids under 100,000 are the player and the
+/// other characters' slots (10000, 20000, 35000 and the like), which no map
+/// places, and are left out. Groups, regions and map events are read from raw
+/// words, as `apoc-fs instructions --maps` does: a part's eight groups from +0x1C
+/// of its entity section (+0x60), a region's id at word 1 of the section at +0x50,
+/// a map event's at word 2 of the section at +0x18, or an object action's at word 0
+/// of its data (+0x20).
+#[test]
+fn entity_and_region_arguments_name_what_the_maps_hold() {
+    let g = game_or_skip!();
+    let section = |e: &[u8], at: usize| -> Option<usize> {
+        let b = i64::from_le_bytes(e.get(at..at + 8)?.try_into().unwrap());
+        usize::try_from(b).ok().filter(|&b| b > 0)
+    };
+    let word = |e: &[u8], at: usize| -> Option<u32> {
+        e.get(at..at + 4)
+            .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
+    };
+    let (mut things, mut regions) = (HashSet::new(), HashSet::new());
+    for (_, m) in &g.maps {
+        for e in &m.table("PARTS_PARAM_ST").entries {
+            things.extend(
+                field("PARTS_PARAM_ST", "entity_id")
+                    .get(e, 0)
+                    .map(|v| v as u32),
+            );
+            if let Some(s) = section(e, 0x60) {
+                things.extend((0..8).filter_map(|k| word(e, s + 0x1C + k * 4)));
+            }
+        }
+        for e in &m.table("POINT_PARAM_ST").entries {
+            if let Some(s) = section(e, 0x50) {
+                regions.extend(word(e, s + 4));
+            }
+        }
+        for e in &m.table("EVENT_PARAM_ST").entries {
+            if let Some(s) = section(e, 0x18) {
+                things.extend(word(e, s + 8));
+            }
+            // An object action (type 7) holds its own id first in its data (+0x20).
+            if word(e, 0x0C) == Some(7)
+                && let Some(s) = section(e, 0x20)
+            {
+                things.extend(word(e, s));
+            }
+        }
+    }
+    let dvd = Dvd::open_elden_ring(&g.dir).unwrap();
+    let mut names = vec!["/event/common_func.emevd.dcx".to_string()];
+    for (p, _) in &g.maps {
+        names.push(
+            p.replace("/map/mapstudio/", "/event/")
+                .replace(".msb.dcx", ".emevd.dcx"),
+        );
+    }
+    let scripts: Vec<fs_emevd::Emevd> = names
+        .iter()
+        .filter(|p| dvd.find(p).is_some())
+        .map(|p| {
+            fs_emevd::Emevd::read(&fs_dcx::decompress(&dvd.read_path(p).unwrap()).unwrap().1)
+                .unwrap()
+        })
+        .collect();
+    let refs: Vec<&fs_emevd::Emevd> = scripts.iter().collect();
+    use fs_emevd::catalogue::{self, ArgKind};
+    for e in catalogue::elden_ring() {
+        for a in &e.args {
+            let set = match a.kind {
+                ArgKind::Entity => &things,
+                ArgKind::Region => &regions,
+                _ => continue,
+            };
+            let vals: HashSet<u32> =
+                catalogue::values(&refs, Some(&scripts[0]), e.bank, e.id, a.word)
+                    .into_iter()
+                    .filter(|&v| v >= 100_000 && v != u32::MAX)
+                    .collect();
+            let hit = vals.iter().filter(|v| set.contains(v)).count();
+            eprintln!("{}.{}: {hit} of {} in the maps", e.name, a.name, vals.len());
+            if vals.len() >= 10 {
+                assert!(pct(hit, vals.len()) >= 85.0, "{}.{}", e.name, a.name);
+            }
+        }
+    }
+}

@@ -43,8 +43,11 @@ pub enum ArgKind {
     Param(String),
     /// An id in the named text table (e.g. `NpcName`).
     Text(String),
-    /// The id of a character or other map entity (to be checked against MSB).
+    /// The id of a character, an asset or a group of them in the maps (checked
+    /// against MSB by `fs-tool/tests/real_maps.rs`).
     Entity,
+    /// The id of a region: a point or an area in the maps (checked the same way).
+    Region,
     /// A small number whose meaning is not settled.
     Number,
     /// Several small values packed into one word.

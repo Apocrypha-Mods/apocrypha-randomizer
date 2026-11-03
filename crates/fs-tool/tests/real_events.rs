@@ -286,3 +286,37 @@ fn the_quest_condition_readings_hold() {
         "{goods_rows} of {goods_uses}"
     );
 }
+
+/// What set_team gives a character is a value of NpcParam's team byte: the
+/// scripts and the param table speak of one thing.
+#[test]
+fn set_team_gives_values_of_the_npc_team_byte() {
+    let Some(g) = game() else {
+        eprintln!("APOC_ER_STOCK is not set; skipping");
+        return;
+    };
+    let team = fs_param::layout::for_table("NpcParam")
+        .unwrap()
+        .field("team");
+    let teams: HashSet<u32> = g
+        .reg
+        .table("NpcParam")
+        .unwrap()
+        .rows
+        .iter()
+        .map(|r| team.get(&r.data, 0) as u32)
+        .collect();
+    let set = catalogue::named("set_team");
+    let common = Some(&g.scripts[0]);
+    let (mut n, mut hit) = (0, 0);
+    for s in &g.scripts {
+        for u in catalogue::uses(s, common, set.bank, set.id) {
+            if let Some(v) = u.word(set.arg("team").word) {
+                n += 1;
+                hit += usize::from(teams.contains(&v));
+            }
+        }
+    }
+    eprintln!("set_team: {hit} of {n} values are NpcParam teams");
+    assert!(n >= 400 && hit * 100 >= n * 99, "{hit} of {n}");
+}
