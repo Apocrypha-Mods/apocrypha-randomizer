@@ -52,7 +52,9 @@ struct Sliders {
     #[arg(long, default_value = "")]
     shuffle: String,
     /// How strongly moved items lean towards deep slots, 0 to 100
-    /// (default 0): `--bias keys=60,weapons=30`.
+    /// (default 0): `--bias keys=60,weapons=30`. Item categories and gathering
+    /// only: merchants, starting gear, keepsakes and NPC gear are refused, as
+    /// what lands there leans by its own category.
     #[arg(long, default_value = "")]
     bias: String,
     /// Keep base-game and DLC items on their own side (`separate`) or

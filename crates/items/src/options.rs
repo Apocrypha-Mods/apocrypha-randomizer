@@ -109,6 +109,17 @@ impl Category {
         }
     }
 
+    /// Whether a bias slider leans this category: every category of item, and
+    /// gathering, whose nodes draw among themselves. Merchants, starting gear,
+    /// keepsakes and NPC gear are kinds of slot whose items lean by their own
+    /// category, so a bias for them would do nothing (Nova, 2026-11-03: refused).
+    pub fn leans(self) -> bool {
+        !matches!(
+            self,
+            Category::Merchant | Category::Starting | Category::Keepsake | Category::NpcGear
+        )
+    }
+
     fn index(self) -> usize {
         Category::ALL.iter().position(|&c| c == self).unwrap()
     }
@@ -182,7 +193,9 @@ impl Options {
     }
 
     /// Apply `name=percent` settings, `all=percent` for every category, to
-    /// the shuffle (`bias == false`) or bias sliders.
+    /// the shuffle (`bias == false`) or bias sliders. A bias for a kind of slot
+    /// that does not lean ([`Category::leans`]) is refused; `all=` leaves those
+    /// alone.
     pub fn set(&mut self, bias: bool, spec: &str) -> Result<(), String> {
         for part in spec.split(',').filter(|p| !p.is_empty()) {
             let (name, value) = part
@@ -195,14 +208,27 @@ impl Options {
                 .filter(|&p| p <= 100)
                 .ok_or_else(|| format!("'{part}': the percent must be 0 to 100"))?;
             let cats: Vec<Category> = if name == "all" {
-                Category::ALL.to_vec()
+                Category::ALL
+                    .into_iter()
+                    .filter(|c| !bias || c.leans())
+                    .collect()
             } else {
-                vec![
-                    *Category::ALL
-                        .iter()
-                        .find(|c| c.name() == name)
-                        .ok_or_else(|| format!("'{name}': no such category ({})", names()))?,
-                ]
+                let c = *Category::ALL
+                    .iter()
+                    .find(|c| c.name() == name)
+                    .ok_or_else(|| format!("'{name}': no such category ({})", names()))?;
+                if bias && !c.leans() {
+                    return Err(format!(
+                        "lean does not apply to {name}: it moves items by type, such as keys=60 (lean takes {})",
+                        Category::ALL
+                            .into_iter()
+                            .filter(|c| c.leans())
+                            .map(Category::name)
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                vec![c]
             };
             for c in cats {
                 if bias {
@@ -267,6 +293,33 @@ mod tests {
         assert!(o.set(false, "swords=10").is_err());
         assert!(o.set(false, "weapons=101").is_err());
         assert!(o.set(false, "weapons").is_err());
+    }
+
+    #[test]
+    fn a_bias_for_a_kind_of_slot_is_refused_and_all_passes_it_by() {
+        for name in ["merchants", "starting-gear", "keepsakes", "npc-gear"] {
+            let mut o = Options::default();
+            let e = o.set(true, &format!("{name}=80")).unwrap_err();
+            assert!(e.contains(&format!("lean does not apply to {name}")), "{e}");
+            assert!(e.contains("keys=60"), "{e}");
+            // Its shuffle slider is still taken.
+            o.set(false, &format!("{name}=80")).unwrap();
+        }
+        let mut o = Options::default();
+        o.set(true, "all=70,keys=20").unwrap();
+        assert_eq!(o.bias(Category::Key), 20);
+        assert_eq!(o.bias(Category::Weapon), 70);
+        assert_eq!(o.bias(Category::Gathering), 70);
+        for c in [
+            Category::Merchant,
+            Category::Starting,
+            Category::Keepsake,
+            Category::NpcGear,
+        ] {
+            assert_eq!(o.bias(c), 0, "{}", c.name());
+        }
+        o.set(true, "gathering=10").unwrap();
+        assert_eq!(o.bias(Category::Gathering), 10);
     }
 
     #[test]

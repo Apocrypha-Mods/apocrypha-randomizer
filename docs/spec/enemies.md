@@ -133,6 +133,10 @@ To be filled in as they are found. Not yet seen in the game:
 - **Far copies.** None found on 2.7.2: no entity is on two open-world parts. 164 spots on
   coarse tiles still move, as nothing ties them to a fine copy. Not seen in play.
 - **The health bar** text is shared where two bosses use one id. The first wins.
+  A nameless ordinary enemy in an arena (by the mix) goes by what the game's bars
+  call its model elsewhere, the shortest such name ("Crystalian", not "Crystalian
+  (Spear)"); with none, the bar keeps the arena's own boss's name. No bar is written
+  empty or with a leftover such as "DLC dummy" (Nova, 2026-11-03).
 - **New rows.** A seed adds up to some 19,000 NpcParam rows, and whether the game
   minds is unknown.
 

@@ -238,9 +238,42 @@ pub struct Pool {
     /// enemies that have one, by `Spot::map_index`, for the spots that have none
     /// (docs/spec/05-enemy-model.md §5).
     pub map_tier: BTreeMap<usize, (i64, i64)>,
+    /// What the scripts' health bars call each model, from every boss spot standing
+    /// on it, moved or not: the plainest such name and its `NpcName` id
+    /// ([`model_name`]). A nameless ordinary enemy in an arena goes by it.
+    pub model_names: BTreeMap<String, (String, i32)>,
+}
+
+/// Whether a name is not one to show: empty, or the text the game leaves on rows
+/// with none, such as "DLC dummy" (the text of id 0).
+pub fn is_leftover(name: &str) -> bool {
+    name.trim().is_empty() || name.to_lowercase().contains("dummy")
+}
+
+/// Of the health bar names shown over one model, the one a nameless body of that
+/// model goes by: the shortest, as the plain kind ("Crystalian", "Magma Wyrm") is
+/// shorter than a variant or a named one ("Crystalian (Spear)", "Magma Wyrm
+/// Makar"); the commonest on a tie, then the lowest id.
+pub fn model_name(names: &BTreeMap<(String, i32), usize>) -> Option<(String, i32)> {
+    names
+        .iter()
+        .filter(|((n, _), _)| !is_leftover(n))
+        .min_by_key(|((n, id), count)| (n.chars().count(), std::cmp::Reverse(**count), *id))
+        .map(|((n, id), _)| (n.clone(), *id))
 }
 
 impl Pool {
+    /// The name and `NpcName` id a body shows on a boss's health bar: a boss's own,
+    /// a named enemy's own, else what the bars call its model. `None` where none of
+    /// these is a real name, and the bar keeps the text it had.
+    pub fn bar_name(&self, body: &Spot) -> Option<(String, i32)> {
+        let own = &body.body;
+        if !is_leftover(&own.name) && (body.boss.is_some() || own.name_text > 0) {
+            return Some((own.name.clone(), own.name_text));
+        }
+        self.model_names.get(&own.model).cloned()
+    }
+
     pub fn bosses(&self) -> impl Iterator<Item = &Spot> {
         self.spots.iter().filter(|s| s.boss.is_some())
     }
@@ -348,6 +381,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
         .collect();
 
     let mut out = Pool::default();
+    let mut bar_models: BTreeMap<String, BTreeMap<(String, i32), usize>> = BTreeMap::new();
     let mut placed: HashMap<u32, usize> = HashMap::new();
     let mut twice: BTreeSet<u32> = BTreeSet::new();
     out.listed = s
@@ -450,6 +484,13 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             if let Some((script, bar_text)) = entity.and_then(|en| bars.get(&en)) {
                 let en = entity.unwrap_or(0);
                 let shown = s.text("NpcName", *bar_text).unwrap_or(&name).to_string();
+                if s.text("NpcName", *bar_text).is_some() {
+                    *bar_models
+                        .entry(model_name.clone())
+                        .or_default()
+                        .entry((shown.clone(), *bar_text))
+                        .or_default() += 1;
+                }
                 let refuse = if shown.contains("dummy") {
                     Some("a stand-in with no fight of its own")
                 } else if tied.contains(&part) {
@@ -513,6 +554,10 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             }
         }
     }
+    out.model_names = bar_models
+        .into_iter()
+        .filter_map(|(m, names)| Some((m, model_name(&names)?)))
+        .collect();
     // Neither copy of a boss placed twice moves: one moved alone would leave
     // two bodies under one entity.
     out.spots
@@ -881,11 +926,13 @@ pub fn apply(
             .entry(spot.map_index)
             .or_insert_with(|| s.maps[spot.map_index].1.clone());
         stand_on(msb, spot.part, body, id)?;
-        if let Some(b) = &spot.boss {
-            bar_names
-                .entry(b.bar_text)
-                .or_insert_with(|| body.name.clone());
-            bar_sources.entry(b.bar_text).or_insert(body.name_text);
+        // A body with no real name of its own goes by its model's, else the bar
+        // keeps the name it had: never empty, never a leftover.
+        if let (Some(b), Some((name, text))) =
+            (&spot.boss, pool.bar_name(&pool.spots[plan.from[i]]))
+        {
+            bar_names.entry(b.bar_text).or_insert(name);
+            bar_sources.entry(b.bar_text).or_insert(text);
         }
     }
     let mut new_row = |data: Vec<u8>, name: Option<Vec<u16>>| -> Result<i32> {
@@ -1020,6 +1067,7 @@ mod tests {
             listed: vec![BTreeSet::new()],
             companions: BTreeMap::new(),
             map_tier: BTreeMap::new(),
+            model_names: BTreeMap::new(),
         }
     }
 
@@ -1128,6 +1176,7 @@ mod tests {
             listed: vec![BTreeSet::new()],
             companions: BTreeMap::new(),
             map_tier: BTreeMap::new(),
+            model_names: BTreeMap::new(),
         };
         let added = new_models(&p, &[0, 1]);
         assert_eq!(added[&0].keys().copied().collect::<Vec<_>>(), ["c1000"]);
@@ -1152,6 +1201,7 @@ mod tests {
             listed,
             companions: BTreeMap::new(),
             map_tier: BTreeMap::new(),
+            model_names: BTreeMap::new(),
         };
         let free = shuffle(
             &p,
@@ -1184,6 +1234,41 @@ mod tests {
         assert_eq!(e[8], 2);
         assert_eq!(e[0xC], 9);
         assert_eq!(e.len() % 8, 0);
+    }
+
+    #[test]
+    fn a_nameless_body_on_a_bar_goes_by_its_model_or_leaves_the_bar_be() {
+        let names = BTreeMap::from([
+            (("Crystalian (Spear)".to_string(), 3), 2),
+            (("Crystalian".to_string(), 2), 1),
+            (("DLC dummy".to_string(), 0), 5),
+        ]);
+        assert_eq!(model_name(&names), Some(("Crystalian".into(), 2)));
+        assert_eq!(
+            model_name(&BTreeMap::from([(("DLC dummy".to_string(), 0), 1)])),
+            None
+        );
+        assert!(is_leftover("") && is_leftover("  ") && is_leftover("DLC dummy"));
+        assert!(!is_leftover("Margit, the Fell Omen"));
+
+        let mut p = sample();
+        p.model_names
+            .insert("c25".into(), ("Crystalian".into(), 903_350_320));
+        let mut nameless = p.spots[25].clone();
+        nameless.body.name = String::new();
+        assert_eq!(
+            p.bar_name(&nameless),
+            Some(("Crystalian".into(), 903_350_320))
+        );
+        // No name for its model: the bar keeps its own.
+        let mut other = p.spots[26].clone();
+        other.body.name = "DLC dummy".into();
+        assert_eq!(p.bar_name(&other), None);
+        // A named enemy, and a boss, keep theirs.
+        let mut named = p.spots[25].clone();
+        named.body.name_text = 77;
+        assert_eq!(p.bar_name(&named), Some(("n25".into(), 77)));
+        assert_eq!(p.bar_name(&p.spots[0]), Some(("n0".into(), 0)));
     }
 
     #[test]

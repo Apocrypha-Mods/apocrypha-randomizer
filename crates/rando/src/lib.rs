@@ -782,15 +782,20 @@ fn item_table(kind: ItemKind) -> &'static str {
 type Words = fn(&str) -> &'static str;
 
 /// Character creation names its keepsakes from menu text of its own, so write
-/// what each now is, in the file the game reads (the last DLC's holds it all),
-/// in each language. The menu's one line of help is English in all of them.
-/// `talk` adds talk menu text (EventTextForTalk), its words by language.
+/// what each moved one now is, in the file the game reads (the last DLC's holds it
+/// all), in each language. The menu's one line of help is English in all of them.
+/// `talk` adds talk menu text (EventTextForTalk), its words by language. With no
+/// keepsake moved, their text is left alone, and with no talk text either the file
+/// is not written at all.
 fn menu_text(
     files: &GameFiles,
     out: &dyn Sink,
     keepsakes: &[(i32, Item)],
     talk: &[(i32, Words)],
 ) -> Result<()> {
+    if keepsakes.is_empty() && talk.is_empty() {
+        return Ok(());
+    }
     for language in LANGUAGES {
         let path = format!("/msg/{language}/menu_dlc02.msgbnd.dcx");
         if !files.exists(&path) {
@@ -816,8 +821,10 @@ fn menu_text(
             .collect();
         rewrite_text(files, out, &path, |f| {
             let line = match f.short_name() {
-                Some("GR_MenuText.fmg") => None,
-                Some("GR_LineHelp.fmg") => Some("Your keepsake, chosen by the seed."),
+                Some("GR_MenuText.fmg") if !names.is_empty() => None,
+                Some("GR_LineHelp.fmg") if !names.is_empty() => {
+                    Some("Your keepsake, chosen by the seed.")
+                }
                 Some("EventTextForTalk.fmg") if !talk.is_empty() => {
                     let mut fmg = fs_fmg::Fmg::read(&f.data)?;
                     for (id, words) in talk {
