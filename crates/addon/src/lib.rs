@@ -310,6 +310,19 @@ fn load(state: &mut State, stack: &Stack) -> Result<Option<Answer>> {
 }
 
 fn run(state: &mut State, request: &Run) -> Result<Answer> {
+    // The settings first, so one that is refused is said before any file is asked for.
+    let mut options = ItemOptions::default();
+    options.set(false, &request.shuffle).map_err(format_err)?;
+    options.set(true, &request.bias).map_err(format_err)?;
+    options.dlc_separate = request.dlc_separate;
+    options.auto_upgrade = request.auto_upgrade;
+    options
+        .set_leyndell_runes(request.leyndell_runes)
+        .map_err(format_err)?;
+    let mut foes = EnemyOptions::default();
+    foes.set(&request.enemies).map_err(format_err)?;
+    foes.dlc_separate = true;
+    foes.scale = !request.no_scaling;
     let absent: Vec<String> = first_files()
         .into_iter()
         .filter(|f| !state.whole.contains_key(f))
@@ -345,18 +358,6 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
             return Ok(early);
         }
     }
-    let mut options = ItemOptions::default();
-    options.set(false, &request.shuffle).map_err(format_err)?;
-    options.set(true, &request.bias).map_err(format_err)?;
-    options.dlc_separate = request.dlc_separate;
-    options.auto_upgrade = request.auto_upgrade;
-    options
-        .set_leyndell_runes(request.leyndell_runes)
-        .map_err(format_err)?;
-    let mut foes = EnemyOptions::default();
-    foes.set(&request.enemies).map_err(format_err)?;
-    foes.dlc_separate = true;
-    foes.scale = !request.no_scaling;
     let written = Written::default();
     let loaded = state.loaded.as_ref().expect("loaded above");
     let files = state.files.as_ref().expect("opened above");
@@ -549,6 +550,25 @@ mod tests {
         let bad = br#"{"op":"run","seed":"one"}"#;
         let mut state = StateBox::default();
         assert!(decode(call_bytes(&mut state, bad, b""))["error"].is_string());
+    }
+
+    #[test]
+    fn a_bias_for_a_kind_of_slot_is_refused_before_anything_is_asked() {
+        let mut state = StateBox::default();
+        let answer = decode(call_bytes(
+            &mut state,
+            br#"{"op":"run","seed":1,"bias":"keys=10,merchants=80"}"#,
+            b"",
+        ));
+        let text = answer["error"].as_str().unwrap();
+        assert!(text.contains("lean does not apply to merchants"), "{text}");
+        // `all=` passes by what does not lean, and the run goes on to ask for files.
+        let answer = decode(call_bytes(
+            &mut state,
+            br#"{"op":"run","seed":1,"bias":"all=50"}"#,
+            b"",
+        ));
+        assert!(answer["need"].is_array(), "{answer}");
     }
 
     #[test]

@@ -534,6 +534,7 @@ mod tests {
             listed: vec![BTreeSet::new(); 4],
             companions: BTreeMap::from([(103, vec![companion(), companion(), companion()])]),
             map_tier: BTreeMap::new(),
+            model_names: BTreeMap::new(),
         }
     }
 

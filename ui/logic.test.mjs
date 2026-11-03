@@ -51,6 +51,10 @@ test("Leyndell asks the game's 2 Great Runes unless set", () => {
 test("only what can lean is given a bias", () => {
   const r = L.request(1, L.defaults());
   for (const dead of ["merchants", "starting-gear", "keepsakes", "npc-gear"]) assert.doesNotMatch(r.bias, new RegExp(dead));
+  // Not even from settings kept from before: the module refuses a lean for them.
+  const kept = L.request(1, L.settled({ bias: { merchants: 80, "npc-gear": 5, keys: 30 } }));
+  for (const dead of ["merchants", "starting-gear", "keepsakes", "npc-gear"]) assert.doesNotMatch(kept.bias, new RegExp(dead));
+  assert.match(kept.bias, /keys=30/);
 });
 test("settings kept from before the new sliders gain them", () => {
   const s = L.settled({ shuffle: { weapons: 10 }, bosses: 40 });

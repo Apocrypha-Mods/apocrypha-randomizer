@@ -338,3 +338,55 @@ fn a_reused_folder_keeps_nothing_of_the_last_seed() {
     let profile = std::fs::read_to_string(done.profile.unwrap()).unwrap();
     assert!(profile.contains("savefile = \"seed.sl2\""), "{profile}");
 }
+
+/// With keepsakes at 0 nothing of theirs moves, so their names and help line stay
+/// the game's in every language; the menu file is still written for the bell
+/// bearings' talk entry, and only that changes (Nova, 2026-11-03).
+#[test]
+fn keepsakes_held_still_keep_the_games_text() {
+    let Some(game) = stock() else { return };
+    let out = work("keepsakes-still").join("seed");
+    let run = apoc_rando(&[
+        "gen".as_ref(),
+        game.as_os_str(),
+        "--seed".as_ref(),
+        "1".as_ref(),
+        "--shuffle".as_ref(),
+        "keepsakes=0".as_ref(),
+        "--out".as_ref(),
+        out.as_os_str(),
+    ]);
+    assert!(
+        run.status.success(),
+        "{}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game).unwrap();
+    let ids = [
+        297_151, 297_152, 297_153, 297_154, 297_156, 297_157, 297_158, 297_159, 297_160,
+    ];
+    for language in rando::LANGUAGES {
+        let path = format!("msg/{language}/menu_dlc02.msgbnd.dcx");
+        let Ok(stock) = dvd.read_path(&format!("/{path}")) else {
+            continue;
+        };
+        let Ok(ours) = std::fs::read(out.join(&path)) else {
+            continue;
+        };
+        for table in ["GR_MenuText.fmg", "GR_LineHelp.fmg"] {
+            for id in ids {
+                assert_eq!(
+                    menu_entry(&ours, table, id),
+                    menu_entry(&stock, table, id),
+                    "{language} {table} {id}"
+                );
+            }
+        }
+    }
+    // The talk entry is there, so the file was written for it.
+    let english = std::fs::read(out.join("msg/engus/menu_dlc02.msgbnd.dcx")).unwrap();
+    assert!(
+        menu_entry(&english, "EventTextForTalk.fmg", rando::bearings::TEXT).is_some(),
+        "the bell bearings' entry is missing"
+    );
+}

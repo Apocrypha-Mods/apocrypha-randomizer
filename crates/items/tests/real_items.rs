@@ -412,3 +412,131 @@ fn a_category_at_none_stays_in_the_shops() {
     }
     assert!((0..us.len()).any(|u| us[u].place == items::Place::Shop && plan.placed[u] != u));
 }
+
+/// A weapon at 0% moves nowhere: not from a shop, a class's hands, a node or an NPC,
+/// whatever the places' own sliders say (Nova, 2026-11-03).
+#[test]
+fn weapons_at_nothing_move_nowhere() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let mut o = items::Options::default();
+    o.set(false, "weapons=0").unwrap();
+    let weapon = |u: &items::Unit| u.category == items::Category::Weapon;
+    let shops = units
+        .iter()
+        .filter(|u| u.place == items::Place::Shop && weapon(u))
+        .count();
+    let classes = units
+        .iter()
+        .filter(|u| matches!(u.place, items::Place::Start(_)) && weapon(u))
+        .count();
+    // There are weapons in each kind of place to hold still.
+    assert!(shops > 50 && classes > 10, "{shops} {classes}");
+    let weapons: std::collections::HashSet<String> = units
+        .iter()
+        .filter(|u| weapon(u))
+        .filter_map(|u| u.item.name.clone())
+        .collect();
+    for seed in 0..5 {
+        let plan = items::shuffle(&b, &units, seed, &o).unwrap();
+        items::check(&b, &units, &plan).unwrap();
+        for (u, unit) in units.iter().enumerate() {
+            let from = plan.placed[u];
+            assert!(
+                from == u || (!weapon(unit) && !weapon(&units[from])),
+                "seed {seed}: {:?} {} {} took {:?} (was {:?})",
+                unit.place,
+                unit.table,
+                unit.row,
+                units[from].item.name,
+                unit.item.name
+            );
+        }
+        let mut reg = s.reg.clone();
+        let dressed = items::dress_npcs(&mut reg, m, seed, &o).unwrap();
+        assert!(!dressed.is_empty(), "armour still changes");
+        for line in &dressed {
+            let now = line
+                .split(": ")
+                .nth(1)
+                .unwrap()
+                .split(" (was")
+                .next()
+                .unwrap();
+            assert!(
+                !weapons.contains(now),
+                "seed {seed}: an NPC took a weapon: {line}"
+            );
+        }
+    }
+}
+
+/// No one-off item that moves lands on a slot that gives by chance, at every
+/// setting tried, and the seeds still place; the counts each side has.
+#[test]
+fn one_off_items_keep_off_chance_slots() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let not_node = |u: &&items::Unit| u.place != items::Place::Gather;
+    let chance = units.iter().filter(|u| items::chance_slot(u)).count();
+    let plentiful = units
+        .iter()
+        .filter(not_node)
+        .filter(|u| !items::one_off(u.category))
+        .count();
+    let one_offs = units
+        .iter()
+        .filter(not_node)
+        .filter(|u| items::one_off(u.category))
+        .count();
+    let sure = units
+        .iter()
+        .filter(not_node)
+        .filter(|u| !items::chance_slot(u))
+        .count();
+    let one_off_on_chance = units
+        .iter()
+        .filter(|u| items::chance_slot(u) && items::one_off(u.category))
+        .count();
+    eprintln!(
+        "slots {}: chance {chance} (holding a one-off {one_off_on_chance}), sure {sure}; items: plentiful {plentiful}, one-off {one_offs}",
+        units.len()
+    );
+    let unlimited: Vec<usize> = (0..units.len()).filter(|&u| units[u].unlimited).collect();
+    let plan = items::shuffle(&b, &units, 0, &items::Options::default()).unwrap();
+    let multiplied = unlimited
+        .iter()
+        .filter(|&&u| plan.placed[u] != u && items::one_off(units[plan.placed[u]].category))
+        .count();
+    eprintln!(
+        "rows that never run out: {}; seed 0 puts a one-off item on {multiplied}",
+        unlimited.len()
+    );
+    // On 2.7.2 every shuffled lot's slot holds its row's whole weight: drops by
+    // chance are farmable ones, which stay. The rule guards a game or mod that has some.
+    assert!(plentiful >= chance, "{chance} {plentiful}");
+    for spec in ["", "consumables=0,upgrades=0", "consumables=10", "all=50"] {
+        for separate in [false, true] {
+            let mut o = items::Options::default();
+            o.set(false, spec).unwrap();
+            o.dlc_separate = separate;
+            for seed in 0..3 {
+                let plan = items::shuffle(&b, &units, seed, &o)
+                    .unwrap_or_else(|e| panic!("{spec} {separate}: {e}"));
+                items::check(&b, &units, &plan).unwrap();
+                for (u, unit) in units.iter().enumerate() {
+                    let from = plan.placed[u];
+                    assert!(
+                        from == u
+                            || !items::chance_slot(unit)
+                            || !items::one_off(units[from].category),
+                        "{spec}: seed {seed}: {:?} on a chance slot",
+                        units[from].item.name
+                    );
+                }
+            }
+        }
+    }
+}

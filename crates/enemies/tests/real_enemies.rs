@@ -530,3 +530,55 @@ fn wildlife_trades_only_with_wildlife() {
         p.map_tier.len()
     );
 }
+
+/// In a mixed seed no health bar is written empty or with a leftover: a nameless
+/// ordinary enemy in an arena goes by what the bars call its model, else the bar
+/// keeps its own name (Nova, 2026-11-03).
+#[test]
+fn no_health_bar_is_written_blank_or_with_a_leftover() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let leftover = s.text("NpcName", 0).unwrap_or("");
+    assert!(enemies::is_leftover(leftover), "{leftover:?}");
+    assert_eq!(p.model_names["c3350"].0, "Crystalian");
+    assert_eq!(p.model_names["c4910"].0, "Magma Wyrm");
+    for (m, (name, id)) in &p.model_names {
+        assert!(!enemies::is_leftover(name), "{m}");
+        assert_eq!(s.text("NpcName", *id), Some(name.as_str()), "{m}");
+    }
+    let options = Options {
+        bosses: 100,
+        ordinary: 100,
+        mix: 100,
+        ..Default::default()
+    };
+    let (mut own, mut by_model, mut kept) = (0, 0, 0);
+    for seed in 0..3 {
+        let plan = shuffle(&p, seed, &options);
+        let applied = apply(&mut s.reg.clone(), &s, &p, &plan, &options).unwrap();
+        for (id, name) in &applied.bar_names {
+            assert!(
+                !enemies::is_leftover(name),
+                "seed {seed}: bar {id} {name:?}"
+            );
+            let source = applied.bar_sources[id];
+            assert_eq!(s.text("NpcName", source), Some(name.as_str()), "bar {id}");
+        }
+        for (i, spot) in p.spots.iter().enumerate() {
+            let body = &p.spots[plan.from[i]];
+            if spot.boss.is_none() || body.boss.is_some() {
+                continue;
+            }
+            match p.bar_name(body) {
+                Some((n, _)) if n == body.body.name => own += 1,
+                Some(_) => by_model += 1,
+                None => kept += 1,
+            }
+        }
+    }
+    println!(
+        "ordinary enemies in arenas, three seeds: {own} by their own name, {by_model} by their model's, {kept} keep the bar's"
+    );
+    assert!(by_model > 0 && own + by_model + kept > 100);
+}

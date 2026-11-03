@@ -148,7 +148,8 @@ impl Unit {
         self.item.chance == 1000
     }
 
-    /// The slider that decides whether this place's item moves.
+    /// The slider of the kind of place this is, or of its item's category for a
+    /// plain lot. Where the two differ, both must allow a move ([`shuffle`]).
     pub fn slider(&self) -> Category {
         match self.place {
             Place::Lot => self.category,
@@ -551,8 +552,16 @@ fn dependable(bound: &Bound, unit: &Unit, options: &Options) -> bool {
 
 /// Whether there should be only one of an item, which a slot that may not give
 /// it would lose, and a row that never runs out would multiply.
-fn one_off(category: Category) -> bool {
+pub fn one_off(category: Category) -> bool {
     !matches!(category, Category::Consumable | Category::Upgrade)
+}
+
+/// A slot that gives its item only by chance: a lot's slot whose weight is not
+/// the whole of its row's (a drop at 5%, one of two items a chest may give). It
+/// takes no key item ([`dependable`]) and, if moved, no one-off item ([`one_off`]):
+/// only what is plentiful, such as materials and consumables (Nova, 2026-11-03).
+pub fn chance_slot(unit: &Unit) -> bool {
+    unit.place == Place::Lot && !unit.sure()
 }
 
 /// The quest items, as (kind, id), that some unit gives.
@@ -674,6 +683,48 @@ fn is_fixed(bound: &Bound, unit: &Unit) -> bool {
     bound.graph.fixed.iter().any(|f| Some(f.as_str()) == name)
 }
 
+/// Keep enough plentiful items moving for every moving slot that gives by chance
+/// ([`chance_slot`]), on each side of the DLC when they are kept apart. Where the
+/// sliders leave too few, chance slots that hold a one-off item stay as the unmodded
+/// game has them, drawn in the seed's order: each takes one chance slot and one
+/// one-off item out of play, so the shortfall falls by one. Key items are not held
+/// back this way, so the walk still has every one to place.
+fn balance_chance_slots(
+    units: &[Unit],
+    mut moving: Vec<bool>,
+    dlc: &[bool],
+    separate: bool,
+    rng: &mut Rng,
+) -> Vec<bool> {
+    let side = |u: usize| separate && dlc[u];
+    for s in [false, true] {
+        let mine: Vec<usize> = (0..units.len())
+            .filter(|&u| moving[u] && side(u) == s)
+            .collect();
+        let slots = mine.iter().filter(|&&u| chance_slot(&units[u])).count();
+        let plentiful = mine
+            .iter()
+            .filter(|&&u| units[u].place != Place::Gather && !one_off(units[u].category))
+            .count();
+        if slots <= plentiful {
+            continue;
+        }
+        let mut held: Vec<usize> = mine
+            .into_iter()
+            .filter(|&u| {
+                chance_slot(&units[u])
+                    && one_off(units[u].category)
+                    && units[u].category != Category::Key
+            })
+            .collect();
+        rng.shuffle(&mut held);
+        for u in held.into_iter().take(slots - plentiful) {
+            moving[u] = false;
+        }
+    }
+    moving
+}
+
 fn attempt(
     bound: &Bound,
     units: &[Unit],
@@ -706,12 +757,14 @@ fn attempt(
                             .iter()
                             .any(|q| (q.kind, q.id) == (u.item.kind, u.item.id))));
             let drawn = rng.below(100) < usize::from(options.shuffle(u.slider()));
-            // A shop row answers to its item's slider too: 0% stays put.
-            let category =
-                u.place != Place::Shop || rng.below(100) < usize::from(options.shuffle(u.category));
+            // A shop row, a class's or keepsake's slot and a node answer to their
+            // item's slider too, so a category at 0% moves nowhere (Nova, 2026-11-03).
+            let category = u.slider() == u.category
+                || rng.below(100) < usize::from(options.shuffle(u.category));
             drawn && category && !pinned
         })
         .collect();
+    let moving = balance_chance_slots(units, moving, &dlc, options.dlc_separate, rng);
     let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();
     let mut key_units: Vec<usize> = (0..n)
         .filter(|&u| moving[u] && units[u].category == Category::Key)
@@ -805,6 +858,25 @@ fn attempt(
         rest.remove(i);
     }
 
+    // Slots that give by chance next, before anything else can take what is
+    // plentiful: each takes an item that is not one-off. There are enough, as
+    // `balance_chance_slots` saw to it.
+    let chancy: Vec<usize> = (0..n)
+        .filter(|&u| placed[u].is_none() && chance_slot(&units[u]))
+        .collect();
+    for u in chancy {
+        let ok: Vec<usize> = (0..rest.len())
+            .filter(|&i| fits(u, rest[i]) && !one_off(units[rest[i]].category))
+            .collect();
+        if ok.is_empty() {
+            return Err(format!(
+                "nothing plentiful left for the chance slot {} {} {}",
+                units[u].table, units[u].row, units[u].slot
+            ));
+        }
+        placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
+    }
+
     // Starting slots next: each takes an item of its own sort, any one.
     let starts: Vec<usize> = (0..n)
         .filter(|&u| placed[u].is_none() && matches!(units[u].place, Place::Start(_)))
@@ -820,15 +892,10 @@ fn attempt(
         placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
     }
 
-    // Slots that may not give their item, and rows that never run out, take what
-    // is plentiful first. If the sliders leave too little of that, they take what
-    // comes, as every item must still land.
+    // Rows that never run out take what is plentiful first. If the sliders leave
+    // too little of that, they take what comes, as every item must still land.
     let shy: Vec<usize> = (0..n)
-        .filter(|&u| {
-            placed[u].is_none()
-                && units[u].place != Place::Gather
-                && (units[u].unlimited || (units[u].place == Place::Lot && !units[u].sure()))
-        })
+        .filter(|&u| placed[u].is_none() && units[u].unlimited)
         .collect();
     for u in shy {
         let ok: Vec<usize> = (0..rest.len())
@@ -923,6 +990,16 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
         {
             return Err(format!(
                 "seed {}: key item {} cannot be counted on where it landed",
+                plan.seed,
+                units[from].item.name.as_deref().unwrap_or("?")
+            ));
+        }
+    }
+    for (u, unit) in units.iter().enumerate() {
+        let from = plan.placed[u];
+        if from != u && chance_slot(unit) && one_off(units[from].category) {
+            return Err(format!(
+                "seed {}: one-off item {} landed on a slot that gives it only by chance",
                 plan.seed,
                 units[from].item.name.as_deref().unwrap_or("?")
             ));
@@ -1026,15 +1103,22 @@ pub fn apply(reg: &mut Regulation, units: &[Unit], plan: &Plan) -> Result<()> {
     Ok(())
 }
 
-/// What each keepsake now is, as the menu should name it: its menu text's id
-/// and the name, with how many.
+/// The unit of a keepsake's row that the plan moved, if it did.
+fn moved_keepsake(units: &[Unit], plan: &Plan, row: i32) -> Option<usize> {
+    let u = units
+        .iter()
+        .position(|u| matches!(u.place, Place::Start(_)) && u.row == row)?;
+    (plan.placed[u] != u).then_some(u)
+}
+
+/// What each keepsake the plan moved now is, as the menu should name it: its
+/// menu text's id and the name, with how many. One left as it was is not named,
+/// so its text stays the game's.
 pub fn keepsake_names(units: &[Unit], plan: &Plan) -> Vec<(i32, String)> {
     KEEPSAKES
         .iter()
         .filter_map(|&(row, text)| {
-            let u = units
-                .iter()
-                .position(|u| matches!(u.place, Place::Start(_)) && u.row == row)?;
+            let u = moved_keepsake(units, plan, row)?;
             let item = item_at(units, plan, u);
             let name = item.name?;
             Some((
@@ -1049,15 +1133,13 @@ pub fn keepsake_names(units: &[Unit], plan: &Plan) -> Vec<(i32, String)> {
         .collect()
 }
 
-/// What each keepsake now gives: its menu text's id, and the item, for naming it in
-/// any language.
+/// What each keepsake the plan moved now gives: its menu text's id, and the item,
+/// for naming it in any language. Those left as they were are not listed.
 pub fn keepsake_items(units: &[Unit], plan: &Plan) -> Vec<(i32, Item)> {
     KEEPSAKES
         .iter()
         .filter_map(|&(row, text)| {
-            let u = units
-                .iter()
-                .position(|u| matches!(u.place, Place::Start(_)) && u.row == row)?;
+            let u = moved_keepsake(units, plan, row)?;
             Some((text, item_at(units, plan, u)))
         })
         .collect()
@@ -1076,8 +1158,8 @@ fn weapon_sort(id: i32) -> u8 {
     }
 }
 
-/// Give the NPCs placed in the maps other weapons and armour, each with the
-/// `npc-gear` slider's chance, and say what changed. A weapon keeps its sort
+/// Give the NPCs placed in the maps other weapons and armour, each when both the
+/// `npc-gear` slider and the weapons' or armour's own allow it, and say what changed. A weapon keeps its sort
 /// and its level, up to the +10 every path reaches, and loses its affinity;
 /// armour keeps its body part. Empty hands and slots stay empty. The seed draws
 /// this apart from the placement, which it does not change.
@@ -1117,6 +1199,9 @@ pub fn dress_npcs(
     let init = for_table("CharaInitParam").ok_or_else(|| format_err("no class layout"))?;
     let mut param = reg.table("CharaInitParam")?;
     let chance = usize::from(options.shuffle(Category::NpcGear));
+    // The weapons' and armour's own sliders too: at 0% no weapon changes anywhere.
+    let weapon_chance = usize::from(options.shuffle(Category::Weapon));
+    let armour_chance = usize::from(options.shuffle(Category::Armour));
     let name = |kind, id: i32| {
         names
             .get(&(kind, id))
@@ -1127,7 +1212,11 @@ pub fn dress_npcs(
         let (w, p) = (init.field("weapon"), init.field("protector"));
         for slot in 0..w.count {
             let id = w.get(&row.data, slot) as i32;
-            if id < 1_000_000 || is_ammo(id) || rng.below(100) >= chance {
+            if id < 1_000_000
+                || is_ammo(id)
+                || rng.below(100) >= chance
+                || rng.below(100) >= weapon_chance
+            {
                 continue;
             }
             let sort: Vec<i32> = weapons
@@ -1149,7 +1238,7 @@ pub fn dress_npcs(
         }
         for slot in 0..p.count {
             let id = p.get(&row.data, slot) as i32;
-            if id < 1_000 || rng.below(100) >= chance {
+            if id < 1_000 || rng.below(100) >= chance || rng.below(100) >= armour_chance {
                 continue;
             }
             let part: Vec<i32> = armour
@@ -1495,5 +1584,123 @@ mod tests {
         m.locations[0].items[0].chance = 500;
         let b = Bound::new(&g, &m);
         assert!(shuffle(&b, &us, 1, &Options::default()).is_err());
+    }
+
+    #[test]
+    fn a_shop_class_or_node_slot_moves_only_if_its_items_slider_allows_it_too() {
+        let (g, m) = (graph(), model());
+        let b = Bound::new(&g, &m);
+        let mut us = units(&m);
+        // Two weapons sold, one a class starts with, two nodes giving weapons.
+        for u in [1, 3] {
+            us[u].place = Place::Shop;
+            us[u].table = "ShopLineupParam".into();
+        }
+        us[5].place = Place::Start("weapon");
+        us[5].row = 3000;
+        us[5].table = "CharaInitParam".into();
+        for u in [1, 3, 5, 7, 9] {
+            us[u].category = Category::Weapon;
+            us[u].item.kind = ItemKind::Weapon;
+            us[u].item.id = 1_000_000 * u as i32;
+        }
+        for u in [7, 9] {
+            us[u].place = Place::Gather;
+        }
+        let mut o = Options::default();
+        o.set(false, "weapons=0").unwrap();
+        let weapons = [1, 3, 5, 7, 9];
+        for seed in 0..100 {
+            let plan = shuffle(&b, &us, seed, &o).unwrap();
+            for u in weapons {
+                assert_eq!(plan.placed[u], u, "seed {seed}: weapon slot {u} moved");
+            }
+        }
+        // Weapons at 100 with their places' sliders: they move.
+        let moved = |o: &Options| {
+            (0..100).any(|seed| {
+                let plan = shuffle(&b, &us, seed, o).unwrap();
+                weapons.iter().any(|&u| plan.placed[u] != u)
+            })
+        };
+        assert!(moved(&Options::default()));
+        // And the place's slider alone holds them too.
+        let mut o = Options::default();
+        o.set(false, "merchants=0,starting-gear=0,gathering=0")
+            .unwrap();
+        for seed in 0..50 {
+            let plan = shuffle(&b, &us, seed, &o).unwrap();
+            for u in weapons {
+                assert_eq!(plan.placed[u], u, "seed {seed}");
+            }
+        }
+    }
+
+    /// The test map with one-off items and slots that give by chance.
+    fn chance_map() -> (logic::Graph, Model, Vec<Unit>) {
+        let (g, m) = (graph(), model());
+        let mut us = units(&m);
+        // Weapons in four slots, two of them chance drops; two more chance drops of
+        // consumables.
+        for u in [1, 2, 3, 4] {
+            us[u].category = Category::Weapon;
+            us[u].item.kind = ItemKind::Weapon;
+            us[u].item.id = 1_000_000 * u as i32;
+        }
+        for u in [3, 4, 5, 6] {
+            us[u].item.chance = 50;
+        }
+        (g, m, us)
+    }
+
+    #[test]
+    fn a_one_off_item_never_lands_where_it_is_given_by_chance() {
+        let (g, m, us) = chance_map();
+        let b = Bound::new(&g, &m);
+        let mut chance_got = BTreeSet::new();
+        for seed in 0..300 {
+            let plan = shuffle(&b, &us, seed, &Options::default()).unwrap();
+            for u in (0..us.len()).filter(|&u| chance_slot(&us[u])) {
+                let from = plan.placed[u];
+                assert!(
+                    from == u || !one_off(us[from].category),
+                    "seed {seed}: {from} on chance slot {u}"
+                );
+                chance_got.insert(from);
+            }
+        }
+        // The chance slots still take plentiful items from elsewhere.
+        assert!(chance_got.len() > 4, "{chance_got:?}");
+    }
+
+    #[test]
+    fn too_few_plentiful_items_keep_chance_slots_as_they_are() {
+        let (g, m, mut us) = chance_map();
+        let b = Bound::new(&g, &m);
+        // Only one plentiful item left in play, for four chance slots.
+        for u in us.iter_mut().skip(6) {
+            u.category = Category::Talisman;
+        }
+        for seed in 0..200 {
+            let plan = shuffle(&b, &us, seed, &Options::default()).unwrap();
+            check(&b, &us, &plan).unwrap();
+            for u in (0..us.len()).filter(|&u| chance_slot(&us[u])) {
+                let from = plan.placed[u];
+                assert!(from == u || !one_off(us[from].category), "seed {seed}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_check_refuses_a_one_off_item_on_a_chance_slot() {
+        let (g, m, us) = chance_map();
+        let b = Bound::new(&g, &m);
+        let mut plan = shuffle(&b, &us, 3, &Options::default()).unwrap();
+        check(&b, &us, &plan).unwrap();
+        // Put weapon 1 (wherever it is) on chance slot 3.
+        let at = plan.placed.iter().position(|&p| p == 1).unwrap();
+        plan.placed.swap(at, 3);
+        assert_eq!(plan.placed[3], 1);
+        assert!(check(&b, &us, &plan).is_err());
     }
 }

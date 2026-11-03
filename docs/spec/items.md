@@ -26,6 +26,16 @@ the same options always gives the same game.
   - in between, each item of it moves with that chance, drawn from the seed.
 
   Items that move trade places among the slots of the items that moved.
+- **Both sliders** (Nova, 2026-11-03). Where a slot has a slider of its own kind
+  (merchants, starting gear, keepsakes, gathering, NPC gear), its item moves only if
+  that slider and its item's category slider both allow it. A category at 0% moves
+  nowhere: with weapons at 0, no weapon leaves a shop, a class's hands, a node or an
+  NPC.
+- **One-off items keep off chance slots** (Nova, 2026-11-03). A slot that gives its
+  item only by chance (a lot's slot holding less than its row's whole weight) takes no
+  one-off item when it moves, only what is plentiful (upgrade materials and
+  consumables), as key items already do not go there. Where the sliders leave too few
+  plentiful items in play, such a slot stays as the unmodded game has it.
 - The categories, read from the game's own data:
   - key items: what any requirement of the area map names;
   - weapons;
@@ -71,6 +81,9 @@ the same options always gives the same game.
   late and early items early.
 - The slider's effect grows with its square: gentle at the low end, strong
   at the top. At 100% no slot is ruled out, it is only much less likely.
+- Bias leans item categories and gathering only. A bias for merchants, starting
+  gear, keepsakes or NPC gear is refused (Nova, 2026-11-03): what lands there leans by
+  its own category. `all=` leaves those alone.
 - How the sliders behave was informed by how players already know such a
   slider to behave (`bias.md`, a reviewed behaviour-only study). The design
   here is our own.
@@ -105,7 +118,8 @@ map count as the base game.
   arrows or bolts), armour for the same body part, talismans, and spells.
 - **Keepsakes** can be randomized too (Nova, 2026-10-30), with a **keepsakes**
   shuffle slider. Each takes goods or a talisman, as it did, in whatever count
-  the item comes in. The menu names what each now is, in English for now.
+  the item comes in. The menu names what each now is, in English for now. A
+  keepsake that does not move keeps the game's text (Nova, 2026-11-03).
 - The other starting goods, such as the flasks, stay as they are, and key
   items never start in a class's hands, since the player's class is not
   known in advance.
