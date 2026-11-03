@@ -328,22 +328,22 @@ reports App Ver. 1.17.2.
 
 ### Still to do in PARAM
 
-- [ ] **`NpcParam` HP, runes and team.** The obvious candidates don't match
-      bosses' known values: 0x24 for HP gives Rennala 1452 and 1703, and 0x2C
-      for runes is mostly zero. Bosses such as Margit and Godrick have no row
-      carrying their name. These are left for the enemy randomizer, where the
-      spec and in-game checks can settle them, rather than recorded on weak
-      evidence.
-- [ ] **`SpEffectParam`.** The effects that scale enemies have no names to
-      read them by. About a dozen `NpcParam` columns and five `EquipParamWeapon`
-      columns point at it, and what each one means needs the enemy work, so it
-      waits until then.
+- [x] **`NpcParam` HP, runes and team** (2026-11-03). HP (+0x24) is confirmed by the
+      tier sums for Margit and Morgott, team (+0x133) by the scripts' `set_team`.
+      Runes (+0x2C) stay probable: a row's own number for its place, rising with
+      the tier, and 0 on bosses GameAreaParam pays; no kill of a known row was seen.
+- [x] **`SpEffectParam`** (2026-11-03). The tiers' columns are named from the
+      talismans' and foods' captions: health, stamina, two attack rates, a guard
+      break rate, and a third group not read (perhaps defence). Six more columns
+      the tiers raise (+0x108 and others, 2.0 to 2.73) are not named.
 - [ ] **Promoting the probable fields to confirmed.** The item-lot flag is
-      now confirmed, through MSB (below). Shop and grace flags are event flags,
-      but what each records, along with prices, stock and rune rewards, waits
+      now confirmed, through MSB (below); NpcParam team, and GameAreaParam's first
+      rune word by a lab kill, on 2026-11-03. Shop and grace flags are event flags,
+      but what each records, along with prices, stock and NpcParam runes, waits
       on play.
-- [ ] **No field is needed from `EquipParamProtector` or `EquipParamAccessory`
-      yet.** An armor piece's slot is the hundreds digit of its id.
+- [ ] **No field is needed from `EquipParamProtector` yet.** An armor piece's slot
+      is the hundreds digit of its id. `EquipParamAccessory`'s effect (+0x04) is
+      read, to name SpEffectParam's columns.
 
 ### FMG
 
@@ -488,15 +488,18 @@ scripts:
 
 ### Still to do in EMEVD
 
-- [ ] **Entity arguments:** boss ids are now checked against MSB (244 of the
-      254 `boss_health_bar` bosses are enemy entity ids). spEffect targets are
-      not checked yet.
+- [x] **Entity arguments** (2026-11-03): every entity and region argument the
+      catalogue names is checked against the maps' parts, groups, map events and
+      regions (`real_maps.rs`), 87% to 100% of each; spEffect targets 933 of 1,018.
 - [ ] **The conditions quest events wait on** (3[3], 3[12], 4[0], 4[5] and
       others): read, they would open more of the 54 gifts still shut.
-- [ ] **The other 300 or so instructions** are uncatalogued. The ones Phase 5
-      needs (enabling and disabling characters, warps, cutscenes) take
-      entity ids, so they also come after MSB.
-- [ ] **Names for the other 45 scripts.**
+- [ ] **The other 242 instructions** are uncatalogued (276 of 316 before
+      2026-11-03, when 34 were added). Conditions are named by the exe's own
+      classes; commands such as `2004[26]`, `2004[41]`, `2004[42]` and `2010[2]`
+      are still unread.
+- [x] **Names for the other 45 scripts** (2026-11-03): `m60.emevd`, `m61.emevd`
+      and 43 coarse tiles' `mAA_BB_CC_10`, all in `apoc-fs names`' list. Nothing reads
+      them yet (below).
 
 ### MSB
 
@@ -1011,14 +1014,13 @@ Still to do:
   ran beside it. Six later launches, alone and at `ER_CPU=200`, did not bring the PC
   down, which rules nothing out. The lab takes `ER_CPU` to lower its CPU quota.
 - [ ] **The gate:** the spec's hazards in the game, once a lab run is wanted.
-- [ ] **Malenia's trigger.** Read from the scripts, not yet seen in play. 4[14] with
-      5 and 0 waits on a body's fall, and 286 uses across bosses run into its death;
-      with 5 and 1 only nine exist, on bodies that get up again. No NpcParam field
-      sets the nine apart, so what puts a body in that state is not read: it may
-      come from something her arena does. Only play will tell.
-- [ ] **Other bosses' own phases.** One-body bosses with scripted phases (Godrick,
-      say) lose them when moved, as those events stay in the old arena. Only
-      Malenia's moves, by Nova's choice.
+- [x] **Malenia's trigger** (2026-11-03, from the exe, not seen in play). `4[14]` is
+      the exe's EcTestChrHpVal: 5 and 0 is health at most 0, 5 and 1 health held at
+      1, which her stage event waits on with her not under effect 18480. What holds
+      her at 1 is not read; it is not an NpcParam field.
+- [ ] **Other bosses' own phases.** Read on 2026-11-03 (below): Godrick's stage event
+      now goes with him as Malenia's does; the others' stay home, as they only set a
+      flag or need their arena. None of it is seen in the game.
 - [x] **Hostile or friendly.** NpcParam `team`, byte 0x133: teams 0, 1, 2, 26 and 28
       stay. Gideon and the friendly Patches left the boss pool, as they fight only by
       script. Named invaders on 27 still swap.
@@ -1891,3 +1893,86 @@ The whole project is now GPL-3.0-or-later, so the doubt over `oozextract`'s labe
 ## Publish script (2026-11-02)
 
 `tools/publish.sh` builds the package, judges its files by a copy of the website's rules (`tools/check-package.sh`), signs a `release.json` with the offline key, tags the commit and stops; upload is by hand in the creator editor, as `apocrypha-web`'s `docs/addons.md` now has it, where Bodyworks' older script still uploads to a bucket. Seen with a throwaway key as `addons-dev`: the signature verified and the signed hash matched the package. `check-package.sh` passed the module at the root and refused it in a folder, under another name, as a non-Windows file, and refused a program in `.wasm`, an archive in `.json` and a bare name. Not run with the real key `addons-1`, which has not been found.
+
+## Enemy fields, the catalogue from the exe, and Godrick's stage (2026-11-03)
+
+No game or lab run: read from the files and from `eldenring.exe` 2.7.2, so **none of this is seen in the game**.
+
+**NpcParam.** `team` (+0x133) is confirmed: the scripts' `set_team` (`2004[2]`) gives a value of the byte's own set in 824
+of 826 uses, turning friends on 26 to 27 326 times and allies on 2 to 0 148 times (`real_events.rs`). `runes` (+0x2C) stays
+probable, with more behind it: of 109 kinds of enemy seen at three or more tiers, 107 pay a different number at each while
+their health is the same, rising with the tier (medians 0.52 of tier 7060's at 7010, 5.8 times at 7120), and no tier effect
+scales it on a first journey. A boss is paid by GameAreaParam instead: Margit's row holds 0, and the lab's 12,000 at his spot
+(2026-11-02) is his area's first rune word, now confirmed. `apoc-fs param-rows` writes tables' raw rows for study.
+
+**SpEffectParam**, named from the captions of the talismans and foods that point at it (`EquipParamAccessory` +0x04, now in
+the layouts): health (+0x10) and stamina (+0x18) rates; damage taken (Daedicar's Woe); damage negation by element, whose
+order the -drake talismans give as physical, magic, fire, lightning, holy; the player's attack rates; runes gained (Gold
+Scarab). What the enemies' tiers (scale_a) raise:
+
+| Columns | Base tiers | DLC tiers | Reading |
+| --- | --- | --- | --- |
+| +0x10 | 1.0 to 7.42 | 7.05 to 16.6 | health, confirmed |
+| +0x18 | 1.0 to 2.03 | 1.97 to 2.10 | stamina, confirmed |
+| +0x48 to +0x54, +0x1E0 | 1.0 to 3.8 | 3.75 to 3.85 | attack, probable (Blue Dancer Charm moves the first) |
+| +0x38 to +0x44, +0x1DC | 1.0 | 1.0 to 2.2 | a second attack rate (skills, charge attacks), probable |
+| +0xC8 | 1.0 to 1.39 | 1.37 to 1.41 | guard and stance damage, probable (Hammer Talisman, Stonebarb Tear) |
+| +0x68 to +0x74, +0x1D4 | 1.0 to 1.23 | 1.22 to 1.26 | not read; perhaps defence |
+| +0x108 and five others | 2.0 to 2.73 | 2.5 to 3.0 | not read |
+
+scale_b's tiers are the later journeys': their rune column (+0xF4) runs 5 down to 2. `real_params.rs` checks the confirmed
+columns against the captions.
+
+**What it means for scaling.** A moved body already takes the spot's health, tier and runes (`row_for`), and the tier carries
+all of the above, so the DLC's harder hitting comes with a DLC spot's tier and nothing needs adding to follow the spec. One
+gap, for Nova: 4,819 hostile placed enemies have no tier at all (scale_a 0 or -1), mostly small creatures on models c6001 to
+c6100 and the c0100 stand-ins. A body moved onto one takes that spot's base health and no tier, so it hits at its own base
+strength wherever the spot is. `docs/spec/05-enemy-model.md` §5 suggests such a spot takes its map's commonest tier; that is
+not done.
+
+**The instruction catalogue**, 40 entries to 74. Conditions are named by the exe's own class names: each condition handler
+builds an object whose class the run-time type data names, found from the dispatcher at +0x569040 through each bank's jump
+table, read only (the script was a scratch Python file, not kept). `4[0]` is EcTestChrDead, now confirmed; `4[14]`
+EcTestChrHpVal, so "5 and 0" is health at most 0 and "5 and 1" health held at 1 (comparisons as `3[10]`'s); `4[2]`
+EcTestChrHpRate; `4[5]` EcTestHasSpEffectId; `3[2]` EcTestRegionSide; `3[3]` EcTestDistance; `3[23]`
+EcTestEventEntityDamaged; and more. Commands carry no class, so they are named from their uses, probable: `set_ai`,
+`set_team`, `kill`, `set_present` and `_b`, `play_animation`, `warp_player`, `play_cutscene`, `set_asset_present`,
+`set_object_action`, `give_item` (tutorial notes, not item locations), `grace` and others. `3[10]` and `3[12]` are named only;
+`flow` does not follow them. **Entity arguments** are checked against the maps (`real_maps.rs`): parts and their groups
+(eight words from +0x1C of a part's entity section), map events (an object action's id first in its data, +0x20) and regions
+(word 1 of the section at +0x50), read from raw words rather than added to `fs-msb`'s layout. Every argument is 87% to 100%
+in the maps. `apoc-fs instructions --maps` shows the same shares.
+
+**The 45 scripts not read.** `apoc-fs unread-scripts`: `m60.emevd` and `m61.emevd` (small open-world scripts), and 43
+coarse tiles' `mAA_BB_CC_10` (m60_44..47_36..39, m60_44..47_52..55, m61_44..47_44..47). These hold 3 boss fights, 29 item
+awards and 18 graces, but the ones looked at repeat a `_00` tile's: Mad Pumpkin Head's 1044360800 fight is in both. Whether
+the game runs the `_10` copies is not known, so the item model still does not read them.
+
+**Boss stages.** `apoc-fs boss-phases` lists every event that waits on a boss's own effect or health and does not call the
+defeat. Read, by kind:
+- **A flag only** (music, or a later stage's mark): Margit, Morgott (who also shows his bar again), Rellana, Rugalea, Midra, Gaius, the
+  Golden Hippopotamus, Fallingstar Beast, and the 45 arenas that wait on 60% health. Lost when the boss moves; nothing waits
+  on these to end a fight.
+- **Needing the arena's stand-ins and regions**: Regal Ancestor Spirit's teleports, Starscourge Radahn's meteor, Rykard's and
+  the Serpent's, Lansseax flying off. These stay home; the boss moves without that stage, which none of the defeat events
+  waits on.
+- **Malenia** (15002811) and **Godrick** (10002811) change the body itself. Godrick's waits on his own effect 14785 and gives
+  him effect 14750, eight `2004[26]` settings and animation 20011, after his cutscene. It now goes with him as hers does
+  (`crates/enemies/src/phases.rs`): copied into the new arena's script and started there, naming his new entity, with its
+  defeat flag made the new spot's; cutscenes, camera, `2004[41]`, the bar, assets, region effects and stand-ins do nothing.
+  At home it no longer starts. Within one script the event stays and is retargeted.
+- **Two faults found and fixed.** Malenia on Loretta's spot, in her own map, would have stopped the seed ("the phase event's
+  id is taken"); and sending a companion boss home could put a stage boss out on open ground (seed 941 at mix 50). A stage
+  boss now trades arenas with a boss that may go out instead. Godrick, like Malenia, is no longer mixed out, so seeds with
+  mix change.
+
+**Proven.** With `APOC_ER_STOCK` on 2.7.2: the `fs-param`, `fs-emevd`, `fs-tool`, `enemies`, `rando` and `gamedata`
+tests, none failing; `stage_events_fit_every_seed` places both stage events over 1,000 seeds at bosses 100 and at bosses
+100 with mix 50; clippy and fmt clean. `apoc-rando check`, two threads, 1,000
+seeds each, none failing: at `bosses=100,ordinary=100,mix=10` in 228 s, and default in 234 s. Seed 1 at those sliders writes
+465 maps and 8 scripts; it puts Godrick on the Putrid Tree Spirit's spot (m30_16_00_00) and Malenia on a Black Knife
+Assassin's (m60_40_52_00). Not run in the game.
+
+**Questions for Nova.** Should a moved body on a spot with no tier (the 4,819 above) take its map's commonest tier, so a
+creature from late ground landing on a small creature's spot keeps hitting like the place around it? And should Godrick's
+second stage, now carried with him, play without its cutscene as Malenia's does (as built), or should he move without it?
