@@ -14,7 +14,7 @@
 //! - in each of the merchant's talk scripts, in every menu that opens one of the
 //!   bearing's ranges, the entry ([`fs_esd::menu::add_gift`]), offered while the
 //!   `given` flag and the Husks' flag for the bearing are both off;
-//! - the entry's words, [`WORDS`], as EventTextForTalk [`TEXT`] in every
+//! - the entry's words, [`words`], as EventTextForTalk [`TEXT`] in every
 //!   language's `menu_dlc02` (written with the keepsakes' text).
 
 use std::collections::BTreeMap;
@@ -30,8 +30,36 @@ use logic::{GivenBearing, Graph};
 
 /// The talk text the new entry shows, an EventTextForTalk id no language uses.
 pub const TEXT: i32 = 26_009_820;
-/// Its words, as Nova put them. Every language shows them in English for now.
+/// Its words in English, as Nova put them.
 pub const WORDS: &str = "Get bell-bearing";
+
+/// The entry's words in a language. Each is made of the game's own words in that
+/// language: the verb of Seluvis's "Obtain a puppet" (EventTextForTalk 23070007)
+/// with the bell bearing of the Husks' "Offer a bell bearing" (26000000), in the
+/// latter's case and article. Arabic and Thai keep the game's glyph forms.
+pub fn words(language: &str) -> &'static str {
+    match language {
+        "araae" => {
+            "\u{627}\u{fed7}\u{fe97}\u{fee7}\u{fe8e}\u{621} \u{fedb}\u{fead}\u{629} \u{fe9f}\u{fead}\u{633}"
+        }
+        "deude" => "Eine Klangperle erhalten",
+        "frafr" => "Obtenir une perle cinéraire",
+        "itait" => "Ricevi un globo cinereo",
+        "jpnjp" => "鈴玉を手に入れる",
+        "korkr" => "방울을 얻는다",
+        "polpl" => "Otrzymaj dzwonek kulisty",
+        "porbr" => "Obter um sino",
+        "rusru" => "Получить колокольную сферу",
+        "spaar" => "Obtener un rodamiento de campana",
+        "spaes" => "Obtener una esfera",
+        "thath" => {
+            "\u{e23}\u{e31}\u{e1a}\u{200b}\u{e01}\u{e23}\u{e30}\u{e14}\u{e34}\u{f716}\u{e07}"
+        }
+        "zhocn" => "取得铃珠",
+        "zhotw" => "取得鈴珠",
+        _ => WORDS,
+    }
+}
 
 const LOTS: &str = "ItemLotParam_map";
 /// ItemLotParam's item category for goods.
@@ -222,4 +250,18 @@ pub fn binders(files: &GameFiles, applied: &Applied) -> Result<Vec<(String, Vec<
         out.push((path.trim_start_matches('/').to_string(), data));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod words_tests {
+    use super::*;
+
+    #[test]
+    fn every_language_has_words_of_its_own() {
+        for language in crate::LANGUAGES {
+            let w = words(language);
+            assert!(!w.is_empty());
+            assert_eq!(w == WORDS, language == "engus", "{language}");
+        }
+    }
 }

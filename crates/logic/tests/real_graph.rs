@@ -418,13 +418,20 @@ fn a_merchant_given_a_bearing_sells_through_the_roundtable() {
             .position(|l| l.shop_row() == Some(id))
             .unwrap()
     };
-    // Thops's, Sellen's, Moore's and both of Gowry's lists; not Seluvis's
-    // puppets, which the Husks do not sell, nor Kalé's, who is not given one.
-    for id in [100_250, 100_050, 102_250, 100_175, 100_185] {
+    // Thops's, Sellen's, Moore's, both of Gowry's and Kalé's lists; not Seluvis's
+    // puppets, which the Husks do not sell.
+    for id in [100_250, 100_050, 102_250, 100_175, 100_185, 100_500] {
         assert_eq!(b.location_terms[row(id)].areas, vec![roundtable], "{id}");
     }
-    for id in [100_300, 100_500] {
-        assert!(b.location_terms[row(id)].areas.is_empty(), "{id}");
+    assert!(b.location_terms[row(100_300)].areas.is_empty());
+    // Moore and Gowry can be gone before they are met: no key item. Thops and
+    // Sellen cannot, so their bearing keeps their rows.
+    for id in [102_250, 100_175, 100_185] {
+        assert!(b.missable(row(id)), "{id}");
     }
-    assert_eq!(graph().bearings.len(), 13);
+    for id in [100_250, 100_050, 100_500] {
+        assert!(!b.location_terms[row(id)].missable, "{id}");
+    }
+    assert_eq!(graph().bearings.len(), 16);
+    assert_eq!(graph().bearings.iter().filter(|g| g.unmet).count(), 4);
 }

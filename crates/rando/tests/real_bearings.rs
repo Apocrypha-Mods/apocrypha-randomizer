@@ -295,7 +295,7 @@ fn every_merchant_menu_offers_the_bearing_once_and_nothing_else_changes() {
             );
         }
     }
-    // Every merchant's menus, 40 in 26 scripts: Patches has 13, Bernahl 5,
-    // Sellen and Corhyn 4, Moore 1 and so on.
-    assert_eq!(menus_seen, 40);
+    // Every merchant's menus, 56: Patches has 13, Gostoc 12, Bernahl 5, Sellen
+    // and Corhyn 4, Kalé 3, Moore and Pidia 1 and so on.
+    assert_eq!(menus_seen, 56);
 }

@@ -1125,13 +1125,19 @@ note = "Resold once held."
 # (Thops's t333006000: 3803, 3801, 3802, …), and an event turns it on as their quest goes,
 # with no test of the character's death in it. Seluvis, Gowry and Moore are read
 # otherwise, as their notes say. Left out, as nothing but the player's own hand ends their
-# shop: Kalé, Gostoc, Pidia, Miriel and the nomadic, isolated, hermit, abandoned and
-# imprisoned merchants; killed, each drops their bearing already.
+# shop: Miriel and the nomadic, isolated, hermit, abandoned and imprisoned merchants;
+# killed, each drops their bearing already. Kalé, Gostoc and Pidia have the entry too,
+# by Nova's choice (2026-11-03): Pidia's script holds Seluvis's death flag as its own.
+#
+# `unmet`: another's quest can take the merchant away before the player has met them,
+# and so before the bearing could be had (Seluvis by Ranni's, D by Fia's, Gowry by
+# Millicent's, Moore by his stages), so their rows take no key item (Nova, 2026-11-03).
 
 [[bearing]]
 merchant = "Seluvis"
 item = "Seluvis's Bell Bearing"
 given = 11109820
+unmet = true
 note = "Common event 3579 moves his stages (3565 to 3569) on Ranni's quest flags (1034509410, 1034509416, 1034509315, 1034509424, 1034509433). That he is then dead is general knowledge, not read."
 
 [[bearing]]
@@ -1150,6 +1156,7 @@ note = "Common event 3479 turns on her death flag 3463 on her quest's flags."
 merchant = "D, Hunter of the Dead"
 item = "D's Bell Bearing"
 given = 11109823
+unmet = true
 note = "Common event 4139 turns on his death flag 4043 on Fia's quest flags (4125, 4047, 11109625)."
 
 [[bearing]]
@@ -1192,12 +1199,14 @@ note = "Common event 4219 turns on his death flag 4203 on his quest's flags. He 
 merchant = "Gowry"
 item = "Gowry's Bell Bearing"
 given = 11109830
+unmet = true
 note = "His script passes no death flag (6000). That he dies at the end of Millicent's quest is general knowledge, not read."
 
 [[bearing]]
 merchant = "Moore"
 item = "Moore's Bell Bearing"
 given = 11109831
+unmet = true
 note = "Events in m61_45_42, m61_47_46 and m20_01 start on his stage flags (4380 to 4387, moved by common event 4399, the last on 2045429298); his shop is in m61_45_42 alone. That he leaves it is read from that, not seen."
 
 [[bearing]]
@@ -1205,3 +1214,21 @@ merchant = "Count Ymir"
 item = "Ymir's Bell Bearing"
 given = 11109832
 note = "Common event 4519 turns on his death flag 4503 on his quest's flags."
+
+[[bearing]]
+merchant = "Kalé"
+item = "Kalé's Bell Bearing"
+given = 11109833
+note = "Leaves only if killed, and then drops his bearing; given the entry by Nova's choice (2026-11-03)."
+
+[[bearing]]
+merchant = "Gostoc"
+item = "Gostoc's Bell Bearing"
+given = 11109834
+note = "Leaves only if killed, and then drops his bearing; given the entry by Nova's choice (2026-11-03)."
+
+[[bearing]]
+merchant = "Pidia"
+item = "Pidia's Bell Bearing"
+given = 11109835
+note = "His script passes Seluvis's death flag as its own, so his shop may close with Seluvis; given the entry by Nova's choice (2026-11-03)."

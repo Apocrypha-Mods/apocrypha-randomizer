@@ -597,10 +597,10 @@ pub fn build(
     for (path, data) in bearings::binders(files, &given)? {
         sink.put(&path, data)?;
     }
-    let talk: &[(i32, &str)] = if given.log.is_empty() {
+    let talk: &[(i32, Words)] = if given.log.is_empty() {
         &[]
     } else {
-        &[(bearings::TEXT, bearings::WORDS)]
+        &[(bearings::TEXT, bearings::words)]
     };
     menu_text(files, sink, &items::keepsake_items(&units, &plan), talk)?;
     let enemy_log = if foes.is_off() {
@@ -761,15 +761,18 @@ fn item_table(kind: ItemKind) -> &'static str {
     }
 }
 
+/// Talk text's words in a language, by its code (`engus`).
+type Words = fn(&str) -> &'static str;
+
 /// Character creation names its keepsakes from menu text of its own, so write
 /// what each now is, in the file the game reads (the last DLC's holds it all),
 /// in each language. The menu's one line of help is English in all of them.
-/// `talk` adds talk menu text (EventTextForTalk), the same in every language.
+/// `talk` adds talk menu text (EventTextForTalk), its words by language.
 fn menu_text(
     files: &GameFiles,
     out: &dyn Sink,
     keepsakes: &[(i32, Item)],
-    talk: &[(i32, &str)],
+    talk: &[(i32, Words)],
 ) -> Result<()> {
     for language in LANGUAGES {
         let path = format!("/msg/{language}/menu_dlc02.msgbnd.dcx");
@@ -806,7 +809,7 @@ fn menu_text(
                                 "{path}: talk text {id} is already used"
                             )));
                         }
-                        fmg.entries.insert(*id, Some((*words).to_string()));
+                        fmg.entries.insert(*id, Some(words(language).to_string()));
                     }
                     f.data = fmg.write()?;
                     return Ok(());

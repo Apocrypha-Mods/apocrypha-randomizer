@@ -178,6 +178,11 @@ pub struct GivenBearing {
     pub item: String,
     /// The flag giving it turns on, which is also the item lot's row and flag.
     pub given: u32,
+    /// Whether another's quest can take the merchant away before the player has
+    /// ever met them, and so before the bearing could be had: their rows then take
+    /// no key item (Nova, 2026-11-03).
+    #[serde(default)]
+    pub unmet: bool,
     pub note: String,
 }
 
@@ -549,13 +554,19 @@ impl<'a> Bound<'a> {
             problems.push("bearings are given, but bearing_area does not say where".into());
         }
         let mut covered: Vec<(i32, i32)> = Vec::new();
+        let mut unmet: Vec<(i32, i32)> = Vec::new();
         for (i, b) in graph.bearings.iter().enumerate() {
             match model
                 .bearings
                 .iter()
                 .find(|m| m.name.as_deref() == Some(&b.item))
             {
-                Some(m) => covered.extend(&m.ranges),
+                Some(m) => {
+                    covered.extend(&m.ranges);
+                    if b.unmet {
+                        unmet.extend(&m.ranges);
+                    }
+                }
                 None => problems.push(format!(
                     "bearing {}: no talk script takes {}",
                     b.merchant, b.item
@@ -618,6 +629,11 @@ impl<'a> Bound<'a> {
                 && covered.iter().any(|(f, t)| (*f..=*t).contains(&row))
             {
                 terms.areas.push(a);
+            }
+            if let Some(row) = l.shop_row()
+                && unmet.iter().any(|(f, t)| (*f..=*t).contains(&row))
+            {
+                terms.missable = true;
             }
             location_terms.push(terms);
             location_area.push(
@@ -1163,6 +1179,7 @@ mod tests {
             merchant: "Thops".into(),
             item: "Thops's Bell Bearing".into(),
             given: 11_109_825,
+            unmet: false,
             note: String::new(),
         });
         // Handed over past the door the row's key opens: the key is never got.

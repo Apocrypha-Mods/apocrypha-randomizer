@@ -43,6 +43,10 @@ pub const CLEAR_MENU: Id = (1, 0x14);
 /// Shows the talk menu built so far: in the same menus one state runs it, and
 /// a state after it tests the choice (function 23).
 pub const SHOW_MENU: Id = (1, 0x0A);
+/// Shows the menu as [`SHOW_MENU`] does, for menus whose entries are added by
+/// [`MENU_ENTRY_COUNTED`]: the Twin Maiden Husks' second bell-bearing menu
+/// (`t600001110` machine 0x7FFFFFF5, Kalé's and eight more), `1[0x96](1, 1)`.
+pub const SHOW_MENU_COUNTED: Id = (1, 0x96);
 
 /// Sets loop counter `k` (argument 0) to argument 1; function 100 reads it back.
 /// Menus are filled in loops that start a counter at 0 and add 1 until it passes

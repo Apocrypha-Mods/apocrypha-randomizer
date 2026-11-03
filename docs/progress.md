@@ -2256,3 +2256,15 @@ stock with them.
 `apoc-fs logic`: no problems, every area and the goal reached. `apoc-rando check`, seeds 0 to 999, two threads: 5,628 slots, 293
 holding key items, none failing, in 234 s. `apoc-rando gen` of seed 1 with `--enemies bosses=100,ordinary=100,mix=10`: 552 files,
 among them ten talk binders and every language's `menu_dlc02`, in 55 s.
+
+## Bell bearings: merchants never met, every language, Kalé, Gostoc and Pidia (Nova, 2026-11-03)
+
+No game or lab run. The merge before this (fc9a06d) was proven with `apoc-rando check`, seeds 0 to 9,999, four threads: none failing, in 1,372.7 s.
+
+**Merchants who can go before they are met.** Nova: their rows take no key item. `[[bearing]]` takes `unmet = true` for Seluvis (Ranni's quest), D (Fia's), Gowry (Millicent's) and Moore (his stages); every row in their bearings' ranges is missable. They keep the menu entry.
+
+**Every language.** The entry's words are made of the game's own in each language (`rando::bearings::words`): the verb of Seluvis's "Obtain a puppet" (EventTextForTalk 23070007) with the bell bearing of the Husks' "Offer a bell bearing" (26000000), in its case and article: "Obtenir une perle cinéraire", "Eine Klangperle erhalten", "鈴玉を手に入れる", "Получить колокольную сферу" and so on. English stays as Nova put it. Arabic and Thai keep the game's glyph forms, the Thai one with its private-use glyph U+F716. No native speaker has read them.
+
+**Kalé, Gostoc and Pidia** have the entry too, by Nova's choice (flags 11109833 to 11109835). Kalé's bearing was not read as opening anything: the Husks' second bearing menu (machine 0x7FFFFFF5, Kalé's and eight more, 26000070 to 26000078) shows itself with `1[0x96]`, not `1[0x0A]`, so `fs_esd::menu` did not take it for a menu. It now does (`SHOW_MENU_COUNTED`), and Kalé's 11109720 opens 100500 to 100524. The Husks' ranges read behind flags went from 16 flags to 36. 56 merchant menus take the entry, up from 40: Gostoc 12, Kalé 3, Pidia 1.
+
+**Proven.** On 2.7.2: the tests of `fs-esd`, `gamedata`, `logic`, `items` and `rando`, real files among them; clippy and fmt clean.

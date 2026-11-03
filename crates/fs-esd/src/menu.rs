@@ -23,7 +23,7 @@ use crate::calls::CALL_BANK;
 use crate::choice::CHOICE;
 use crate::commands::{
     AWARD_ITEM_LOT, CLEAR_MENU, MENU_ENTRY, MENU_ENTRY_COUNTED, OPEN_SHOP, SET_EVENT_FLAG,
-    SHOW_MENU,
+    SHOW_MENU, SHOW_MENU_COUNTED,
 };
 use crate::cond::{Atom, FLAG, requires};
 use crate::expr::{self, END, Place, all, call_is, number};
@@ -77,7 +77,9 @@ fn reads_choice(e: &[u8]) -> bool {
 fn menu_states(esd: &Esd, g: &Group) -> Option<(usize, usize, usize)> {
     let one = |v: Vec<usize>| (v.len() == 1).then(|| v[0]);
     let clear = one(running(esd, g, CLEAR_MENU))?;
-    let show = one(running(esd, g, SHOW_MENU))?;
+    let mut shows = running(esd, g, SHOW_MENU);
+    shows.extend(running(esd, g, SHOW_MENU_COUNTED));
+    let show = one(shows)?;
     let choose = one(esd
         .states_of(g)
         .iter()
@@ -335,7 +337,7 @@ pub fn add_gift(esd: &mut Esd, group: usize, gift: &Gift) -> Result<i32> {
     let show_pos = esd
         .commands_in(esd.states[m.show].on_enter)
         .iter()
-        .position(|c| (c.bank, c.id) == SHOW_MENU)
+        .position(|c| [SHOW_MENU, SHOW_MENU_COUNTED].contains(&(c.bank, c.id)))
         .unwrap_or(0);
     let (entry_state, entry_pos) = leave.unwrap_or((m.show, show_pos));
 
