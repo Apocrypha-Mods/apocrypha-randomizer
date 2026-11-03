@@ -145,10 +145,21 @@ fn both(a: &[Way], b: &[Way]) -> Vec<Way> {
     trim(out)
 }
 
-/// Shortest first, without repeats or ways that ask more than another does,
-/// and no more than [`MAX_WAYS`].
+/// Those asking the fewest things to hold first, then the shortest, without
+/// repeats or ways that ask more than another does, and no more than
+/// [`MAX_WAYS`]. A test that must fail costs a reader little (a flag off is
+/// taken to be off), one that must pass may need explaining in turn: Ymir's
+/// quest event (common 4339) sets 2051459723 on 22 ways or more, and the 16
+/// shortest all ask for 4323, a flag nothing is known to set, while longer
+/// ones ask for it off.
 fn trim(mut ways: Vec<Way>) -> Vec<Way> {
-    ways.sort_by(|a, b| a.len().cmp(&b.len()).then_with(|| a.cmp(b)));
+    let asks = |w: &Way| w.iter().filter(|l| l.holds).count();
+    ways.sort_by(|a, b| {
+        asks(a)
+            .cmp(&asks(b))
+            .then_with(|| a.len().cmp(&b.len()))
+            .then_with(|| a.cmp(b))
+    });
     ways.dedup();
     let mut out: Vec<Way> = Vec::new();
     for w in ways {
@@ -458,6 +469,24 @@ mod tests {
             args: words.iter().flat_map(|w| w.to_le_bytes()).collect(),
             layer: None,
         }
+    }
+
+    #[test]
+    fn ways_asking_fewest_flags_on_are_kept_first() {
+        let lit = |f, holds| Lit {
+            test: Test::Flag(f),
+            holds,
+        };
+        // More one-flag ways than are kept, and one longer way asking only
+        // for flags off.
+        let mut ways: Vec<Way> = (1..=MAX_WAYS as u32 + 4)
+            .map(|f| BTreeSet::from([lit(f, true)]))
+            .collect();
+        let off = BTreeSet::from([lit(100, false), lit(101, false), lit(102, false)]);
+        ways.push(off.clone());
+        let kept = trim(ways);
+        assert_eq!(kept.len(), MAX_WAYS);
+        assert_eq!(kept[0], off);
     }
 
     fn bytes(b: [i8; 3]) -> u32 {
