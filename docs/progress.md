@@ -2333,3 +2333,11 @@ No game or lab run. The merge before this (d9e3f4e) was proven with `apoc-rando 
 **Proven.** The tests of `rando` (real files among them: event 737 and flag 405 are free in the game, and the script changes only where meant), `logic`, `items` and `addon`; the page's node tests; clippy and fmt clean.
 
 **Proven again** after this section (2019b70): `apoc-rando check`, seeds 0 to 9,999, four threads, none failing, in 1,178.4 s; 294 slots hold key items, one more with the Great Rune of the Unborn a key.
+
+## The add-on packed on everything above (2026-11-03)
+
+`tools/pack.sh` at 033fec8: `dist/randomizer-0.1.0.apocaddon`, 1,537,041 bytes, sha256 `5edb85b68559c8f4097ca126491622e0f0241567bf266464c946ad87ca8b6c64`. 0.1.0 stays, as no version has been tagged or released. `tools/check-package.sh` passes it. The packed module through `tools/addon-run.mjs`, against `apoc-rando gen` on the same settings, by `diff -r` and `diff` of the spoiler logs:
+- seed 7, `all=80,keys=100`, bias `keys=60,weapons=30`, Leyndell at 4 runes, `bosses=100,ordinary=100,mix=10`: the same 556 files and spoiler log (105 s, 2.17 GiB of module memory);
+- seed 11, items kept apart from the DLC, no enemy scaling, Leyndell at 0, `bosses=50,ordinary=30`: the same 527 files and spoiler log (106 s, 2.10 GiB).
+
+Not seen: the page in the mod manager's window, and any of it in the game.
