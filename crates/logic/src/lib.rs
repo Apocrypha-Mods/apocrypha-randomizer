@@ -165,6 +165,22 @@ pub struct OnSale {
     pub note: String,
 }
 
+/// A merchant who can leave or die in a quest, given a talk menu entry that
+/// gives their bell bearing once (Nova, 2026-11-03). Handed to the Twin Maiden
+/// Husks, it puts the merchant's own rows on sale at the Roundtable Hold, so
+/// what the seed put there cannot be lost with the merchant.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GivenBearing {
+    /// Who, in words.
+    pub merchant: String,
+    /// The bearing, by its name; the model says which shop ranges it opens.
+    pub item: String,
+    /// The flag giving it turns on, which is also the item lot's row and flag.
+    pub given: u32,
+    pub note: String,
+}
+
 fn yes() -> bool {
     true
 }
@@ -206,6 +222,12 @@ pub struct Graph {
     /// other item can be reached.
     #[serde(default)]
     pub fixed: Vec<String>,
+    /// Merchants given a bell bearing in talk.
+    #[serde(default, rename = "bearing")]
+    pub bearings: Vec<GivenBearing>,
+    /// Where the bearings are handed over: their rows also ask for it.
+    #[serde(default)]
+    pub bearing_area: Option<String>,
 }
 
 /// Elden Ring's graph.
@@ -230,6 +252,9 @@ pub struct Terms<'a> {
     pub unexplained: Option<u32>,
     /// For a shop row whose `on_sale` entry says it can be lost: no key item.
     pub missable: bool,
+    /// Areas to have reached as well: for a row of a merchant given a bell
+    /// bearing, where it is handed over, as the merchant may be gone by then.
+    pub areas: Vec<usize>,
     /// For a gift, the ways it is given, any one enough; `None` when its
     /// talk asks nothing (or a `place` entry speaks for it).
     pub ways: Option<Vec<Vec<Req<'a>>>>,
@@ -515,6 +540,34 @@ impl<'a> Bound<'a> {
             .iter()
             .filter_map(|e| Some((e.entity?, e.position)))
             .collect();
+        // Rows a bell bearing given in talk lets the Husks sell, and where.
+        let bearing_area = graph
+            .bearing_area
+            .as_deref()
+            .and_then(|a| area(a, &mut problems));
+        if !graph.bearings.is_empty() && graph.bearing_area.is_none() {
+            problems.push("bearings are given, but bearing_area does not say where".into());
+        }
+        let mut covered: Vec<(i32, i32)> = Vec::new();
+        for (i, b) in graph.bearings.iter().enumerate() {
+            match model
+                .bearings
+                .iter()
+                .find(|m| m.name.as_deref() == Some(&b.item))
+            {
+                Some(m) => covered.extend(&m.ranges),
+                None => problems.push(format!(
+                    "bearing {}: no talk script takes {}",
+                    b.merchant, b.item
+                )),
+            }
+            if graph.bearings[..i].iter().any(|o| o.given == b.given) {
+                problems.push(format!(
+                    "bearing {}: flag {} given twice",
+                    b.merchant, b.given
+                ));
+            }
+        }
         let mut location_area = Vec::with_capacity(model.locations.len());
         let mut location_also = Vec::with_capacity(model.locations.len());
         let mut location_terms = Vec::with_capacity(model.locations.len());
@@ -560,6 +613,11 @@ impl<'a> Bound<'a> {
                     terms.unexplained = None;
                     terms.ways = Some(reqs(ways));
                 }
+            }
+            if let (Some(a), Some(row)) = (bearing_area, l.shop_row())
+                && covered.iter().any(|(f, t)| (*f..=*t).contains(&row))
+            {
+                terms.areas.push(a);
             }
             location_terms.push(terms);
             location_area.push(
@@ -843,6 +901,7 @@ impl<'a> Bound<'a> {
             && t.items.iter().all(|i| items.contains(i))
             && (t.any_of.is_empty() || t.any_of.iter().any(|i| items.contains(i)))
             && t.bosses.iter().all(|&b| boss(b))
+            && t.areas.iter().all(|&a| reached[a])
     }
 
     fn met(&self, need: &Need, items: &BTreeSet<&str>, reached: &[bool]) -> bool {
@@ -1088,6 +1147,45 @@ mod tests {
             gives[2].clear();
         }
         b.walk(&gives).goal
+    }
+
+    #[test]
+    fn a_row_of_a_merchant_given_a_bearing_asks_for_where_it_is_handed_over() {
+        let (mut g, mut m) = shop(Default::default());
+        m.bearings.push(gamedata::model::Bearing {
+            goods: 8919,
+            name: Some("Thops's Bell Bearing".into()),
+            script: "t600001110".into(),
+            flag: 11_109_719,
+            ranges: vec![(100_000, 100_024)],
+        });
+        g.bearings.push(GivenBearing {
+            merchant: "Thops".into(),
+            item: "Thops's Bell Bearing".into(),
+            given: 11_109_825,
+            note: String::new(),
+        });
+        // Handed over past the door the row's key opens: the key is never got.
+        g.bearing_area = Some("cave".into());
+        let b = Bound::new(&g, &m);
+        assert!(b.problems.is_empty(), "{:?}", b.problems);
+        assert_eq!(b.location_terms[0].areas, vec![2]);
+        assert!(!b.walk(&b.vanilla()).goal);
+        // Handed over on the way: as before.
+        g.bearing_area = Some("east".into());
+        assert!(opens_cave(&g, &m, true));
+        // A row outside the bearing's ranges asks nothing more.
+        m.locations[0].source = "ShopLineupParam 100025".into();
+        assert!(Bound::new(&g, &m).location_terms[0].areas.is_empty());
+        // A bearing no script takes, or one given twice, is a problem.
+        g.bearings[0].item = "Nobody's Bell Bearing".into();
+        g.bearings.push(g.bearings[0].clone());
+        let p = Bound::new(&g, &m).problems;
+        assert!(p.iter().any(|p| p.contains("Nobody's")), "{p:?}");
+        assert!(p.iter().any(|p| p.contains("given twice")), "{p:?}");
+        g.bearing_area = None;
+        let p = Bound::new(&g, &m).problems;
+        assert!(p.iter().any(|p| p.contains("bearing_area")), "{p:?}");
     }
 
     #[test]

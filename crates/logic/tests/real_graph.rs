@@ -361,9 +361,70 @@ fn the_capitals_gate_asks_for_two_great_runes() {
     let without: Vec<Vec<&str>> = bound
         .vanilla()
         .into_iter()
-        .map(|g| g.into_iter().filter(|i| !i.ends_with("Great Rune")).collect())
+        .map(|g| {
+            g.into_iter()
+                .filter(|i| !i.ends_with("Great Rune"))
+                .collect()
+        })
         .collect();
     let w = bound.walk(&without);
     let capital = graph.areas.iter().position(|a| a.id == "leyndell").unwrap();
     assert!(!w.reached[capital], "the capital opens with no Great Rune");
+}
+
+#[test]
+fn the_husks_open_a_merchants_own_rows_for_their_bearing() {
+    let m = model_or_skip!();
+    // Read from the Husks' script: goods 8910 + n for flag 11109710 + n, and each
+    // flag's ranges.
+    let thops = m
+        .bearings
+        .iter()
+        .find(|b| b.name.as_deref() == Some("Thops's Bell Bearing"))
+        .unwrap();
+    assert_eq!(
+        (thops.goods, thops.flag, thops.script.as_str()),
+        (8919, 11_109_719, "t600001110")
+    );
+    assert_eq!(thops.ranges, vec![(100_250, 100_274)]);
+    let moore = m.bearings.iter().find(|b| b.goods == 2_008_900).unwrap();
+    assert_eq!(moore.flag, 11_109_790);
+    assert_eq!(moore.ranges, vec![(102_250, 102_289)]);
+    let gowry = m.bearings.iter().find(|b| b.goods == 8944).unwrap();
+    assert_eq!(gowry.ranges, vec![(100_175, 100_184), (100_185, 100_199)]);
+    assert!(m.bearings.len() >= 16, "{}", m.bearings.len());
+    for b in &m.bearings {
+        let base = if b.goods >= 2_008_900 {
+            (2_008_900, 11_109_790)
+        } else {
+            (8910, 11_109_710)
+        };
+        assert_eq!(b.flag - base.1, (b.goods - base.0) as u32, "{b:?}");
+    }
+}
+
+#[test]
+fn a_merchant_given_a_bearing_sells_through_the_roundtable() {
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let roundtable = graph()
+        .areas
+        .iter()
+        .position(|a| a.id == "roundtable_hold")
+        .unwrap();
+    let row = |id: i32| {
+        m.locations
+            .iter()
+            .position(|l| l.shop_row() == Some(id))
+            .unwrap()
+    };
+    // Thops's, Sellen's, Moore's and both of Gowry's lists; not Seluvis's
+    // puppets, which the Husks do not sell, nor Kalé's, who is not given one.
+    for id in [100_250, 100_050, 102_250, 100_175, 100_185] {
+        assert_eq!(b.location_terms[row(id)].areas, vec![roundtable], "{id}");
+    }
+    for id in [100_300, 100_500] {
+        assert!(b.location_terms[row(id)].areas.is_empty(), "{id}");
+    }
+    assert_eq!(graph().bearings.len(), 13);
 }

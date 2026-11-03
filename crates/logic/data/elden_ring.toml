@@ -66,6 +66,10 @@ fixed = [
     "Crafting Kit",
 ]
 
+# Where the Twin Maiden Husks take bell bearings; the rows of a merchant given one
+# in talk (`[[bearing]]`, at the end) ask for it too.
+bearing_area = "roundtable_hold"
+
 [[area]]
 id = "stranded_graveyard"
 name = "Stranded Graveyard"
@@ -938,10 +942,13 @@ note = "Plain starter weapons, armour, staves and dragon incantations (600000, 9
 4 = "Lost Ashes of War"
 5 = "Heart of Bayle"
 
-# The Twin Maiden Husks' bell-bearing stock. The game shows no script taking
-# the bearing, but the bearings' goods ids run in the same order as the flags:
-# 8945–8948 with 11109745–748, 8951–8965 with 11109751–765, 2008902–2008909
-# with 11109792–799, and each bearing's name matches the stock.
+# The Twin Maiden Husks' bell-bearing stock. The bearings' goods ids run in the
+# same order as the flags: 8945–8948 with 11109745–748, 8951–8965 with
+# 11109751–765, 2008902–2008909 with 11109792–799, and each bearing's name
+# matches the stock. Read from the Husks' script since (2026-11-03,
+# `fs_esd::choice::offers`): its menu takes goods 8910 + n and turns on
+# 11109710 + n, and goods 2008900 + n for 11109790 + n. The entries stay, as
+# the model does not yet use that reading for these rows.
 
 [[on_sale]]
 flag = 11109745
@@ -1104,3 +1111,97 @@ note = "Resold once held."
 
 # Miriel, Pastor of Vows, and Seluvis take scrolls and prayerbooks picked from a
 # menu, which `fs_esd::choice` reads from their scripts, so no pair is written here.
+
+# --- Bell bearings given in talk (Nova, 2026-11-03) ------------------------------------
+
+# Story merchants can leave or die in their quests, and a key item in their shop would
+# go with them. Each of these is given a talk menu entry, "Get bell-bearing", that gives
+# their own bearing once (flag `given`, also the item lot's row). Handed to the Twin
+# Maiden Husks, it opens the very rows the merchant's scripts open (the model reads which,
+# `Model::bearings`), so the seed's item is sold there too, at the same price. Their rows
+# then ask for the Roundtable Hold as well as the merchant.
+#
+# Who: each script passes the merchant's death flag first to the shared NPC routine
+# (Thops's t333006000: 3803, 3801, 3802, …), and an event turns it on as their quest goes,
+# with no test of the character's death in it. Seluvis, Gowry and Moore are read
+# otherwise, as their notes say. Left out, as nothing but the player's own hand ends their
+# shop: Kalé, Gostoc, Pidia, Miriel and the nomadic, isolated, hermit, abandoned and
+# imprisoned merchants; killed, each drops their bearing already.
+
+[[bearing]]
+merchant = "Seluvis"
+item = "Seluvis's Bell Bearing"
+given = 11109820
+note = "Common event 3579 moves his stages (3565 to 3569) on Ranni's quest flags (1034509410, 1034509416, 1034509315, 1034509424, 1034509433). That he is then dead is general knowledge, not read."
+
+[[bearing]]
+merchant = "Patches"
+item = "Patches' Bell Bearing"
+given = 11109821
+note = "m16_00 event 16003712 turns on his death flag 3683 once 16000800 is on. He also moves (Murkwater Cave, Volcano Manor)."
+
+[[bearing]]
+merchant = "Sellen"
+item = "Sellen's Bell Bearing"
+given = 11109822
+note = "Common event 3479 turns on her death flag 3463 on her quest's flags."
+
+[[bearing]]
+merchant = "D, Hunter of the Dead"
+item = "D's Bell Bearing"
+given = 11109823
+note = "Common event 4139 turns on his death flag 4043 on Fia's quest flags (4125, 4047, 11109625)."
+
+[[bearing]]
+merchant = "Bernahl"
+item = "Bernahl's Bell Bearing"
+given = 11109824
+note = "Common event 3899 turns on his death flag 3883 on his quest's flags."
+
+[[bearing]]
+merchant = "Thops"
+item = "Thops's Bell Bearing"
+given = 11109825
+note = "Common event 3819 turns on his death flag 3803 once 3805 and 1039399220 are on."
+
+[[bearing]]
+merchant = "Iji"
+item = "Iji's Bell Bearing"
+given = 11109826
+note = "Common event 3779 turns on his death flag 3763 once 1034499242 is on."
+
+[[bearing]]
+merchant = "Rogier"
+item = "Rogier's Bell Bearing"
+given = 11109827
+note = "Common event 3919 turns on his death flag 3903 on his quest's flags."
+
+[[bearing]]
+merchant = "Blackguard Big Boggart"
+item = "Blackguard's Bell Bearing"
+given = 11109828
+note = "m60_44_52 event 1044523704 turns on his death flag 4143 once 1044529271 is on."
+
+[[bearing]]
+merchant = "Brother Corhyn"
+item = "Corhyn's Bell Bearing"
+given = 11109829
+note = "Common event 4219 turns on his death flag 4203 on his quest's flags. He also moves (the Roundtable Hold, the Altus Plateau, the Mountaintops)."
+
+[[bearing]]
+merchant = "Gowry"
+item = "Gowry's Bell Bearing"
+given = 11109830
+note = "His script passes no death flag (6000). That he dies at the end of Millicent's quest is general knowledge, not read."
+
+[[bearing]]
+merchant = "Moore"
+item = "Moore's Bell Bearing"
+given = 11109831
+note = "Events in m61_45_42, m61_47_46 and m20_01 start on his stage flags (4380 to 4387, moved by common event 4399, the last on 2045429298); his shop is in m61_45_42 alone. That he leaves it is read from that, not seen."
+
+[[bearing]]
+merchant = "Count Ymir"
+item = "Ymir's Bell Bearing"
+given = 11109832
+note = "Common event 4519 turns on his death flag 4503 on his quest's flags."
