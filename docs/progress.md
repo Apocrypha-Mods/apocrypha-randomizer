@@ -1644,14 +1644,18 @@ kind of enemy still.
 **For Nova to decide (our own design):**
 - A category at 0% still moves in shops and class gear: with `weapons=0, merchants=100`
   sold weapons move. Should a row move only if both sliders pass (`items.md` §2.1)?
+  **Settled 2026-11-03: both must pass, for every kind of slot and NPC gear.**
 - The add-on page offers only the category sliders, DLC and bosses: no bias,
   merchants, starting gear, keepsakes, gathering, NPC gear or scaling (`items.md` §1).
 - Slots that never give their item may receive ordinary items (`items.md` §4), and a
-  one-off item can land on a slot with a low drop chance.
-- An unnamed ordinary enemy on a boss's bar shows blank or stray text.
-- The keepsake menu's text is rewritten even at `keepsakes=0`.
+  one-off item can land on a slot with a low drop chance. **Settled 2026-11-03: one-off
+  items keep off chance slots.**
+- An unnamed ordinary enemy on a boss's bar shows blank or stray text. **Settled
+  2026-11-03: its model's bar name, else the boss's.**
+- The keepsake menu's text is rewritten even at `keepsakes=0`. **Settled 2026-11-03:
+  left alone.**
 - `--bias` for merchants, starting gear, keepsakes and NPC gear is accepted and does
-  nothing.
+  nothing. **Settled 2026-11-03: refused.**
 
 **Where the earlier write-up differs.** None of this was acted on, as taking behaviour
 from it is Nova's decision. Most likely to hurt a player first:
@@ -2341,3 +2345,37 @@ No game or lab run. The merge before this (d9e3f4e) was proven with `apoc-rando 
 - seed 11, items kept apart from the DLC, no enemy scaling, Leyndell at 0, `bosses=50,ordinary=30`: the same 527 files and spoiler log (106 s, 2.10 GiB).
 
 Not seen: the page in the mod manager's window, and any of it in the game.
+
+## Nova's five decisions on the sliders, chance slots, bar names and keepsake text (2026-11-03)
+
+No game or lab run. Spec: `items.md` §2.1, §2.3, §2.6; `enemies.md` §4.
+
+- **Both sliders.** A shop row, a class's slot, a keepsake and a node move only if their place's slider and their item's
+  category slider both pass (shops did already). NPC gear too: a weapon changes only if `npc-gear` and `weapons` pass, armour
+  with `armour`. With `weapons=0` no weapon moves anywhere. Default seeds draw differently from before.
+- **One-off items keep off chance slots.** A chance slot is a lot's slot below its row's whole weight (`items::chance_slot`);
+  one-off is the rule key and unlimited rows already used: not a consumable or upgrade (`items::one_off`). Chance slots are
+  filled first, from plentiful items only; where the sliders leave too few, chance slots holding a one-off item stay put. The
+  check refuses a one-off on one. On 2.7.2 there are none: of 5,628 slots, 5,459 non-node slots are all sure, the 169 nodes
+  trade among themselves, and chance drops are the farmable ones, which stay. Items: 2,978 plentiful, 2,481 one-off. So no
+  2.7.2 seed changes; the rule guards mods. Unlimited shop rows (132) still only prefer consumables; seed 0 puts no one-off there.
+- **Bar names.** The scripts' bars give each model its names (from every boss spot standing on it, moved or not); the
+  shortest wins ("Crystalian", "Magma Wyrm", "Erdtree Burial Watchdog"). A nameless ordinary enemy in an arena goes by it,
+  else the bar keeps its boss's name; never empty, never "DLC dummy" (text 0). NpcParam rows sharing a model were read and
+  not used: on these models they are single characters (Boc on `c4110`, Old Albus on `c3670`, Alexander on `c4490`). 51 of the
+  300 nameless ordinary models have a bar name. Three seeds at `bosses=100,ordinary=100,mix=100`: 44 arenas by model name,
+  541 keep the boss's.
+- **Keepsake text.** Only moved keepsakes are renamed; at `keepsakes=0` `menu_dlc02` carries only the bell bearings' talk entry.
+- **Lean for a kind of slot is refused**: `--bias merchants=80` (also starting-gear, keepsakes, npc-gear) says "lean does not
+  apply to merchants: it moves items by type, such as keys=60". `all=` skips them; gathering still leans. The module parses
+  settings before asking for files, so it refuses at once; the page never sends them, saved settings included.
+
+**Proven.** Unit and real-file tests in `items`, `enemies`, `rando` (`keepsakes_held_still_keep_the_games_text`), `addon`,
+`logic`, none failing; `ui` tests; clippy and fmt clean. `apoc-fs logic`: no problems, goal reached. `apoc-rando check`, seeds
+0 to 999, two threads, none failing: defaults in 253.1 s, `--shuffle weapons=0` in 253.3 s. Seed 7, `weapons=0,keepsakes=0`,
+bias `all=40`, `bosses=100,ordinary=50,mix=30`: `apoc-rando gen` and the module through `tools/addon-run.mjs` wrote the same
+545 files (`diff -r`) and spoiler log (113 s, 2.13 GiB).
+
+**For Nova.** 249 nameless ordinary models have no bar name, so most arenas keep the old boss's name. Where a model's bars
+are all named characters, a plain enemy takes one: an ordinary Glintstone Dragon shows "Glintstone Dragon Adula". Golden
+Seeds and Sacred Tears count as plentiful (upgrades), and Dragon Hearts or Larval Tears as consumables.
