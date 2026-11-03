@@ -16,6 +16,7 @@ use gamedata::sources::{Text, text_of};
 use gamedata::{GameFiles, Sources, elden_ring};
 use rayon::prelude::*;
 
+pub mod bearings;
 pub mod far;
 
 pub use enemies::Options as EnemyOptions;
@@ -592,7 +593,16 @@ pub fn build(
     let mut reg = sources.reg.clone();
     items::apply(&mut reg, &units, &plan)?;
     let dressed = items::dress_npcs(&mut reg, model, seed, options)?;
-    keepsake_text(files, sink, &items::keepsake_items(&units, &plan))?;
+    let given = bearings::apply(sources, &graph, model, &mut reg)?;
+    for (path, data) in bearings::binders(files, &given)? {
+        sink.put(&path, data)?;
+    }
+    let talk: &[(i32, &str)] = if given.log.is_empty() {
+        &[]
+    } else {
+        &[(bearings::TEXT, bearings::WORDS)]
+    };
+    menu_text(files, sink, &items::keepsake_items(&units, &plan), talk)?;
     let enemy_log = if foes.is_off() {
         None
     } else {
@@ -605,6 +615,15 @@ pub fn build(
     log += "\nNPC equipment\n";
     for line in &dressed {
         log += &format!("  {line}\n");
+    }
+    if !given.log.is_empty() {
+        log += &format!(
+            "\nBell bearings given in talk (\"{}\"), for the Twin Maiden Husks\n",
+            bearings::WORDS
+        );
+        for line in &given.log {
+            log += &format!("  {line}\n");
+        }
     }
     log += enemy_log.as_deref().unwrap_or("");
     Ok(Built {
@@ -745,7 +764,13 @@ fn item_table(kind: ItemKind) -> &'static str {
 /// Character creation names its keepsakes from menu text of its own, so write
 /// what each now is, in the file the game reads (the last DLC's holds it all),
 /// in each language. The menu's one line of help is English in all of them.
-fn keepsake_text(files: &GameFiles, out: &dyn Sink, keepsakes: &[(i32, Item)]) -> Result<()> {
+/// `talk` adds talk menu text (EventTextForTalk), the same in every language.
+fn menu_text(
+    files: &GameFiles,
+    out: &dyn Sink,
+    keepsakes: &[(i32, Item)],
+    talk: &[(i32, &str)],
+) -> Result<()> {
     for language in LANGUAGES {
         let path = format!("/msg/{language}/menu_dlc02.msgbnd.dcx");
         if !files.exists(&path) {
@@ -773,6 +798,19 @@ fn keepsake_text(files: &GameFiles, out: &dyn Sink, keepsakes: &[(i32, Item)]) -
             let line = match f.short_name() {
                 Some("GR_MenuText.fmg") => None,
                 Some("GR_LineHelp.fmg") => Some("Your keepsake, chosen by the seed."),
+                Some("EventTextForTalk.fmg") if !talk.is_empty() => {
+                    let mut fmg = fs_fmg::Fmg::read(&f.data)?;
+                    for (id, words) in talk {
+                        if fmg.entries.get(id).is_some_and(|t| t.is_some()) {
+                            return Err(format_err(format!(
+                                "{path}: talk text {id} is already used"
+                            )));
+                        }
+                        fmg.entries.insert(*id, Some((*words).to_string()));
+                    }
+                    f.data = fmg.write()?;
+                    return Ok(());
+                }
                 _ => return Ok(()),
             };
             let mut fmg = fs_fmg::Fmg::read(&f.data)?;

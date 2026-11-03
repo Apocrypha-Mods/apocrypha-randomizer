@@ -929,6 +929,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
         model.gaps.unreached_lots.insert(t.into(), ids);
     }
     model.gaps.flagged_named = sort_unreached(s, &model, &lots, &names)?;
+    model.bearings = bearings(s, &names);
     model.quest_items = quest_goods
         .into_iter()
         .filter_map(|(t, id)| {
@@ -991,6 +992,39 @@ pub fn extract(s: &Sources) -> Result<Model> {
     explain_shops(&mut model.locations, &explain, &talk_sets, &talk_clears);
 
     Ok(model)
+}
+
+/// The bell bearings talk scripts take from a menu, where the flag handing one
+/// over turns on is the one an entry offering shop ranges waits on: the Twin
+/// Maiden Husks' (`fs_esd::choice::offers`, `fs_esd::menu::ranges_by_flag`).
+fn bearings(s: &Sources, names: &Names) -> Vec<Bearing> {
+    let mut out = Vec::new();
+    for (_, script, esd) in &s.talk {
+        let ranges = fs_esd::menu::ranges_by_flag(esd);
+        if ranges.is_empty() {
+            continue;
+        }
+        for h in fs_esd::choice::offers(esd) {
+            for flag in &h.flags {
+                let Some(r) = ranges.get(flag) else { continue };
+                if out
+                    .iter()
+                    .any(|b: &Bearing| b.goods == h.goods && b.script == *script)
+                {
+                    continue;
+                }
+                out.push(Bearing {
+                    goods: h.goods,
+                    name: names.of(ItemKind::Goods, h.goods),
+                    script: script.clone(),
+                    flag: *flag,
+                    ranges: r.iter().copied().collect(),
+                });
+            }
+        }
+    }
+    out.sort_by_key(|b| (b.goods, b.script.clone()));
+    out
 }
 
 /// The unreached map lots that carry a flag and a named item, sorted by what

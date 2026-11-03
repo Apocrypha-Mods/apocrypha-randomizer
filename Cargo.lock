@@ -803,6 +803,7 @@ dependencies = [
  "fs-dcx",
  "fs-dvdbnd",
  "fs-emevd",
+ "fs-esd",
  "fs-fmg",
  "fs-msb",
  "fs-param",

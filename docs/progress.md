@@ -2179,3 +2179,80 @@ No game or lab run.
 **Proven.** `enemies` tests on 2.7.2, among them 50 seeds at `bosses=100,ordinary=100`, mix 50 and 0, in which wildlife and the rest never trade, and a written seed whose rows carry the spot's tier or the map's. Clippy and fmt clean.
 
 **The day's gate** (2026-11-03, on `dev` at 8ed6d36, everything above merged): `apoc-rando check` on 2.7.2, seeds 0 to 9,999, default sliders, four threads: 10,000 placed and proven in 1,314.5 s, none failing.
+
+## Bell bearings for merchants who leave (Nova, 2026-11-03)
+
+No game or lab run: read from the files on 2.7.2. None of it has been seen in the game.
+
+Story merchants can leave or die in their quests, and a key item in their shop would go with them. Nothing kept such rows from key
+items before: only rows whose on-sale flag can be lost were missable. Nova's fix: give each one their bell bearing from a talk menu
+entry, "Get bell-bearing", from the first meeting, so the Twin Maiden Husks can sell their stock.
+
+**How the game does it**, read from the Husks' script (`t600001110`):
+- Their offer menu lists each bearing held whose flag is off: goods 8910 + n for flag 11109710 + n (n to 55), and 2008900 + n for
+  11109790 + n. Choosing one takes it and turns the flag on. `fs_esd::choice::offers` reads this; the Husks add those entries with
+  `1[0x95]`, which `choice` now reads beside `1[0x13]`. The model's handovers still use the plain reading, so nothing else moved.
+- Their shop menus offer an entry while a bearing's flag is on, and its choice opens a range of ShopLineupParam rows: the very rows
+  the merchant's own scripts open (11109713, Sellen's: 100050 to 100074). `fs_esd::menu::ranges_by_flag`; 16 flags open ranges.
+  Gowry's second list also waits on 1038519257, as it does at Gowry.
+- So the Husks sell the merchant's own rows: same row, price, currency, quantity and stock. Whatever the seed puts in a row is sold
+  at both, and rows over the key-item cap go along. No shop rows are added. The model carries this as `Model::bearings`.
+- The vanilla bearings come from lots the model does not reach (Sellen's 111000, Thops's 113600, the "npc" lots): on death or at a
+  quest's end, after the merchant is gone. So all thirteen get the entry.
+
+**Who** (area map, `[[bearing]]`). Each script passes the merchant's death flag first to the shared NPC routine, and an event turns it
+on as their quest goes, with no test of the character's death in it:
+
+| Merchant | Evidence | Flag given |
+|---|---|---|
+| Sellen | common event 3479 sets 3463 | 11109822 |
+| Thops | common event 3819 sets 3803 once 3805 and 1039399220 are on | 11109825 |
+| Iji | common event 3779 sets 3763 once 1034499242 is on | 11109826 |
+| Bernahl | common event 3899 sets 3883 | 11109824 |
+| Rogier | common event 3919 sets 3903 | 11109827 |
+| D, Hunter of the Dead | common event 4139 sets 4043 on Fia's flags | 11109823 |
+| Corhyn | common event 4219 sets 4203; he also moves | 11109829 |
+| Ymir | common event 4519 sets 4503 | 11109832 |
+| Patches | m16_00 event 16003712 sets 3683 once 16000800 is on; he also moves | 11109821 |
+| Blackguard Big Boggart | m60_44_52 event 1044523704 sets 4143 once 1044529271 is on | 11109828 |
+| Seluvis | common event 3579 moves his stages on Ranni's flags; that he dies is general knowledge | 11109820 |
+| Gowry | his script passes no death flag; that he dies is general knowledge | 11109830 |
+| Moore | events in m61_45_42, m61_47_46 and m20_01 start on his stages (4380 to 4387); his shop is in m61_45_42 alone | 11109831 |
+
+Left out, as nothing but the player's own hand ends their shop: Kalé, Gostoc, Pidia, Miriel and the nomadic, isolated, hermit,
+abandoned and imprisoned merchants. Killed, each drops their bearing already.
+
+**What a seed writes** (`rando::bearings`):
+- An ItemLotParam_map row per merchant, numbered as its flag (11109820 to 11109832), giving the bearing and turning the flag on,
+  laid out as the game's own bearing lots are. The flags and rows are in no table, event, talk script or map of the game.
+- In every shop menu of the merchant's scripts (40 menus in 26 scripts; Patches has 13), a bank-5 entry, before "Leave", offered
+  while the flag and the Husks' flag for the bearing are off. Its choice, tested first, goes to a new state that awards the lot,
+  turns the flag on, waits for `f25(63) == 0` as the game's own gifts do, and goes back to empty the menu, so it is gone when the
+  menu is built again. All 68 shop menus come back to that state after the shop. Not the Husks' own script.
+- EventTextForTalk 26009820, "Get bell-bearing", in every language's `menu_dlc02`, written with the keepsakes' text. English in all
+  fifteen for now.
+- The spoiler log lists each merchant, the bearing, the flag and the scripts.
+
+**Writing talk scripts** (`fs_esd::edit`). Records go into any table with every offset at or past them moved by the table they
+point into; nothing put in writes the file back byte for byte. A record inside a span another list also covers is refused, as the
+game shares spans between states. Unit tests put records at every place between spans of a sample and check what it means is
+unchanged; the real-file tests give every one of the 68 shop menus an entry, read it back the same, and for the merchants check every
+machine but the changed ones means what it did, and in those only the entry's state and the choice test change. `apoc-fs talk-dump
+--raw` prints expression bytes; the new ones are written as the game writes its own (`fs_esd::expr::call_is`, `all`).
+
+**Logic.** A row in a range the Husks open for a listed bearing asks for the Roundtable Hold as well as the merchant
+(`bearing_area`, `Terms::areas`): met, and the Husks reachable. 142 shop slots are such rows; 63 of them can take a key item, the
+rest missable (25), never selling out (7) or over the cap (47). Rows lost some other way stay missable, as the Husks sell them
+behind the same on-sale flag: Patches' six, Thiollier's poisons, Boggart's prawn and crab, Iji's crest, Bernahl's two Ashes of War.
+Seluvis's puppets (100300 on) are not in his Husks list and are unchanged.
+
+The add-on reads talk binders and `menu_dlc02` already, so it fetches nothing new.
+
+**Questions for Nova:** the entry's words in the other fourteen languages; whether Pidia, Gostoc or Kalé should get one too; and
+that a merchant who leaves before the player ever talks to them (Seluvis, if Ranni's quest is pushed on first) still takes their
+stock with them.
+
+**Proven.** On 2.7.2 with `APOC_ER_STOCK`: the workspace's tests apart from `native`, 319 passed, none failed; clippy and fmt clean.
+`apoc-fs logic`: no problems, every area and the goal reached. `apoc-rando check`, seeds 0 to 999, two threads: 5,628 slots, 293
+holding key items, none failing, in 234 s. `apoc-rando gen` of seed 1 with `--enemies bosses=100,ordinary=100,mix=10`: 552 files,
+among them ten talk binders and every language's `menu_dlc02`, in 55 s.

@@ -19,7 +19,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use crate::calls::CALL_BANK;
-use crate::commands::{MENU_ENTRY, SET_COUNTER, SET_EVENT_FLAG, TAKE_ITEM};
+use crate::commands::{MENU_ENTRY, MENU_ENTRY_COUNTED, SET_COUNTER, SET_EVENT_FLAG, TAKE_ITEM};
 use crate::cond::{FLAG, HOLDS};
 use crate::expr::{ARG, END, INT};
 use crate::handover::Handover;
@@ -233,8 +233,9 @@ fn entry_terms(cond: &Node) -> Option<(Linear, Linear)> {
 /// flag it asks to be off.
 type Entry = (i64, i64, i64);
 
-/// The entries a machine's menu loop offers with the numbers it was called with.
-fn menu(esd: &Esd, g: &Group, args: &[Option<i32>]) -> Vec<Entry> {
+/// The entries a machine's menu loop offers with the numbers it was called with,
+/// added by bank 5's form of the commands `ids`.
+fn menu(esd: &Esd, g: &Group, args: &[Option<i32>], ids: &[i32]) -> Vec<Entry> {
     let states = esd.states_of(g);
     // The counters the machine starts at 0.
     let started: HashSet<i64> = states
@@ -280,7 +281,7 @@ fn menu(esd: &Esd, g: &Group, args: &[Option<i32>]) -> Vec<Entry> {
             continue;
         }
         for c in esd.commands_in(s.on_enter) {
-            if (c.bank, c.id) != (WHEN_BANK, MENU_ENTRY.1) {
+            if c.bank != WHEN_BANK || !ids.contains(&c.id) {
                 continue;
             }
             let a = esd.command_args(c);
@@ -421,10 +422,21 @@ fn reached(esd: &Esd) -> Vec<(&Group, Vec<Option<i32>>)> {
 /// Every item a script's menus take for a flag, read where an entry's offer and
 /// the trade for its choice agree.
 pub fn handovers(esd: &Esd) -> Vec<Handover> {
+    handovers_by(esd, &[MENU_ENTRY.1])
+}
+
+/// The same, with menus whose entries are added by [`MENU_ENTRY_COUNTED`] too:
+/// the Twin Maiden Husks take bell bearings so, goods `8910 + n` for flag
+/// `11109710 + n` and goods `2008900 + n` for flag `11109790 + n`.
+pub fn offers(esd: &Esd) -> Vec<Handover> {
+    handovers_by(esd, &[MENU_ENTRY.1, MENU_ENTRY_COUNTED.1])
+}
+
+fn handovers_by(esd: &Esd, ids: &[i32]) -> Vec<Handover> {
     let mut entries: BTreeSet<Entry> = BTreeSet::new();
     let mut deals: BTreeSet<(i64, i64)> = BTreeSet::new();
     for (g, args) in reached(esd) {
-        entries.extend(menu(esd, g, &args));
+        entries.extend(menu(esd, g, &args, ids));
         deals.extend(trades(esd, g, &args));
     }
     let mut found: BTreeMap<i32, BTreeSet<u32>> = BTreeMap::new();

@@ -301,6 +301,24 @@ pub enum LotSort {
     Other,
 }
 
+/// A bell bearing a talk script takes from a menu, and the shop ranges taking
+/// it opens: the Twin Maiden Husks sell a merchant's own rows once that
+/// merchant's bearing is handed over (`t600001110`: Sellen's Bell Bearing,
+/// goods 8913, turns on 11109713, which offers 100050 to 100074, the rows
+/// Sellen's own scripts open).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Bearing {
+    pub goods: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    /// The talk script that takes it.
+    pub script: String,
+    /// The flag handing it over turns on.
+    pub flag: u32,
+    /// The ShopLineupParam ranges, first to last, the flag offers.
+    pub ranges: Vec<(i32, i32)>,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Model {
     /// A name for each map, from the graces in it.
@@ -312,6 +330,8 @@ pub struct Model {
     /// What talk scripts take from the player or ask them to hold: the items
     /// quests turn on, whatever the area map says of them.
     pub quest_items: Vec<Item>,
+    /// The bell bearings handed over in talk that open shop ranges.
+    pub bearings: Vec<Bearing>,
     pub gaps: Gaps,
 }
 

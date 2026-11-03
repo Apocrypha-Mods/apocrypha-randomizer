@@ -3,15 +3,36 @@
 //! shown by [`fs_esd::cond::show`].
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use fs_bytes::Result;
 use fs_esd::cond::show;
 use fs_esd::{Command, Condition, Esd, Group};
 
+/// Whether each expression is followed by its bytes in hex.
+static RAW: AtomicBool = AtomicBool::new(false);
+
+/// An expression for reading, with its bytes after it when `--raw` asks.
+fn shown(e: &[u8]) -> String {
+    if RAW.load(Ordering::Relaxed) {
+        let hex: Vec<String> = e.iter().map(|b| format!("{b:02x}")).collect();
+        format!("{} [{}]", show(e), hex.join(" "))
+    } else {
+        show(e)
+    }
+}
+
 /// Print the machines of the scripts named (all machines, or only `groups`),
 /// or with `find`, every script and machine whose expressions hold one of those
-/// numbers as a 4-byte word.
-pub fn run(game: PathBuf, scripts: &[String], groups: &[i64], find: &[i32]) -> Result<()> {
+/// numbers as a 4-byte word. `raw` adds each expression's bytes.
+pub fn run(
+    game: PathBuf,
+    scripts: &[String],
+    groups: &[i64],
+    find: &[i32],
+    raw: bool,
+) -> Result<()> {
+    RAW.store(raw, Ordering::Relaxed);
     let s = gamedata::Sources::open(&game)?;
     for (map, name, esd) in &s.talk {
         if !find.is_empty() {
@@ -66,7 +87,7 @@ fn command(esd: &Esd, c: &Command) -> String {
     let args: Vec<String> = esd
         .command_args(c)
         .into_iter()
-        .map(|a| a.map_or("?".into(), show))
+        .map(|a| a.map_or("?".into(), shown))
         .collect();
     format!("{}[{:#x}]({})", c.bank, c.id, args.join(", "))
 }
@@ -99,7 +120,7 @@ fn condition(esd: &Esd, c: &Condition, first: usize, indent: usize) {
     let to = esd
         .state_at(c.next_state)
         .map_or("-".into(), |(j, _)| (j as i64 - first as i64).to_string());
-    let e = esd.expression(c.evaluator).map_or("?".into(), show);
+    let e = esd.expression(c.evaluator).map_or("?".into(), shown);
     println!("{:indent$}if {e} -> {to}", "");
     for cmd in esd.commands_in(c.on_pass) {
         println!("{:indent$}  then {}", "", command(esd, cmd));
