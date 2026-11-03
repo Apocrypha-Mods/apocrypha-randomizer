@@ -171,5 +171,5 @@ fn conditions_read_as_one_value() {
         }
     }
     eprintln!("conditions: {ok}/{all} understood, {asks} ask for a flag or an item");
-    assert!(ok * 100 >= all * 99);
+    assert_eq!(ok, all, "every condition reads as one value");
 }

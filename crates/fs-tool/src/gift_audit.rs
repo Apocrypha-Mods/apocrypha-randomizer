@@ -155,7 +155,7 @@ pub fn blockers(game: PathBuf, flags: &[u32]) -> Result<()> {
                     })
                 };
                 for (_, ways) in fs_emevd::flow::ways_to(&run.instructions, sets) {
-                    for way in ways.iter().take(3) {
+                    for way in ways.iter().take(64) {
                         let tests: Vec<String> = way
                             .iter()
                             .map(|l| format!("{}{:?}", if l.holds { "" } else { "!" }, l.test))

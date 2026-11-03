@@ -8,9 +8,16 @@
 //!   6 arguments pushed after it;
 //! - 0x8C, 0x8E, 0x8F: add, subtract, multiply; 0x91 to 0x96: <=, >=, <, >,
 //!   ==, !=; 0x98, 0x99: and, or;
-//! - 0xA6 to 0xAD: store the value on top in register 0 to 7, leaving it;
+//! - 0xA6: follows nearly every call (50,142 times), leaving the stack alone;
+//! - 0xA7 to 0xAE: store the value on top in register 0 to 7, leaving it;
 //!   0xAF to 0xB6: push register 0 to 7; 0xB7: marks the end of an "and"'s
-//!   left side, leaving the stack alone;
+//!   left side, leaving the stack alone. Registers outlive one condition:
+//!   a machine of the grace menu's script (`t000001000`, 0x7FFFFFC3) stores
+//!   seven values in its first
+//!   condition and tests registers 0 to 6 in its second, and its third stores
+//!   flag 9104 in register 7 (0xAE), which its fourth tests as the next machine
+//!   tests 9104 itself. Read as 0xA6 to 0xAD, every load would fall one off.
+//!   Loads are not followed here: they add nothing a condition asks;
 //! - 0xB9, 0xBA: push a value of the machine's own (`[0xB9, 0xBA, 0x96]`,
 //!   the commonest condition, compares the two);
 //! - 0x80: a 4-byte float follows; 0x81: an 8-byte double.
@@ -19,7 +26,12 @@
 //! in 16,544 calls ([`FLAG`]). Function 47 takes five: an item type (as in
 //! ShopLineupParam), an item id, a comparison, a count and a fifth word
 //! ([`HOLDS`]); `(3, id, 4, 1, 0)` is "holds at least one", `(3, id, 0, 0, 0)`
-//! "holds none".
+//! "holds none". The comparisons are numbered as the exe numbers event tests'
+//! (`==`, `!=`, `>`, `<`, `>=`, `<=`; docs/progress.md, "Event tests read from
+//! the exe"), so `(3, id, 0, 1, 0)` is "holds exactly one" and `(3, id, 2, 0, 0)`
+//! "holds more than none": both ask that the item be held. The scripts bear the
+//! first out: an exchange tries `(3, id, 0, 1, 0)` for eleven goods in turn and
+//! takes the one it finds, so the test cannot pass on none.
 
 use crate::expr::{ARG, END, INT};
 
@@ -31,11 +43,15 @@ pub const HOLDS: i32 = 47;
 const AT_LEAST: i32 = 4;
 /// Function 47's comparison meaning "exactly".
 const EXACTLY: i32 = 0;
+/// Function 47's comparison meaning "more than".
+const MORE_THAN: i32 = 2;
 
 const CALL_FIRST: u8 = 0x84;
 const CALL_LAST: u8 = 0x8A;
-const STORE_FIRST: u8 = 0xA6;
-const STORE_LAST: u8 = 0xAD;
+/// Follows a call, leaving the stack alone.
+const AFTER_CALL: u8 = 0xA6;
+const STORE_FIRST: u8 = 0xA7;
+const STORE_LAST: u8 = 0xAE;
 const LOAD_FIRST: u8 = 0xAF;
 const LOAD_LAST: u8 = 0xB6;
 const AND_LEFT: u8 = 0xB7;
@@ -103,7 +119,7 @@ fn parse(e: &[u8]) -> Option<Node> {
                 let l = stack.pop()?;
                 stack.push(Node::Op(b, Box::new(l), Box::new(r)));
             }
-            STORE_FIRST..=STORE_LAST | AND_LEFT => {}
+            AFTER_CALL | STORE_FIRST..=STORE_LAST | AND_LEFT => {}
             LOAD_FIRST..=LOAD_LAST => stack.push(Node::Other),
             ARG => {
                 stack.pop()?;
@@ -116,6 +132,81 @@ fn parse(e: &[u8]) -> Option<Node> {
         [_] => stack.pop(),
         _ => None,
     }
+}
+
+/// An expression written out for reading by hand: `f15(4323) == 1 && …`,
+/// with `r0`…`r7` for registers, `arg(k)` for a call's argument, `m0`/`m1` for
+/// the machine's own values and `?xx` for a byte not known.
+pub fn show(e: &[u8]) -> String {
+    let mut stack: Vec<String> = Vec::new();
+    let mut i = 0;
+    while i < e.len() {
+        let b = e[i];
+        i += 1;
+        let top = |stack: &mut Vec<String>| stack.pop().unwrap_or_else(|| "_".into());
+        match b {
+            END => break,
+            INT => {
+                let v = e
+                    .get(i..i + 4)
+                    .map(|w| i32::from_le_bytes(w.try_into().unwrap_or_default()));
+                stack.push(v.map_or("?int".into(), |v| v.to_string()));
+                i += 4;
+            }
+            FLOAT => {
+                let v = e
+                    .get(i..i + 4)
+                    .map(|w| f32::from_le_bytes(w.try_into().unwrap_or_default()));
+                stack.push(v.map_or("?f".into(), |v| format!("{v}f")));
+                i += 4;
+            }
+            DOUBLE => {
+                let v = e
+                    .get(i..i + 8)
+                    .map(|w| f64::from_le_bytes(w.try_into().unwrap_or_default()));
+                stack.push(v.map_or("?d".into(), |v| format!("{v}d")));
+                i += 8;
+            }
+            MACHINE_FIRST..=MACHINE_LAST => stack.push(format!("m{}", b - MACHINE_FIRST)),
+            _ if b < SMALL_LIMIT => stack.push((i32::from(b) - SMALL_BIAS).to_string()),
+            CALL_FIRST..=CALL_LAST => {
+                let n = usize::from(b - CALL_FIRST);
+                let args = stack.split_off(stack.len().saturating_sub(n));
+                let f = top(&mut stack);
+                stack.push(format!("f{f}({})", args.join(", ")));
+            }
+            0x8C | 0x8E | 0x8F | 0x91..=0x96 | 0x98 | 0x99 => {
+                let r = top(&mut stack);
+                let l = top(&mut stack);
+                let op = match b {
+                    0x8C => "+",
+                    0x8E => "-",
+                    0x8F => "*",
+                    0x91 => "<=",
+                    0x92 => ">=",
+                    0x93 => "<",
+                    0x94 => ">",
+                    0x95 => "==",
+                    0x96 => "!=",
+                    0x98 => "&&",
+                    _ => "||",
+                };
+                stack.push(format!("({l} {op} {r})"));
+            }
+            STORE_FIRST..=STORE_LAST => {
+                let t = top(&mut stack);
+                stack.push(format!("(r{} = {t})", b - STORE_FIRST));
+            }
+            AFTER_CALL | AND_LEFT => {}
+            LOAD_FIRST..=LOAD_LAST => stack.push(format!("r{}", b - LOAD_FIRST)),
+            ARG => {
+                let k = top(&mut stack);
+                stack.push(format!("arg({k})"));
+            }
+            _ => stack.push(format!("?{b:02x}")),
+        }
+    }
+    stack.join(" ; ")
 }
 
 const EQ: u8 = 0x95;
@@ -177,7 +268,9 @@ fn collect(n: &Node, truth: bool, out: &mut Vec<Atom>) {
         Node::Call(HOLDS, args) => {
             if let [Node::Int(t), Node::Int(id), Node::Int(cmp), Node::Int(n), _] = &args[..] {
                 match (*cmp, *n, truth) {
-                    (AT_LEAST, 1.., true) => out.push(Atom::Holds(*t, *id)),
+                    (AT_LEAST | EXACTLY, 1.., true) | (MORE_THAN, 0.., true) => {
+                        out.push(Atom::Holds(*t, *id))
+                    }
                     (EXACTLY, 0, true) => out.push(Atom::HoldsNone(*t, *id)),
                     _ => {}
                 }
@@ -237,6 +330,43 @@ mod tests {
         let n = e.len();
         e[n - 2] = 0x99;
         assert_eq!(requires(&e), vec![]);
+    }
+
+    #[test]
+    fn holding_exactly_one_or_more_than_none_asks_for_the_item() {
+        // fn47(3, 2219010, 0, 1, 0) == 1
+        let mut e = vec![0x40 + 47, 0x43];
+        e.extend(int(2_219_010));
+        e.extend([0x40, 0x41, 0x40, 0x89, 0xA6, 0x41, EQ, END]);
+        assert_eq!(requires(&e), vec![Atom::Holds(3, 2_219_010)]);
+        // fn47(3, 2219010, 2, 0, 0) == 1
+        let n = e.len();
+        e[n - 8] = 0x42;
+        e[n - 7] = 0x40;
+        assert_eq!(requires(&e), vec![Atom::Holds(3, 2_219_010)]);
+        // fn47(3, 2219010, 0, 1, 0) == 0 says nothing: two may be held.
+        let mut not = e.clone();
+        not[n - 8] = 0x40;
+        not[n - 7] = 0x41;
+        not[n - 3] = 0x40;
+        assert_eq!(requires(&not), vec![]);
+    }
+
+    #[test]
+    fn register_seven_is_stored_by_0xae() {
+        // fn15(400001) == 0 && (r7 = fn15(9104)) == 0, as in the grace menu.
+        let mut e = vec![0x4F];
+        e.extend(int(400_001));
+        e.extend([0x85, 0xA6, 0x40, EQ, AND_LEFT, 0x4F, 0x82]);
+        e.extend(9104i32.to_le_bytes());
+        e.extend([0x85, 0xAE, 0x40, EQ, AND, END]);
+        assert!(understood(&e));
+        assert_eq!(
+            requires(&e),
+            vec![Atom::Flag(400_001, false), Atom::Flag(9104, false)]
+        );
+        // Loading register 7 is not followed.
+        assert_eq!(requires(&[0xB6, 0x41, EQ, END]), vec![]);
     }
 
     #[test]
