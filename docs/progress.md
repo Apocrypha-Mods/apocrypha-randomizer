@@ -2268,3 +2268,5 @@ No game or lab run. The merge before this (fc9a06d) was proven with `apoc-rando 
 **Kalé, Gostoc and Pidia** have the entry too, by Nova's choice (flags 11109833 to 11109835). Kalé's bearing was not read as opening anything: the Husks' second bearing menu (machine 0x7FFFFFF5, Kalé's and eight more, 26000070 to 26000078) shows itself with `1[0x96]`, not `1[0x0A]`, so `fs_esd::menu` did not take it for a menu. It now does (`SHOW_MENU_COUNTED`), and Kalé's 11109720 opens 100500 to 100524. The Husks' ranges read behind flags went from 16 flags to 36. 56 merchant menus take the entry, up from 40: Gostoc 12, Kalé 3, Pidia 1.
 
 **Proven.** On 2.7.2: the tests of `fs-esd`, `gamedata`, `logic`, `items` and `rando`, real files among them; clippy and fmt clean.
+
+**Proven again** after this section (82271d1): `apoc-rando check`, seeds 0 to 9,999, four threads, none failing, in 1,219.5 s.
