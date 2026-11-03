@@ -21,7 +21,8 @@ Check that each of these really needs nothing: no key item, no boss, no quest st
 
 **Base game**
 - [ ] Limgrave → Caelid, and Caelid → Dragonbarrow: open on foot.
-- [ ] Dragonbarrow → Divine Tower of Caelid: no item or boss needed to get in and to the top.
+- [x] Dragonbarrow → Divine Tower of Caelid: **not open.** The top needs Radahn's Great Rune
+      held (Nova, 2026-11-03). The map now asks for it to enter the tower.
 - [ ] Limgrave → Siofra River (the well in Mistwood): open.
 - [ ] Nokron → Deeproot Depths: open through Night's Sacred Ground and the aqueduct, once Nokron is reached.
 - [ ] Academy of Raya Lucaria → Volcano Manor: the Abductor Virgin's grab works without
@@ -41,9 +42,9 @@ Check that each of these really needs nothing: no key item, no boss, no quest st
 **Shadow of the Erdtree**
 - [ ] Gravesite Plain → Belurat, Castle Ensis and the Cerulean Coast (down the Ellac River to its cave): open.
 - [ ] Scadu Altus → Rauh Base, through the tunnel from Moorth Ruins: open.
-- [ ] Scadu Altus → Shadow Keep: open by the main gate, or the Church District by way of
-      Bonny Village. In particular: does the Golden Hippopotamus have to die before you
-      can go deeper into the Keep? No source says, so the map asks nothing.
+- [x] Scadu Altus → Shadow Keep: open by the main gate, or the Church District by way of
+      Bonny Village. The Golden Hippopotamus need not die to go deeper: the Church District
+      goes round him (Nova, 2026-11-03).
 - [ ] Shadow Keep → Ancient Ruins of Rauh and the Church of the Bud: from the Storehouse's
       West Rampart, over the long bridge and up the lift, with nothing needed. Also: is
       there a way from these ruins to Rauh Base? The map treats them as two separate places.
@@ -60,7 +61,8 @@ around it are judged reachable when they're not, or the other way round.
 
 - [ ] Behind Caria Manor: counted with the Three Sisters, so it's past Loretta.
 - [ ] Royal Moongazing Grounds (Loretta's arena): counted on Caria Manor's side, before her.
-- [ ] Great Waterfall Basin: counted in Nokron (behind Radahn), not open Siofra.
+- [x] Great Waterfall Basin: counted in Nokron (behind Radahn), not open Siofra. Confirmed:
+      it is at the bottom of the Siofra Aqueduct, reached only after Radahn (Nova, 2026-11-03).
 - [ ] Deep Siofra Well: counted in Caelid, not Dragonbarrow.
 - [ ] Capital Rampart: counted outside Leyndell's walls, on the Altus Plateau.
 - [ ] Wyndham Catacombs: on the Altus Plateau.
@@ -87,9 +89,10 @@ These ask for a boss or an item. Check that the game asks for it, and for nothin
 - [ ] Chapel of Anticipation, via the Four Belfries, needs the Imbued Sword Key.
 - [ ] Moonlight Altar: through the coffin at the Grand Cloister and past Astel.
 - [ ] Altus: either Makar (by the Precipice) or both Dectus Medallion halves (by the lift).
-- [ ] Leyndell's gate needs any two of: Godrick, Rennala, Radahn, Rykard, Mohg, Malenia.
-      The scripts count the bosses killed, not the runes held. Worth confirming: kill two,
-      hold no runes, and the gate opens.
+- [x] Leyndell's gate needs two Great Runes held (Nova, 2026-11-03). The map now asks for
+      any two of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's. An earlier script reading
+      counted bosses' rewards instead. A lab run would settle which the gate tests: beat two
+      of these bosses holding no rune, then hold two runes with no boss beaten.
 - [ ] Mountaintops need the Rold Medallion. Consecrated Snowfield needs both Haligtree Secret Medallion halves.
 - [ ] Mohgwyn Palace: the Pureblood Knight's Medal from anywhere, or the waygate in the Snowfield.
 - [ ] Farum Azula after the Fire Giant, the Ashen Capital after Maliketh, the Elden Throne after Godfrey.

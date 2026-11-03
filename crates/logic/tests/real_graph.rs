@@ -299,10 +299,10 @@ fn gifts_read_one_at_a_time() {
     assert!(m.locations[by_lot(106600)].missable);
 }
 
-/// The capital's gate counts bosses' rewards by flag: holding no Great Rune does not
-/// keep it shut, and with none of the bosses reachable it stays shut.
+/// The capital's gate asks for two Great Runes held (Nova, from play, 2026-11-03): they
+/// are key items, and with every Great Rune taken out the capital stays shut.
 #[test]
-fn the_capitals_gate_asks_for_two_bosses_and_no_rune() {
+fn the_capitals_gate_asks_for_two_great_runes() {
     let Some(model) = model() else { return };
     let graph = graph();
     let edge = graph
@@ -312,9 +312,17 @@ fn the_capitals_gate_asks_for_two_bosses_and_no_rune() {
         .unwrap();
     let any = edge.need.any.as_ref().unwrap();
     assert_eq!(any.n, 2);
-    assert!(any.items.is_empty());
-    assert_eq!(any.bosses.len(), 6);
+    assert!(any.bosses.is_empty());
+    assert_eq!(any.items.len(), 5);
     let bound = Bound::new(graph, model);
-    assert!(!bound.key_items().iter().any(|k| k.contains("Great Rune")));
+    assert!(bound.key_items().iter().any(|k| k.contains("Great Rune")));
     assert!(bound.walk(&bound.vanilla()).goal);
+    let without: Vec<Vec<&str>> = bound
+        .vanilla()
+        .into_iter()
+        .map(|g| g.into_iter().filter(|i| !i.ends_with("Great Rune")).collect())
+        .collect();
+    let w = bound.walk(&without);
+    let capital = graph.areas.iter().position(|a| a.id == "leyndell").unwrap();
+    assert!(!w.reached[capital], "the capital opens with no Great Rune");
 }

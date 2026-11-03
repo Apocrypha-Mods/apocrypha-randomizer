@@ -579,6 +579,8 @@ to = "dragonbarrow"
 [[edge]]
 from = "dragonbarrow"
 to = "divine_tower_caelid"
+items = ["Radahn's Great Rune"]
+note = "The top needs Radahn's Great Rune held (Nova, from play, 2026-11-03). Asked of the whole tower: stricter, so it only narrows where keys go."
 
 [[edge]]
 from = "limgrave"
@@ -672,11 +674,16 @@ to = "volcano_manor"
 [[edge]]
 from = "altus"
 to = "leyndell"
-any = { n = 2, bosses = [
-    "Godrick the Grafted", "Rennala, Queen of the Full Moon", "Starscourge Radahn",
-    "Rykard, Lord of Blasphemy", "Mohg, Lord of Blood", "Malenia, Blade of Miquella",
+any = { n = 2, items = [
+    "Godrick's Great Rune", "Radahn's Great Rune", "Rykard's Great Rune",
+    "Mohg's Great Rune", "Malenia's Great Rune",
 ] }
 note = """
+Two Great Runes held (Nova, from play, 2026-11-03). Morgott's stands behind this gate and
+the Great Rune of the Unborn is left out, so the list asks the most. The script reading
+below counted bosses' rewards instead; it was set aside by Nova's decision, and a lab
+run (two of these bosses beaten with no rune held, then two runes held with no boss
+beaten) would settle which the gate tests.
 The gate (m60_45_52 event 1045522500) tests flag 182, which common event 730 turns on
 when two of flags 170 to 179 are on, and flag 105, set on entering the Roundtable Hold.
 Flags 171 to 175 are on these bosses' reward rows (ItemLotParam_map 10010, 10301, 10041,
