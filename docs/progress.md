@@ -2389,3 +2389,5 @@ No game or lab run.
 - **Rows that never run out never take a one-off item** (Nova). `items::plentiful_only` holds them with the chance slots: they are filled from plentiful items, consumables first, before the rest; `check` refuses a one-off on one; where the sliders leave too few plentiful items, such a row keeps the game's own item. A key on such a row, as Thiollier's Concoction is, may then stay where the game sells it. `one_off_items_keep_off_chance_slots` at `consumables=0,upgrades=0` found that case.
 
 **Proven.** The tests of `items` and `rando`, real files among them; clippy and fmt clean.
+
+**Proven and packed** (f444818): `apoc-rando check`, seeds 0 to 9,999, four threads, none failing, in 1,391.2 s (the five decisions' merge, 02ef176, before it: none failing, 1,415.7 s). `tools/pack.sh`: `dist/randomizer-0.1.0.apocaddon`, 1,546,244 bytes, sha256 `1a98e070bef457e16c363997c66963e86f4c67d9ec40282168838668ee29b75b`; `tools/check-package.sh` passes it. Seed 23, `weapons=0,keepsakes=0`, bias `all=40`, Leyndell at 3, `bosses=100,ordinary=50,mix=30`: the packed module and `apoc-rando gen` wrote the same 550 files and spoiler log (120 s, 2.13 GiB).
