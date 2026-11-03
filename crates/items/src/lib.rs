@@ -564,6 +564,13 @@ pub fn chance_slot(unit: &Unit) -> bool {
     unit.place == Place::Lot && !unit.sure()
 }
 
+/// A slot that, moved, takes only what is plentiful: one that gives by chance
+/// ([`chance_slot`]), or a shop row that never runs out, which would sell a one-off
+/// item again and again (Nova, 2026-11-03).
+pub fn plentiful_only(unit: &Unit) -> bool {
+    chance_slot(unit) || unit.unlimited
+}
+
 /// The quest items, as (kind, id), that some unit gives.
 fn quest_items(bound: &Bound, units: &[Unit]) -> BTreeSet<(ItemKind, i32)> {
     bound
@@ -683,12 +690,13 @@ fn is_fixed(bound: &Bound, unit: &Unit) -> bool {
     bound.graph.fixed.iter().any(|f| Some(f.as_str()) == name)
 }
 
-/// Keep enough plentiful items moving for every moving slot that gives by chance
-/// ([`chance_slot`]), on each side of the DLC when they are kept apart. Where the
+/// Keep enough plentiful items moving for every moving slot that takes only those
+/// ([`plentiful_only`]), on each side of the DLC when they are kept apart. Where the
 /// sliders leave too few, chance slots that hold a one-off item stay as the unmodded
 /// game has them, drawn in the seed's order: each takes one chance slot and one
 /// one-off item out of play, so the shortfall falls by one. Key items are not held
-/// back this way, so the walk still has every one to place.
+/// back this way, so the walk still has every one to place, but for those on rows
+/// that never run out, which stay where the game sells them.
 fn balance_chance_slots(
     units: &[Unit],
     mut moving: Vec<bool>,
@@ -701,7 +709,7 @@ fn balance_chance_slots(
         let mine: Vec<usize> = (0..units.len())
             .filter(|&u| moving[u] && side(u) == s)
             .collect();
-        let slots = mine.iter().filter(|&&u| chance_slot(&units[u])).count();
+        let slots = mine.iter().filter(|&&u| plentiful_only(&units[u])).count();
         let plentiful = mine
             .iter()
             .filter(|&&u| units[u].place != Place::Gather && !one_off(units[u].category))
@@ -712,9 +720,11 @@ fn balance_chance_slots(
         let mut held: Vec<usize> = mine
             .into_iter()
             .filter(|&u| {
-                chance_slot(&units[u])
+                plentiful_only(&units[u])
                     && one_off(units[u].category)
-                    && units[u].category != Category::Key
+                    // A key on a row that never runs out, such as Thiollier's
+                    // Concoction, may stay: the game sells it there.
+                    && (units[u].category != Category::Key || units[u].unlimited)
             })
             .collect();
         rng.shuffle(&mut held);
@@ -858,19 +868,38 @@ fn attempt(
         rest.remove(i);
     }
 
-    // Slots that give by chance next, before anything else can take what is
-    // plentiful: each takes an item that is not one-off. There are enough, as
+    // Slots that give by chance and rows that never run out next, before anything
+    // else can take what is plentiful: each takes an item that is not one-off, a row
+    // that never runs out a consumable where one fits. There are enough, as
     // `balance_chance_slots` saw to it.
     let chancy: Vec<usize> = (0..n)
-        .filter(|&u| placed[u].is_none() && chance_slot(&units[u]))
+        .filter(|&u| placed[u].is_none() && plentiful_only(&units[u]))
         .collect();
     for u in chancy {
         let ok: Vec<usize> = (0..rest.len())
             .filter(|&i| fits(u, rest[i]) && !one_off(units[rest[i]].category))
             .collect();
+        let consumable: Vec<usize> = ok
+            .iter()
+            .copied()
+            .filter(|&i| units[rest[i]].category == Category::Consumable)
+            .collect();
+        let ok = if units[u].unlimited && !consumable.is_empty() {
+            consumable
+        } else {
+            ok
+        };
         if ok.is_empty() {
+            // A row that never runs out keeps the game's own item when nothing
+            // plentiful is left (Nova, 2026-11-03).
+            if units[u].unlimited
+                && let Some(i) = rest.iter().position(|&r| r == u)
+            {
+                placed[u] = Some(rest.remove(i));
+                continue;
+            }
             return Err(format!(
-                "nothing plentiful left for the chance slot {} {} {}",
+                "nothing plentiful left for {} {} {}",
                 units[u].table, units[u].row, units[u].slot
             ));
         }
@@ -890,25 +919,6 @@ fn attempt(
             ));
         }
         placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
-    }
-
-    // Rows that never run out take what is plentiful first. If the sliders leave
-    // too little of that, they take what comes, as every item must still land.
-    let shy: Vec<usize> = (0..n)
-        .filter(|&u| placed[u].is_none() && units[u].unlimited)
-        .collect();
-    for u in shy {
-        let ok: Vec<usize> = (0..rest.len())
-            .filter(|&i| {
-                let c = units[rest[i]].category;
-                fits(u, rest[i])
-                    && !one_off(c)
-                    && !(units[u].unlimited && c != Category::Consumable)
-            })
-            .collect();
-        if !ok.is_empty() {
-            placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
-        }
     }
 
     // Everything else, each item towards slots as deep as it is worth.
@@ -997,9 +1007,9 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
     }
     for (u, unit) in units.iter().enumerate() {
         let from = plan.placed[u];
-        if from != u && chance_slot(unit) && one_off(units[from].category) {
+        if from != u && plentiful_only(unit) && one_off(units[from].category) {
             return Err(format!(
-                "seed {}: one-off item {} landed on a slot that gives it only by chance",
+                "seed {}: one-off item {} landed on a slot that gives it only by chance or never runs out",
                 plan.seed,
                 units[from].item.name.as_deref().unwrap_or("?")
             ));

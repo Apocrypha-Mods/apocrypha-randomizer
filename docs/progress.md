@@ -2379,3 +2379,13 @@ bias `all=40`, `bosses=100,ordinary=50,mix=30`: `apoc-rando gen` and the module 
 **For Nova.** 249 nameless ordinary models have no bar name, so most arenas keep the old boss's name. Where a model's bars
 are all named characters, a plain enemy takes one: an ordinary Glintstone Dragon shows "Glintstone Dragon Adula". Golden
 Seeds and Sacred Tears count as plentiful (upgrades), and Dragon Hearts or Larval Tears as consumables.
+
+## Nova's answers to the five decisions' questions (2026-11-03)
+
+No game or lab run.
+
+- **Bar names from named characters** stay: an ordinary Glintstone Dragon in an arena may show "Glintstone Dragon Adula". Nova: fine.
+- **Golden Seeds, Sacred Tears, Dragon Hearts and Larval Tears** stay plentiful. Nova: leave them ordinary.
+- **Rows that never run out never take a one-off item** (Nova). `items::plentiful_only` holds them with the chance slots: they are filled from plentiful items, consumables first, before the rest; `check` refuses a one-off on one; where the sliders leave too few plentiful items, such a row keeps the game's own item. A key on such a row, as Thiollier's Concoction is, may then stay where the game sells it. `one_off_items_keep_off_chance_slots` at `consumables=0,upgrades=0` found that case.
+
+**Proven.** The tests of `items` and `rando`, real files among them; clippy and fmt clean.
