@@ -2391,3 +2391,18 @@ No game or lab run.
 **Proven.** The tests of `items` and `rando`, real files among them; clippy and fmt clean.
 
 **Proven and packed** (f444818): `apoc-rando check`, seeds 0 to 9,999, four threads, none failing, in 1,391.2 s (the five decisions' merge, 02ef176, before it: none failing, 1,415.7 s). `tools/pack.sh`: `dist/randomizer-0.1.0.apocaddon`, 1,546,244 bytes, sha256 `1a98e070bef457e16c363997c66963e86f4c67d9ec40282168838668ee29b75b`; `tools/check-package.sh` passes it. Seed 23, `weapons=0,keepsakes=0`, bias `all=40`, Leyndell at 3, `bosses=100,ordinary=50,mix=30`: the packed module and `apoc-rando gen` wrote the same 550 files and spoiler log (120 s, 2.13 GiB).
+
+## Nova's first look at the add-on in the mod manager (2026-11-05)
+
+Nova ran the add-on in the mod manager's `feat/randomizer-addon` branch (on throwaway data folders) and played a seed. Fixed from what was seen:
+
+- **A merchant's "Get bell-bearing" gave later merchants' bearings too** (seen in play: Kalé's gave Gostoc's and Pidia's). The game gives a lot and every row numbered straight after it; our lots were numbered as their flags, 11109820 to 11109835 in a row. They are now ten times the flag (`bearings::lot_for`), and the build refuses if the row after one is taken. `real_bearings.rs` holds it (a003fbb).
+- **The mod manager's Apply bar stopped the window for Elden Ring:** the loader route reports only a phase, and the bar formatted a count that was not there. Fixed on the mod manager's local branch `fix/loader-apply-count` (025ca95f2), from `dev`, where the fault also is. Not pushed.
+
+Built by Nova's choice: Strength is called **Scaling** on the page (c145db4); a **Mix** switch, off by default, shows the Boss mix slider (6711bd4); **whetblades** and **map fragments** can each be kept in place (e3be18f); the **whole map** can be drawn from the start, map only, graces still found by touch (298d7a2, `whole_map.rs`; `WorldMapPieceParam.open_flag`, probable, not seen in play); a moved enemy's **health bar keeps the arena's title**, "Godrick, Blade of Miquella" (894c12d, `titled`).
+
+**Build time** (2bde0f2). Measured on one thread, seed 1 with enemies: 13 s opening files, 51 s the model, 7 s the seed. Of the model, five event runs took 45 s (common 4739 19.4 s, m60_37_46's 1037460719 14.6 s, common 6909 7.3 s, 3619 and 4843 3.4 s): `flow::ways_to` followed every combination of their branches to its step limit. Jumps only go forward, so paths now go in order of where they stand, and two at one instruction with the same groups open go on as one, needing what either needed. One thread: 70 s to 20 s. The native model: 52.5 s to 4.6 s. Those runs are now read whole, so the model finds one more condition and 293 slots may hold a key item, not 294. `apoc-rando check`, seeds 0 to 9,999: none failing, in 603.7 s (1,391 s before).
+
+Not explained: Nova saw "11" when using Rykard's remembrance and got 50,000 runes. The seed changes no goods row, so the runes are the game's own; where the 11 showed is asked.
+
+Open: night-only bosses at any hour (asked by Nova). The night rule is not one NpcParam field; AI rows, effects and scripts are to read, then a daytime lab check.
