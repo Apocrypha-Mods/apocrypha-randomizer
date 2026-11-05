@@ -757,8 +757,13 @@ fn bar_text(
             for (id, english) in names {
                 if fmg.entries.contains_key(id) {
                     let own = sources.get(id).and_then(|s| npc?.get(s));
-                    fmg.entries
-                        .insert(*id, Some(own.unwrap_or(english).clone()));
+                    let new = own.unwrap_or(english);
+                    // The arena's own boss, whose title the bar keeps.
+                    let shown = match npc.and_then(|n| n.get(id)) {
+                        Some(old) => titled(new, old),
+                        None => new.clone(),
+                    };
+                    fmg.entries.insert(*id, Some(shown));
                     changed = true;
                 }
             }
@@ -769,6 +774,27 @@ fn bar_text(
         })?;
     }
     Ok(())
+}
+
+/// What a boss's health bar shows for `new` standing in the arena of `old`: the new
+/// one's name with the old one's title, as the bars write both, "Name, Title" (Nova,
+/// 2026-11-05: "Malenia, Blade of Miquella" holding Godrick shows "Godrick, Blade of
+/// Miquella"). The new one's name is what comes before its own title's comma, or
+/// before " the " in a name such as "Godrick the Grafted". Where the old one has no
+/// title so written (Tree Sentinel, or a language that puts the title first), the
+/// bar shows the new one's whole name.
+pub fn titled(new: &str, old: &str) -> String {
+    let Some((_, title)) = old.split_once(", ") else {
+        return new.to_string();
+    };
+    let name = match new.split_once(", ") {
+        Some((name, _)) => name,
+        None => match new.split_once(" the ") {
+            Some((name, _)) if !name.contains(' ') => name,
+            _ => new,
+        },
+    };
+    format!("{name}, {title}")
 }
 
 /// The text table holding names of one kind of item.
@@ -929,6 +955,37 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_bar_shows_the_new_name_with_the_old_title() {
+        let t = titled;
+        assert_eq!(
+            t("Godrick the Grafted", "Malenia, Blade of Miquella"),
+            "Godrick, Blade of Miquella"
+        );
+        assert_eq!(
+            t("Rennala, Queen of the Full Moon", "Margit, the Fell Omen"),
+            "Rennala, the Fell Omen"
+        );
+        assert_eq!(
+            t("Crystalian", "Rykard, Lord of Blasphemy"),
+            "Crystalian, Lord of Blasphemy"
+        );
+        assert_eq!(
+            t("Radagon of the Golden Order", "Mohg, Lord of Blood"),
+            "Radagon of the Golden Order, Lord of Blood"
+        );
+        assert_eq!(t("Godskin Apostle", "Tree Sentinel"), "Godskin Apostle");
+        assert_eq!(
+            t("Rennala, Queen of the Full Moon", "Tree Sentinel"),
+            "Rennala, Queen of the Full Moon"
+        );
+        // A language that writes the title first, with no ", ": the whole new name.
+        assert_eq!(
+            t("接ぎ木のゴドリック", "ミケラの刃、マレニア"),
+            "接ぎ木のゴドリック"
+        );
+    }
 
     #[test]
     fn a_mod_is_named_after_its_file_or_folder() {
