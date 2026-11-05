@@ -253,6 +253,17 @@ fn kind_of(category: i64) -> Option<ItemKind> {
 }
 
 /// An item's category, from what the game says of it.
+/// Whether the player asked for this item to stay where the game has it: the
+/// Whetstone Knife and the whetblades, or map fragments (Nova, 2026-11-05). Gone
+/// by name, as the area map goes, so a mod's renaming leaves it as unmodded.
+pub fn kept_in_place(options: &Options, item: &Item) -> bool {
+    let Some(name) = item.name.as_deref() else {
+        return false;
+    };
+    (options.keep_whetblades && (name == "Whetstone Knife" || name.ends_with(" Whetblade")))
+        || (options.keep_maps && name.starts_with("Map: "))
+}
+
 fn category(item: &Item, goods_type: &HashMap<i32, i64>, keys: &BTreeSet<&str>) -> Category {
     if item.name.as_deref().is_some_and(|n| keys.contains(n)) {
         return Category::Key;
@@ -759,6 +770,7 @@ fn attempt(
             // A key or quest item on a node stays: it must be got somewhere
             // the logic can count on, and nodes trade only among themselves.
             let pinned = is_fixed(bound, u)
+                || kept_in_place(options, &u.item)
                 || (u.place == Place::Gather
                     && (u.category == Category::Key
                         || bound
@@ -1352,6 +1364,31 @@ mod tests {
     use super::*;
     use gamedata::MapId;
     use gamedata::model::{Boss, Grace, Location};
+
+    #[test]
+    fn whetblades_and_maps_are_kept_only_when_asked() {
+        let mut o = Options::default();
+        let names = [
+            "Whetstone Knife",
+            "Iron Whetblade",
+            "Map: Limgrave, West",
+            "Rold Medallion",
+        ];
+        assert!(names.iter().all(|n| !kept_in_place(&o, &item(n, 1000))));
+        o.keep_whetblades = true;
+        let kept: Vec<_> = names
+            .iter()
+            .filter(|n| kept_in_place(&o, &item(n, 1000)))
+            .collect();
+        assert_eq!(kept, [&"Whetstone Knife", &"Iron Whetblade"]);
+        o.keep_whetblades = false;
+        o.keep_maps = true;
+        let kept: Vec<_> = names
+            .iter()
+            .filter(|n| kept_in_place(&o, &item(n, 1000)))
+            .collect();
+        assert_eq!(kept, [&"Map: Limgrave, West"]);
+    }
 
     const WEST: MapId = MapId([60, 40, 37, 0]);
     const CAVE: MapId = MapId([31, 0, 0, 0]);

@@ -48,6 +48,8 @@ export const defaults = () => ({
   autoUpgrade: false,
   dlc: "mixed",
   leyndellRunes: 2,
+  keepWhetblades: false,
+  keepMaps: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -83,6 +85,8 @@ export function request(seed, s, stack = null) {
     noScaling: !s.scale,
     autoUpgrade: !!s.autoUpgrade,
     leyndellRunes: s.leyndellRunes ?? 2,
+    keepWhetblades: !!s.keepWhetblades,
+    keepMaps: !!s.keepMaps,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

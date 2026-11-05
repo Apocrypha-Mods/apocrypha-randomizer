@@ -98,6 +98,12 @@ struct Sliders {
     /// the Roundtable Hold having been entered, as the game's does.
     #[arg(long, default_value_t = 2, value_parser = clap::value_parser!(u8).range(0..=4))]
     leyndell_runes: u8,
+    /// Leave the Whetstone Knife and the whetblades where the game has them.
+    #[arg(long)]
+    keep_whetblades: bool,
+    /// Leave map fragments where the game has them.
+    #[arg(long)]
+    keep_maps: bool,
 }
 
 impl Sliders {
@@ -107,6 +113,8 @@ impl Sliders {
         o.set(true, &self.bias).map_err(format_err)?;
         o.dlc_separate = self.dlc == "separate";
         o.auto_upgrade = self.auto_upgrade;
+        o.keep_whetblades = self.keep_whetblades;
+        o.keep_maps = self.keep_maps;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

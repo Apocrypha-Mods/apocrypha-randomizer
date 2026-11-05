@@ -143,6 +143,11 @@ pub struct Options {
     /// game's 2 by default (Nova, 2026-11-03). The area map and the seed's script both
     /// take it.
     pub leyndell_runes: u8,
+    /// Whether the Whetstone Knife and the whetblades stay where the game has
+    /// them (Nova, 2026-11-05).
+    pub keep_whetblades: bool,
+    /// Whether map fragments stay where the game has them (Nova, 2026-11-05).
+    pub keep_maps: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -160,6 +165,8 @@ impl Default for Options {
             auto_upgrade: false,
             enemies_move: false,
             leyndell_runes: DEFAULT_LEYNDELL_RUNES,
+            keep_whetblades: false,
+            keep_maps: false,
         }
     }
 }

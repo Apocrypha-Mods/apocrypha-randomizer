@@ -94,3 +94,12 @@ test("a seed knows when the mods under it have changed", () => {
   assert.equal(L.modsChanged(["A"], []), true);
   assert.equal(L.modsChanged(["A"], ["B"]), true);
 });
+
+test("whetblades and map fragments move unless kept in place", () => {
+  const d = L.request(1, L.defaults());
+  assert.equal(d.keepWhetblades, false);
+  assert.equal(d.keepMaps, false);
+  const k = L.request(1, { ...L.defaults(), keepWhetblades: true, keepMaps: true });
+  assert.equal(k.keepWhetblades, true);
+  assert.equal(k.keepMaps, true);
+});

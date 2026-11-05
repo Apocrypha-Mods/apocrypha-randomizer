@@ -152,6 +152,26 @@ function groups() {
         (v) => (st.dlc = v),
       ),
       pick(
+        "Whetblades in the shuffle",
+        "Whether the Whetstone Knife and the whetblades, which let you put Ashes of War and affinities on weapons, move with the rest or stay where the game has them",
+        [
+          [false, "Yes"],
+          [true, "No"],
+        ],
+        !!st.keepWhetblades,
+        (v) => (st.keepWhetblades = v),
+      ),
+      pick(
+        "Map fragments in the shuffle",
+        "Whether map fragments move with the rest or stay at their steles, where the game has them",
+        [
+          [false, "Yes"],
+          [true, "No"],
+        ],
+        !!st.keepMaps,
+        (v) => (st.keepMaps = v),
+      ),
+      pick(
         "Great Runes for Leyndell",
         "How many of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's Great Runes, restored or not, and Rennala's Great Rune of the Unborn open the capital's gate. The game asks for 2.",
         L.LEYNDELL_RUNES,

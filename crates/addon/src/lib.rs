@@ -136,6 +136,12 @@ struct Run {
     /// As `apoc-rando --leyndell-runes`, 0 to 4.
     #[serde(default = "game_runes")]
     leyndell_runes: u8,
+    /// As `apoc-rando --keep-whetblades`.
+    #[serde(default)]
+    keep_whetblades: bool,
+    /// As `apoc-rando --keep-maps`.
+    #[serde(default)]
+    keep_maps: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -316,6 +322,8 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.set(true, &request.bias).map_err(format_err)?;
     options.dlc_separate = request.dlc_separate;
     options.auto_upgrade = request.auto_upgrade;
+    options.keep_whetblades = request.keep_whetblades;
+    options.keep_maps = request.keep_maps;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;
