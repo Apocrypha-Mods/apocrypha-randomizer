@@ -112,6 +112,11 @@ struct Sliders {
     /// Not yet seen in the game.
     #[arg(long)]
     night_bosses_always: bool,
+    /// Give each class starting gear it can use: weapons its stats can wield
+    /// (two-handed if need be, a bow only with its arrows), and spells it has the
+    /// catalyst, the stats and the memory for. Without it, starting gear is random.
+    #[arg(long)]
+    usable_start: bool,
 }
 
 impl Sliders {
@@ -125,6 +130,7 @@ impl Sliders {
         o.keep_maps = self.keep_maps;
         o.whole_map = self.whole_map;
         o.night_bosses_always = self.night_bosses_always;
+        o.usable_start = self.usable_start;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

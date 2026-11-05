@@ -222,6 +222,16 @@ function groups() {
       "Other places",
       L.PLACES.map(([k, label, about]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v), null, about)),
       pick(
+        "Usable starting gear",
+        "Whether each class can use what it starts with: weapons its stats can wield, two-handed if need be, a bow only with arrows, and spells it has the staff or seal, the stats and the memory for. Fully random may hand a Wretch a greatsword it cannot lift.",
+        [
+          [false, "Fully random"],
+          [true, "Usable"],
+        ],
+        !!st.usableStart,
+        (v) => (st.usableStart = v),
+      ),
+      pick(
         "Auto-upgrade",
         "Weapons arrive at the highest level you have raised one of their path to. Loads our own module into the game.",
         [

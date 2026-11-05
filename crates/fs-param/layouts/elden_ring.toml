@@ -454,6 +454,19 @@ evidence = """
 90..100% of the values other than -1 are EquipParamGoods rows. Every class
 row has 115 in the first slot and nothing else."""
 
+[[layout.field]]
+name = "stats"
+offset = 0xC5
+kind = "u8"
+count = 5
+stride = 1
+confidence = "confirmed"
+evidence = """
+Strength, dexterity, intelligence, faith and arcane, in that order. The ten class
+rows read as the character-creation screen shows them: Vagabond 14 13 9 9 7,
+Astrologer 8 12 16 7 9, Prophet 11 10 7 16 10, Wretch 10 in each. Vigor, mind
+and endurance are the three bytes before (0xC2..0xC4), the level the i16 at 0xC0."""
+
 # ---------------------------------------------------------------------------
 [[layout]]
 type = "EQUIP_PARAM_GOODS_ST"
@@ -491,6 +504,77 @@ with somber stones (Moonveil, Rivers of Blood: 2200) from regular ones
 (Longsword, Dagger: 0, affinities 100..1200). Whether a path is somber is read
 from ReinforceParamWeapon itself (its last level is +10, not +25), not from a
 list of values."""
+
+[[layout.field]]
+name = "requirement"
+offset = 0xF2
+kind = "u8"
+count = 4
+stride = 1
+confidence = "confirmed"
+evidence = """
+Strength, dexterity, intelligence and faith to wield it, as the game's menus show:
+Longsword 10 10 0 0, Dagger 5 9, Uchigatana 11 15, Glintstone Staff 6 0 10 0,
+Astrologer's Staff 7 0 16 0, Finger Seal 4 0 0 10, Erdtree Seal 0 0 0 40.
+Arcane is apart, at 0x195 ([`requirement_arcane`])."""
+
+[[layout.field]]
+name = "requirement_arcane"
+offset = 0x195
+kind = "u8"
+confidence = "confirmed"
+evidence = """
+Arcane to wield it: the one byte that reads Rivers of Blood 20, Reduvia 13 and
+Dragon Communion Seal 10 while the Longsword reads 0. 3,579 of 3,636 rows are 0,
+the highest 28."""
+
+# ---------------------------------------------------------------------------
+# Spells: sorceries and incantations, by their goods id.
+[[layout]]
+type = "MAGIC_PARAM_ST"
+row_size = 168
+tables = ["Magic"]
+
+[[layout.field]]
+name = "requirement"
+offset = 0x22
+kind = "u8"
+count = 2
+stride = 1
+confidence = "confirmed"
+evidence = """
+Intelligence and faith to cast it: Glintstone Pebble 10 0, Great Glintstone Shard
+16 0, Glintstone Cometshard 36 0, Catch Flame 0 8, O, Flame! 0 16, Heal 0 12."""
+
+[[layout.field]]
+name = "requirement_arcane"
+offset = 0x0E
+kind = "u8"
+confidence = "confirmed"
+evidence = """
+Arcane to cast it: Dragonfire 12, Agheel's Flame 15, Dragonclaw 13, Rotten Breath
+12; 0 for the glintstone sorceries and the Two Fingers' incantations."""
+
+[[layout.field]]
+name = "memory"
+offset = 0x21
+kind = "u8"
+confidence = "probable"
+evidence = """
+Memory slots it takes: 1 for nearly every spell, 2 for Giantsflame Take Thee, as
+its caption says; 0 to 3 across the table. The classes' starting spells take 1
+each, two at most to a class: the two slots a new character has."""
+
+[[layout.field]]
+name = "school"
+offset = 0x26
+kind = "u8"
+confidence = "confirmed"
+evidence = """
+0 for every sorcery (the glintstone spells, Shatter Earth, Loretta's Greatbow), 1
+for every incantation (Catch Flame, Heal, Dragonfire, Beast Claw): a staff casts
+the one, a seal the other."""
+values = { "0" = "sorcery", "1" = "incantation" }
 
 # ---------------------------------------------------------------------------
 [[layout]]

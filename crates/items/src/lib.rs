@@ -45,7 +45,7 @@
 //! The same seed gives the same placement on every platform: the generator
 //! is our own ([`rng`]) and every collection is walked in a fixed order.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use fs_bytes::{Result, format_err};
 use fs_param::Regulation;
@@ -140,6 +140,10 @@ pub struct Unit {
     /// For a shop row: its price in runes, and whether it never runs out.
     pub price: i64,
     pub unlimited: bool,
+    /// What the item asks of whoever starts with it ([`Wants`]).
+    pub wants: Wants,
+    /// For a class's starting slot: the class, for gear it can use.
+    pub class: Option<Class>,
 }
 
 impl Unit {
@@ -159,6 +163,221 @@ impl Unit {
             Place::Start(_) => Category::Keepsake,
         }
     }
+}
+
+/// A school of spells, and the catalyst that casts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum School {
+    Sorcery,
+    Incantation,
+}
+
+/// What a weapon or spell asks of whoever starts with it, read from the game's
+/// tables, for usable starting gear ([`Options::usable_start`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Wants {
+    /// Strength, dexterity, intelligence, faith and arcane.
+    pub stats: [u8; 5],
+    /// For a staff or seal: the school it casts.
+    pub casts: Option<School>,
+    /// For a spell: its school and the memory slots it takes.
+    pub spell: Option<(School, u8)>,
+    /// For a bow, crossbow or ballista: the first two digits (50..=53) of the
+    /// ammunition it shoots.
+    pub ammo: Option<u8>,
+}
+
+/// A starting class, as its gear must suit it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Class {
+    /// Strength, dexterity, intelligence, faith and arcane.
+    pub stats: [u8; 5],
+    /// The ammunition it starts with, by kind: bit n for ids starting 50 + n.
+    pub ammo: u8,
+}
+
+/// The memory slots a new character has: every class's starting spells fit them.
+const START_MEMORY: u8 = 2;
+
+impl Class {
+    /// Whether the class can wield or cast this, from the start: its strength
+    /// counts half again, as two-handing does, and a bow needs its arrows.
+    pub fn wields(&self, w: &Wants) -> bool {
+        let strength = u16::from(self.stats[0]) * 3 / 2;
+        u16::from(w.stats[0]) <= strength
+            && (1..5).all(|i| w.stats[i] <= self.stats[i])
+            && w.ammo.is_none_or(|a| self.ammo & (1 << (a - 50)) != 0)
+    }
+}
+
+/// What one of a class's starting slots may take, with usable starting gear.
+struct Suits {
+    class: Class,
+    /// For a weapon slot that must hold a catalyst: the schools that would do.
+    catalyst: Option<[bool; 2]>,
+    /// The schools the class holds a catalyst for, and its memory left.
+    casts: [bool; 2],
+    memory: u8,
+}
+
+impl Suits {
+    /// What slot `u` may take, given what its class already holds; `None` for a
+    /// slot that is no class's.
+    fn of(units: &[Unit], placed: &[Option<usize>], slots: &[usize], u: usize) -> Option<Suits> {
+        let class = units[u].class?;
+        let held: Vec<&Wants> = slots
+            .iter()
+            .filter_map(|&v| placed[v])
+            .map(|i| &units[i].wants)
+            .collect();
+        let mut casts = [false; 2];
+        let mut spells = [false; 2];
+        let mut used = 0u8;
+        for w in &held {
+            if let Some(s) = w.casts {
+                casts[s as usize] = true;
+            }
+            if let Some((s, m)) = w.spell {
+                spells[s as usize] = true;
+                used = used.saturating_add(m);
+            }
+        }
+        let open = |field: &'static str| {
+            slots
+                .iter()
+                .filter(|&&v| placed[v].is_none() && units[v].place == Place::Start(field))
+                .count()
+        };
+        let mut catalyst = None;
+        if units[u].place == Place::Start("weapon") {
+            // Spells the class keeps need their catalyst; spells still to come
+            // need one of either school. The last weapon slots left are made to
+            // hold them.
+            let missing = [0, 1].map(|s| spells[s] && !casts[s]);
+            let wanted = missing.iter().filter(|&&m| m).count()
+                + usize::from(open("magic") > 0 && casts == [false; 2] && missing == [false; 2]);
+            if wanted > 0 && wanted >= open("weapon") {
+                catalyst = Some(if missing == [false; 2] {
+                    [true; 2]
+                } else {
+                    missing
+                });
+            }
+        }
+        Some(Suits {
+            class,
+            catalyst,
+            casts,
+            memory: START_MEMORY.saturating_sub(used),
+        })
+    }
+
+    fn allows(&self, item: &Unit) -> bool {
+        let w = &item.wants;
+        self.class.wields(w)
+            && self
+                .catalyst
+                .is_none_or(|ok| w.casts.is_some_and(|s| ok[s as usize]))
+            && w.spell
+                .is_none_or(|(s, m)| self.casts[s as usize] && m <= self.memory)
+    }
+}
+
+/// What the units' weapons and spells ask, and the classes their starting slots
+/// belong to, from the game's tables.
+fn read_wants(reg: &Regulation, units: &mut [Unit]) -> Result<()> {
+    let rows = |table: &str| -> Result<HashMap<i32, Vec<u8>>> {
+        Ok(reg
+            .table(table)?
+            .rows
+            .into_iter()
+            .map(|r| (r.id, r.data))
+            .collect())
+    };
+    let layout =
+        |table: &str| for_table(table).ok_or_else(|| format_err(format!("no layout for {table}")));
+    let (w, m, c) = (
+        layout("EquipParamWeapon")?,
+        layout("Magic")?,
+        layout("CharaInitParam")?,
+    );
+    let (weapons, magic) = (rows("EquipParamWeapon")?, rows("Magic")?);
+    let mut classes = HashMap::new();
+    for r in reg.table("CharaInitParam")?.rows {
+        if !CLASSES.contains(&r.id) {
+            continue;
+        }
+        let stats = std::array::from_fn(|i| c.field("stats").get(&r.data, i) as u8);
+        let ammo = (0..c.field("ammo").count)
+            .map(|i| c.field("ammo").get(&r.data, i) / 1_000_000)
+            .filter(|k| (50..=53).contains(k))
+            .fold(0u8, |bits, k| bits | 1 << (k - 50));
+        classes.insert(r.id, Class { stats, ammo });
+    }
+    for u in units {
+        if matches!(u.place, Place::Start(_)) {
+            u.class = classes.get(&u.row).copied();
+        }
+        let id = u.item.id;
+        u.wants = match u.item.kind {
+            ItemKind::Weapon => {
+                // An infused or upgraded weapon has its own row, or its base's.
+                let Some(d) = [id, id - id % 100, id - id % 10_000]
+                    .iter()
+                    .find_map(|r| weapons.get(r))
+                else {
+                    continue;
+                };
+                let req = w.field("requirement");
+                Wants {
+                    stats: [
+                        req.get(d, 0) as u8,
+                        req.get(d, 1) as u8,
+                        req.get(d, 2) as u8,
+                        req.get(d, 3) as u8,
+                        w.field("requirement_arcane").get(d, 0) as u8,
+                    ],
+                    casts: match id / 1_000_000 {
+                        33 => Some(School::Sorcery),
+                        34 => Some(School::Incantation),
+                        _ => None,
+                    },
+                    spell: None,
+                    ammo: match id / 1_000_000 {
+                        40 | 41 => Some(50),
+                        42 => Some(51),
+                        43 => Some(52),
+                        44 => Some(53),
+                        _ => None,
+                    },
+                }
+            }
+            ItemKind::Goods => {
+                let Some(d) = magic.get(&id) else {
+                    continue;
+                };
+                let req = m.field("requirement");
+                let school = if m.field("school").get(d, 0) == 1 {
+                    School::Incantation
+                } else {
+                    School::Sorcery
+                };
+                Wants {
+                    stats: [
+                        0,
+                        0,
+                        req.get(d, 0) as u8,
+                        req.get(d, 1) as u8,
+                        m.field("requirement_arcane").get(d, 0) as u8,
+                    ],
+                    spell: Some((school, m.field("memory").get(d, 0) as u8)),
+                    ..Wants::default()
+                }
+            }
+            _ => continue,
+        };
+    }
+    Ok(())
 }
 
 /// An armour piece's body part: the hundreds digit of its id.
@@ -388,6 +607,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                     item,
                     price: 0,
                     unlimited: false,
+                    wants: Wants::default(),
+                    class: None,
                 });
             }
         }
@@ -444,6 +665,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
             item,
             price: shop.field("value").get(data, 0),
             unlimited: shop.field("sell_quantity").get(data, 0) == 255,
+            wants: Wants::default(),
+            class: None,
         });
     }
 
@@ -481,6 +704,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                     item,
                     price: 0,
                     unlimited: false,
+                    wants: Wants::default(),
+                    class: None,
                 });
             }
         }
@@ -517,6 +742,8 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
                 item,
                 price: 0,
                 unlimited: false,
+                wants: Wants::default(),
+                class: None,
             });
         };
         for slot in 0..goods_slot.count {
@@ -534,6 +761,7 @@ pub fn units(model: &Model, bound: &Bound, reg: &Regulation) -> Result<Vec<Unit>
             add("accessory", ItemKind::Accessory, slot, id, 1);
         }
     }
+    read_wants(reg, &mut out)?;
     Ok(out)
 }
 
@@ -918,12 +1146,26 @@ fn attempt(
         placed[u] = Some(rest.remove(ok[rng.below(ok.len())]));
     }
 
-    // Starting slots next: each takes an item of its own sort, any one.
+    // Starting slots next: each takes an item of its own sort, any one; with usable
+    // starting gear, one its class can wield or cast. A class's slots come weapons
+    // first, spells last, so its spells know what catalysts it holds.
     let starts: Vec<usize> = (0..n)
         .filter(|&u| placed[u].is_none() && matches!(units[u].place, Place::Start(_)))
         .collect();
+    let class_slots = class_slots(units);
     for u in starts {
-        let ok: Vec<usize> = (0..rest.len()).filter(|&i| fits(u, rest[i])).collect();
+        let suits = if options.usable_start {
+            class_slots
+                .get(&units[u].row)
+                .and_then(|slots| Suits::of(units, &placed, slots, u))
+        } else {
+            None
+        };
+        let ok: Vec<usize> = (0..rest.len())
+            .filter(|&i| {
+                fits(u, rest[i]) && suits.as_ref().is_none_or(|s| s.allows(&units[rest[i]]))
+            })
+            .collect();
         if ok.is_empty() {
             return Err(format!(
                 "nothing to start with in {} {}",
@@ -985,6 +1227,45 @@ fn attempt(
         .collect())
 }
 
+/// Each class's starting slots, by its CharaInitParam row.
+fn class_slots(units: &[Unit]) -> BTreeMap<i32, Vec<usize>> {
+    let mut out: BTreeMap<i32, Vec<usize>> = BTreeMap::new();
+    for (u, unit) in units.iter().enumerate() {
+        if unit.class.is_some() {
+            out.entry(unit.row).or_default().push(u);
+        }
+    }
+    out
+}
+
+/// Whether every class can use what it starts with: wield each weapon, and cast
+/// each spell with a catalyst it holds, in the memory it has.
+pub fn usable_start(units: &[Unit], plan: &Plan) -> std::result::Result<(), String> {
+    for (row, slots) in class_slots(units) {
+        let class = units[slots[0]].class.expect("a class's slot");
+        let held: Vec<&Unit> = slots.iter().map(|&v| &units[plan.placed[v]]).collect();
+        let casts = [School::Sorcery, School::Incantation]
+            .map(|s| held.iter().any(|i| i.wants.casts == Some(s)));
+        let mut memory = 0u16;
+        for i in &held {
+            let name = i.item.name.as_deref().unwrap_or("?");
+            if !class.wields(&i.wants) {
+                return Err(format!("class {row} cannot use its {name}"));
+            }
+            if let Some((s, m)) = i.wants.spell {
+                if !casts[s as usize] {
+                    return Err(format!("class {row} has nothing to cast {name} with"));
+                }
+                memory += u16::from(m);
+            }
+        }
+        if memory > u16::from(START_MEMORY) {
+            return Err(format!("class {row}'s spells take {memory} memory slots"));
+        }
+    }
+    Ok(())
+}
+
 /// The plan's proof: walked from the start with nothing assumed, the goal
 /// is reached and every quest item got, each from a dependable slot or from
 /// where the unmodded game has it.
@@ -994,6 +1275,9 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
     let walk = bound.walk(&gives(bound, units, &placed, &keys));
     if !walk.goal {
         return Err(format!("seed {}: the goal cannot be reached", plan.seed));
+    }
+    if plan.options.usable_start {
+        usable_start(units, plan).map_err(|e| format!("seed {}: {e}", plan.seed))?;
     }
     for (u, unit) in units.iter().enumerate() {
         if is_fixed(bound, unit) && plan.placed[u] != u {
@@ -1489,6 +1773,8 @@ mod tests {
                 },
                 price: 0,
                 unlimited: false,
+                wants: Wants::default(),
+                class: None,
             })
             .collect()
     }

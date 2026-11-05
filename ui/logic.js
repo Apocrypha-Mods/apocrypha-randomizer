@@ -17,7 +17,7 @@ export const CATEGORIES = [
 /** The kinds of slot with a shuffle slider of their own. Gathering alone also takes a bias. */
 export const PLACES = [
   ["merchants", "Merchants", "How much of what merchants sell is put in play. A row moves only if its item's own slider allows it too."],
-  ["starting-gear", "Starting gear", "The classes' weapons, armour, talismans and spells, usable or not. Each moves only if its item's own slider allows it too."],
+  ["starting-gear", "Starting gear", "The classes' weapons, armour, talismans and spells. Each moves only if its item's own slider allows it too."],
   ["keepsakes", "Keepsakes", "The gifts offered when making a character. Each moves only if its item's own slider allows it too."],
   ["gathering", "Gathering", "What plants and ores give. These trade only with each other, and each only if its item's own slider allows it too."],
   ["npc-gear", "NPC gear", "What NPCs wear and hold. Nothing a player picks up. A weapon changes only if the weapons slider allows it too, armour the armour slider."],
@@ -81,6 +81,7 @@ export const defaults = () => ({
   keepMaps: false,
   wholeMap: false,
   nightBosses: false,
+  usableStart: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -120,6 +121,7 @@ export function request(seed, s, stack = null) {
     keepMaps: !!s.keepMaps,
     wholeMap: !!s.wholeMap,
     nightBossesAlways: !!s.nightBosses,
+    usableStart: !!s.usableStart,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

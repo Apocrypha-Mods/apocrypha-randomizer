@@ -155,6 +155,11 @@ pub struct Options {
     /// Whether night-only bosses are out at any hour (Nova, 2026-11-05): Night's
     /// Cavalry for now. Written into the seed's tables; placement ignores it.
     pub night_bosses_always: bool,
+    /// Whether each class starts with gear it can use (Nova, 2026-11-05): weapons
+    /// its stats can wield, two-handed if need be, a bow only with its arrows, and
+    /// spells it has the catalyst, the stats and the memory for. Off, the starting
+    /// gear is drawn at random.
+    pub usable_start: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -176,6 +181,7 @@ impl Default for Options {
             keep_maps: false,
             whole_map: false,
             night_bosses_always: false,
+            usable_start: false,
         }
     }
 }
@@ -288,6 +294,15 @@ impl fmt::Display for Options {
             f,
             "  auto-upgrade: {}",
             if self.auto_upgrade { "on" } else { "off" }
+        )?;
+        writeln!(
+            f,
+            "  starting gear: {}",
+            if self.usable_start {
+                "usable by its class"
+            } else {
+                "random"
+            }
         )?;
         writeln!(f, "  Great Runes to open Leyndell: {}", self.leyndell_runes)
     }

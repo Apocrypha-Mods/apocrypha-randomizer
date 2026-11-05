@@ -540,3 +540,42 @@ fn one_off_items_keep_off_chance_slots() {
         }
     }
 }
+
+/// The game's own classes can use what they start with, by the same reading;
+/// with usable starting gear every class still can after the shuffle, and
+/// without it, some cannot.
+#[test]
+fn usable_starting_gear_suits_each_class() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    let classes = units.iter().filter(|u| u.class.is_some()).count();
+    assert!(classes > 40, "{classes} class slots");
+    // The Astrologer's staff casts sorceries, her spells take one memory slot each.
+    let staff = units
+        .iter()
+        .find(|u| u.class.is_some() && u.item.id == 33_130_000)
+        .unwrap();
+    assert_eq!(staff.wants.casts, Some(items::School::Sorcery));
+    assert_eq!(staff.wants.stats[2], 16);
+    let vanilla = items::Plan {
+        seed: 0,
+        options: items::Options::default(),
+        placed: (0..units.len()).collect(),
+    };
+    items::usable_start(&units, &vanilla).unwrap();
+
+    let mut on = items::Options::default();
+    on.usable_start = true;
+    let mut unusable = 0;
+    for seed in 0..20 {
+        let plan = items::shuffle(&b, &units, seed, &on).unwrap();
+        items::usable_start(&units, &plan).unwrap();
+        let random = items::shuffle(&b, &units, seed, &items::Options::default()).unwrap();
+        unusable += usize::from(items::usable_start(&units, &random).is_err());
+    }
+    assert!(
+        unusable > 10,
+        "only {unusable} of 20 random seeds had unusable gear"
+    );
+}

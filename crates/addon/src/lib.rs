@@ -148,6 +148,9 @@ struct Run {
     /// As `apoc-rando --night-bosses-always`.
     #[serde(default)]
     night_bosses_always: bool,
+    /// As `apoc-rando --usable-start`.
+    #[serde(default)]
+    usable_start: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -332,6 +335,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.keep_maps = request.keep_maps;
     options.whole_map = request.whole_map;
     options.night_bosses_always = request.night_bosses_always;
+    options.usable_start = request.usable_start;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;
