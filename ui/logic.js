@@ -41,7 +41,8 @@ export const defaults = () => ({
   bias: Object.fromEntries(LEANS.map(([k]) => [k, 0])),
   bosses: 0,
   ordinary: 0,
-  mix: 0,
+  mixOn: false,
+  mix: 10,
   models: 20,
   scale: true,
   autoUpgrade: false,
@@ -55,15 +56,17 @@ export function settled(kept) {
   return {
     ...d,
     ...kept,
+    // Saved before the switch: a mix above 0 was the way to turn it on.
+    mixOn: kept?.mixOn ?? (kept?.mix ?? 0) > 0,
     shuffle: { ...d.shuffle, ...kept?.shuffle },
     bias: { ...d.bias, ...kept?.bias },
   };
 }
 
-/** `apoc-rando --enemies`, or nothing if no enemy moves. A mix needs bosses to send out. */
-function enemies({ bosses = 0, ordinary = 0, mix = 0, models = 20 }) {
+/** `apoc-rando --enemies`, or nothing if no enemy moves. A mix needs its switch on and bosses to send out. */
+function enemies({ bosses = 0, ordinary = 0, mixOn = false, mix = 0, models = 20 }) {
   if (!bosses && !ordinary) return "";
-  return `bosses=${bosses},ordinary=${ordinary},mix=${bosses ? mix : 0},models=${models}`;
+  return `bosses=${bosses},ordinary=${ordinary},mix=${bosses && mixOn ? mix : 0},models=${models}`;
 }
 
 const sliders = (list, values, or) => list.map(([k]) => `${k}=${values[k] ?? or}`).join(",");

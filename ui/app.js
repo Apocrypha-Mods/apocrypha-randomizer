@@ -132,6 +132,8 @@ function groups() {
   const pick = (label, title, options, now, set, tag) =>
     h("div.sr.pick", {}, h("span.n", { title }, label, tag), seg(label, options, now, set));
   const untested = (why) => h("span.tag.warn", { title: `${why}Not yet played through in the game` }, "Untested");
+  const mixRow = slider("Boss mix", st.mix ?? 10, (v) => (st.mix = v), null, "The share of bosses that trade places with an ordinary enemy");
+  if (!st.mixOn) mixRow.style.display = "none";
   const section = (name, ...kids) => h("section", {}, h("div.sh", {}, h("span", {}, name), h("span.x")), h("div.card.rows", {}, kids));
   return h(
     "div.groups",
@@ -180,7 +182,21 @@ function groups() {
       "Enemies",
       slider("Bosses", st.bosses, (v) => (st.bosses = v), untested("")),
       slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), untested("")),
-      slider("Boss mix", st.mix ?? 0, (v) => (st.mix = v), untested("The share of bosses that trade places with an ordinary enemy. Needs Bosses above 0. ")),
+      pick(
+        "Mix bosses and ordinary",
+        "Whether some bosses may trade places with ordinary enemies: the boss goes out into the world, and the ordinary enemy takes its arena. Needs Bosses above 0.",
+        [
+          [false, "Off"],
+          [true, "On"],
+        ],
+        !!st.mixOn,
+        (v) => {
+          st.mixOn = v;
+          mixRow.style.display = v ? "" : "none";
+        },
+        untested(""),
+      ),
+      mixRow,
       pick(
         "Scaling",
         "Whether a moved enemy takes the health and strength of the place it lands on, or keeps its own",

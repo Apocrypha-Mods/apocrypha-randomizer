@@ -6,11 +6,18 @@ test("enemies move only when asked", () => {
   assert.equal(L.request(1, L.defaults()).enemies, "");
   assert.equal(L.request(1, { ...L.defaults(), bosses: 60 }).enemies, "bosses=60,ordinary=0,mix=0,models=20");
   assert.equal(L.request(1, { ...L.defaults(), ordinary: 40 }).enemies, "bosses=0,ordinary=40,mix=0,models=20");
-  assert.equal(L.request(1, { ...L.defaults(), bosses: 100, ordinary: 100, mix: 10 }).enemies, "bosses=100,ordinary=100,mix=10,models=20");
+  assert.equal(L.request(1, { ...L.defaults(), bosses: 100, ordinary: 100, mixOn: true, mix: 10 }).enemies, "bosses=100,ordinary=100,mix=10,models=20");
 });
 test("a mix with no bosses moves nothing", () => {
   assert.equal(L.request(1, { ...L.defaults(), mix: 50 }).enemies, "");
-  assert.equal(L.request(1, { ...L.defaults(), ordinary: 10, mix: 50 }).enemies, "bosses=0,ordinary=10,mix=0,models=20");
+  assert.equal(L.request(1, { ...L.defaults(), ordinary: 10, mixOn: true, mix: 50 }).enemies, "bosses=0,ordinary=10,mix=0,models=20");
+});
+
+test("the mix moves nothing while its switch is off, and settings saved before the switch keep their mix", () => {
+  assert.equal(L.request(1, { ...L.defaults(), bosses: 100, mix: 50 }).enemies, "bosses=100,ordinary=0,mix=0,models=20");
+  assert.equal(L.settled({ bosses: 100, mix: 30 }).mixOn, true);
+  assert.equal(L.settled({ bosses: 100, mix: 0 }).mixOn, false);
+  assert.equal(L.settled({}).mixOn, false);
 });
 test("a seed is digits", () => {
   assert.equal(L.parseSeed(" 42 "), 42);
