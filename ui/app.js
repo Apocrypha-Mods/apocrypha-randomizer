@@ -258,7 +258,6 @@ function groups() {
           st.mixOn = v;
           mixRow.style.display = v ? "" : "none";
         },
-        untested(""),
       ),
       mixRow,
       pick(

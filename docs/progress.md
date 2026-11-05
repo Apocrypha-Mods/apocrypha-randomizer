@@ -2436,3 +2436,4 @@ Asked by Nova: a switch for starting gear each class can use, or fully random as
 - **Not covered, by Nova's choice:** equip load (heavy armour may leave a class fat-rolling).
 
 Nova played seeds with bosses and ordinary enemies moved and both worked (2026-11-05): the Bosses slider is no longer marked untested on the page. Ordinary stays marked until Stormveil, where the riders and flamethrowers now move, is played through.
+Nova also played the mix before its switch existed and it worked: Agheel Lake's dragon became a mutated dog of Caelid, Margit a small crab. Its switch is no longer marked untested.
