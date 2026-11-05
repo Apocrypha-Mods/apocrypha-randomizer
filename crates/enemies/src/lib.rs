@@ -295,23 +295,54 @@ fn words(i: &fs_emevd::Instruction) -> impl Iterator<Item = u32> + '_ {
 /// have no ride: it crashed around Stormveil, with its 16 such events. A generator
 /// goes on making copies of its parts, and nearly all make one model: a large body
 /// there would come again and again.
-fn tied_parts(msb: &Msb) -> HashSet<usize> {
-    let mut out = HashSet::new();
-    let mut add = |p: Option<i64>| out.extend(p.and_then(|p| usize::try_from(p).ok()));
+///
+/// Riders come apart from the rest (Nova, 2026-11-05: the soldiers at ballistas and
+/// Stormveil's flamethrowers should move). Most mounts are siege weapons a soldier
+/// works, and the game's own maps hold mount events with no rider. So an ordinary
+/// rider moves, its event's rider is emptied ([`free_riders`]) and the weapon stays.
+/// A boss stays on its mount, as Night's Cavalry do on their horses.
+struct Tied {
+    /// Mounts and generators' parts: never moved.
+    held: HashSet<usize>,
+    /// Riders: moved as ordinary enemies, never as bosses.
+    riders: HashSet<usize>,
+}
+
+fn tied_parts(msb: &Msb) -> Tied {
+    let mut held = HashSet::new();
+    let mut riders = HashSet::new();
+    let part = |p: Option<i64>| p.and_then(|p| usize::try_from(p).ok());
     for e in &msb.table(EVENTS).entries {
         match field(EVENTS, "type").get(e, 0) {
             Some(MOUNT_EVENT) => {
-                add(field(EVENTS, "rider_part").get(e, 0));
-                add(field(EVENTS, "mount_part").get(e, 0));
+                riders.extend(part(field(EVENTS, "rider_part").get(e, 0)));
+                held.extend(part(field(EVENTS, "mount_part").get(e, 0)));
             }
             Some(GENERATOR_EVENT) => {
                 let list = field(EVENTS, "generator_part");
-                (0..32).for_each(|i| add(list.get(e, i)));
+                held.extend((0..32).filter_map(|i| part(list.get(e, i))));
             }
             _ => {}
         }
     }
-    out
+    // A part both rides and is held (a generator's) stays held.
+    riders.retain(|p| !held.contains(p));
+    Tied { held, riders }
+}
+
+/// Empty the rider of every mount event that names `part`, now standing someone else:
+/// the weapon or mount stays, with no one tied to it, as the game's riderless events are.
+fn free_riders(msb: &mut Msb, part: usize) -> Result<()> {
+    let Some(t) = msb.tables.iter_mut().find(|t| t.name == EVENTS) else {
+        return Ok(());
+    };
+    let (kind, rider) = (field(EVENTS, "type"), field(EVENTS, "rider_part"));
+    for e in &mut t.entries {
+        if kind.get(e, 0) == Some(MOUNT_EVENT) && rider.get(e, 0) == Some(part as i64) {
+            rider.set(e, 0, -1)?;
+        }
+    }
+    Ok(())
 }
 
 /// Find everything that can move.
@@ -493,7 +524,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 }
                 let refuse = if shown.contains("dummy") {
                     Some("a stand-in with no fight of its own")
-                } else if tied.contains(&part) {
+                } else if tied.held.contains(&part) || tied.riders.contains(&part) {
                     Some("a map event ties it to its rider, mount or generator")
                 } else if rises.contains(&en) {
                     Some("it gets up as a next stage, and its script stays here")
@@ -536,7 +567,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 continue;
             }
             let body_ok = !NOT_BODIES.contains(&model_name.as_str())
-                && !tied.contains(&part)
+                && !tied.held.contains(&part)
                 && (model_name != "c0000" || chara > 0)
                 && npc.field("hp").get(&row.data, 0) > 1
                 && body.think > 1
@@ -641,6 +672,15 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     if options.ordinary > 0 && options.models > 0 {
         cap_models(pool, &mut from, usize::from(options.models));
     }
+    if options.ordinary > 0 {
+        vary(
+            pool,
+            &mut from,
+            usize::from(options.models),
+            options.dlc_separate,
+            &mut rng,
+        );
+    }
     companions::make_room(pool, &mut from);
     Plan { from }
 }
@@ -728,6 +768,72 @@ fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
         }
         if !swapped {
             break;
+        }
+    }
+}
+
+/// A spot that was to move but got its own kind back looks as if nothing moved:
+/// trolls, nearly all of Limgrave's large bodies, mostly got trolls (Nova saw the bridge
+/// troll unchanged, 2026-11-05). Each such spot trades with another moving spot of its
+/// size and class where both then hold a kind not their own, within the models-per-map
+/// limit (`cap`, 0 for none) on both sides. Some may stay, where no trade fits.
+fn vary(pool: &Pool, from: &mut [usize], cap: usize, dlc_separate: bool, rng: &mut Rng) {
+    let model = |i: usize| pool.spots[i].body.model.as_str();
+    let mut groups: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
+    for (i, s) in pool.spots.iter().enumerate() {
+        if s.boss.is_none() && from[i] != i && pool.spots[from[i]].boss.is_none() {
+            groups
+                .entry((dlc_separate && s.dlc, s.size, s.class))
+                .or_default()
+                .push(i);
+        }
+    }
+    let mut added = new_models(pool, from);
+    // Whether map `m` can hold `gain` in place of `lose` within the limit.
+    let room =
+        |added: &BTreeMap<usize, BTreeMap<&str, usize>>, m: usize, gain: &str, lose: &str| {
+            let listed = &pool.listed[m];
+            let a = added.get(&m);
+            if cap == 0 || listed.contains(gain) || a.is_some_and(|a| a.contains_key(gain)) {
+                return true;
+            }
+            let now = a.map_or(0, BTreeMap::len);
+            let freed = !listed.contains(lose) && a.and_then(|a| a.get(lose)) == Some(&1);
+            now + 1 - usize::from(freed) <= cap.max(now)
+        };
+    for group in groups.values() {
+        let n = group.len();
+        for &i in group {
+            if model(from[i]) != model(i) {
+                continue;
+            }
+            let start = rng.below(n);
+            let (mi, body) = (pool.spots[i].map_index, model(from[i]));
+            let found = (0..n.min(300)).map(|k| group[(start + k) % n]).find(|&j| {
+                let (mj, theirs) = (pool.spots[j].map_index, model(from[j]));
+                j != i
+                    && theirs != model(i)
+                    && body != model(j)
+                    && (mi == mj
+                        || (room(&added, mi, theirs, body) && room(&added, mj, body, theirs)))
+            });
+            let Some(j) = found else { continue };
+            let (mj, theirs) = (pool.spots[j].map_index, model(from[j]));
+            if mi != mj {
+                if !pool.listed[mi].contains(body) {
+                    take(added.entry(mi).or_default(), body);
+                }
+                if !pool.listed[mi].contains(theirs) {
+                    *added.entry(mi).or_default().entry(theirs).or_default() += 1;
+                }
+                if !pool.listed[mj].contains(theirs) {
+                    take(added.entry(mj).or_default(), theirs);
+                }
+                if !pool.listed[mj].contains(body) {
+                    *added.entry(mj).or_default().entry(body).or_default() += 1;
+                }
+            }
+            from.swap(i, j);
         }
     }
 }
@@ -926,6 +1032,7 @@ pub fn apply(
             .entry(spot.map_index)
             .or_insert_with(|| s.maps[spot.map_index].1.clone());
         stand_on(msb, spot.part, body, id)?;
+        free_riders(msb, spot.part)?;
         // A body with no real name of its own goes by its model's, else the bar
         // keeps the name it had: never empty, never a leftover.
         if let (Some(b), Some((name, text))) =

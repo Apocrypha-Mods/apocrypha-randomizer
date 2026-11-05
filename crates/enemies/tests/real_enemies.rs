@@ -329,10 +329,13 @@ fn placidusaxs_arena_has_no_sleep() {
     );
 }
 
-/// Mount events tie a rider's part to a mount's, on models RideParam pairs, and
-/// neither part moves: changing either's body crashed the game around Stormveil.
+/// Mount events tie a rider's part to a mount's, on models RideParam pairs. Changing
+/// a body an event ties crashed the game around Stormveil, so a mount never moves, and
+/// an ordinary rider that moves leaves its event with no rider (Nova, 2026-11-05: the
+/// soldiers at ballistas and Stormveil's flamethrowers), as the game's own riderless
+/// events are.
 #[test]
-fn riders_and_mounts_stay_where_their_event_ties_them() {
+fn mounts_stay_and_a_moved_rider_leaves_its_event_empty() {
     let Some(s) = sources() else { return };
     let model = elden_ring::extract(&s).unwrap();
     let p = pool(&s, &model).unwrap();
@@ -349,6 +352,7 @@ fn riders_and_mounts_stay_where_their_event_ties_them() {
         .collect();
     let (mut pairs, mut in_ride_param) = (0, 0);
     let mut tied_stormveil = 0;
+    let mut riders_moving = 0;
     let spots: HashSet<(usize, usize)> = p.spots.iter().map(|s| (s.map_index, s.part)).collect();
     for (i, (m, msb)) in s.maps.iter().enumerate() {
         let parts = &msb.table(PARTS).entries;
@@ -378,11 +382,14 @@ fn riders_and_mounts_stay_where_their_event_ties_them() {
                     .and_then(|v| usize::try_from(v).ok())
             };
             let (rider, mount) = (end("rider_part"), end("mount_part"));
-            for part in [rider, mount].into_iter().flatten() {
+            if let Some(part) = mount {
                 assert!(
                     !spots.contains(&(i, part)),
-                    "{m} part {part} is in the pool"
+                    "{m} mount part {part} is in the pool"
                 );
+            }
+            if rider.is_some_and(|r| spots.contains(&(i, r))) && mount.is_some() {
+                riders_moving += 1;
             }
             if let (Some(r), Some(t)) = (rider, mount) {
                 pairs += 1;
@@ -399,6 +406,57 @@ fn riders_and_mounts_stay_where_their_event_ties_them() {
         }
     }
     assert_eq!(tied_stormveil, 16);
+    assert!(riders_moving >= 15, "{riders_moving} riders may move");
+
+    // A seed that moves a rider empties its event; the mount keeps its body.
+    let options = all();
+    let plan = shuffle(&p, 1, &options);
+    let applied = apply(&mut s.reg.clone(), &s, &p, &plan, &options).unwrap();
+    let (mut freed, mut kept) = (0, 0);
+    for (m, after) in &applied.maps {
+        let (i, (_, before)) = s
+            .maps
+            .iter()
+            .enumerate()
+            .find(|(_, (id, _))| id == m)
+            .unwrap();
+        let npc = |msb: &fs_msb::Msb, part: i64| {
+            field(PARTS, "npc_param").get(&msb.table(PARTS).entries[part as usize], 0)
+        };
+        let ev = |msb: &fs_msb::Msb| msb.table("EVENT_PARAM_ST").entries.clone();
+        for (e0, e1) in ev(before).iter().zip(ev(after).iter()) {
+            if field("EVENT_PARAM_ST", "type").get(e0, 0) != Some(21) {
+                continue;
+            }
+            let r0 = field("EVENT_PARAM_ST", "rider_part")
+                .get(e0, 0)
+                .unwrap_or(-1);
+            let r1 = field("EVENT_PARAM_ST", "rider_part")
+                .get(e1, 0)
+                .unwrap_or(-1);
+            if let Some(mount) = field("EVENT_PARAM_ST", "mount_part")
+                .get(e0, 0)
+                .filter(|&t| t >= 0)
+            {
+                assert_eq!(npc(before, mount), npc(after, mount), "{m} mount {mount}");
+            }
+            if r0 < 0 {
+                continue;
+            }
+            let moved = plan.from.iter().enumerate().any(|(k, &f)| {
+                f != k && p.spots[k].map_index == i && p.spots[k].part == r0 as usize
+            });
+            if moved {
+                assert_eq!(r1, -1, "{m}: rider {r0} moved but is still tied");
+                freed += 1;
+            } else {
+                assert_eq!(r1, r0, "{m}: rider {r0} unmoved but untied");
+                kept += 1;
+            }
+        }
+    }
+    println!("seed 1: {freed} riders moved and untied, {kept} kept");
+    assert!(freed > 0);
     assert!(pairs > 100, "{pairs}");
     println!(
         "{pairs} pairs, {in_ride_param} in RideParam, {} spots",
