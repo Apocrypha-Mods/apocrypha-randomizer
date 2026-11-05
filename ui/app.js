@@ -82,6 +82,28 @@ function setStatus() {
 
 const saveSettings = () => store.set("settings", S.settings);
 
+/** A setting's row, with an ⓘ that opens a line or two about it under the row. */
+function explained(row, label, about) {
+  if (!about) return h("div.item", {}, row);
+  const help = h("p.help", { hidden: true }, about);
+  const info = h(
+    "button.info",
+    {
+      type: "button",
+      "aria-label": `About ${label}`,
+      "aria-expanded": "false",
+      onclick: () => {
+        help.hidden = !help.hidden;
+        info.setAttribute("aria-expanded", String(!help.hidden));
+        info.classList.toggle("on", !help.hidden);
+      },
+    },
+    "i",
+  );
+  row.querySelector(".n").append(info);
+  return h("div.item", {}, row, help);
+}
+
 function slider(label, value, set, tag, about) {
   const out = h("output", {}, `${value}%`);
   const input = h("input", {
@@ -100,7 +122,7 @@ function slider(label, value, set, tag, about) {
       saveSettings();
     },
   });
-  return h("div.sr", {}, h("span.n", { title: about }, label, tag), input, out);
+  return explained(h("div.sr", {}, h("span.n", {}, label, tag), input, out), label, about);
 }
 
 function groups() {
@@ -130,17 +152,18 @@ function groups() {
     return el;
   };
   const pick = (label, title, options, now, set, tag) =>
-    h("div.sr.pick", {}, h("span.n", { title }, label, tag), seg(label, options, now, set));
+    explained(h("div.sr.pick", {}, h("span.n", {}, label, tag), seg(label, options, now, set)), label, title);
   const untested = (why) => h("span.tag.warn", { title: `${why}Not yet played through in the game` }, "Untested");
-  const mixRow = slider("Boss mix", st.mix ?? 10, (v) => (st.mix = v), null, "The share of bosses that trade places with an ordinary enemy");
+  const mixRow = slider("Boss mix", st.mix ?? 10, (v) => (st.mix = v), null, "Of the bosses that move, how many trade places with an ordinary enemy instead: the boss goes out into the world, and the enemy takes its arena with a boss's health bar.");
   if (!st.mixOn) mixRow.style.display = "none";
-  const section = (name, ...kids) => h("section", {}, h("div.sh", {}, h("span", {}, name), h("span.x")), h("div.card.rows", {}, kids));
+  const section = (name, ...kids) =>
+    h("section", {}, h("div.sh", {}, h("span", {}, name), h("span.x")), h("p.sub", {}, L.SECTIONS[name] ?? ""), h("div.card.rows", {}, kids));
   return h(
     "div.groups",
     {},
     section(
       "Items",
-      L.CATEGORIES.map(([k, label]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v))),
+      L.CATEGORIES.map(([k, label]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v), null, L.SHUFFLE_HELP[k])),
       pick(
         "Shadow of the Erdtree",
         "Whether base-game items can land in the DLC, and DLC items in the base game",
@@ -193,7 +216,7 @@ function groups() {
     ),
     section(
       "Lean towards late",
-      L.LEANS.map(([k, label]) => slider(label, st.bias[k] ?? 0, (v) => (st.bias[k] = v))),
+      L.LEANS.map(([k, label]) => slider(label, st.bias[k] ?? 0, (v) => (st.bias[k] = v), null, L.leanHelp(k, label))),
     ),
     section(
       "Other places",
@@ -211,8 +234,8 @@ function groups() {
     ),
     section(
       "Enemies",
-      slider("Bosses", st.bosses, (v) => (st.bosses = v), untested("")),
-      slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), untested("")),
+      slider("Bosses", st.bosses, (v) => (st.bosses = v), untested(""), "How many boss fights get a different boss. 100%: every arena has someone new; 0%: every boss stays."),
+      slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), untested(""), "How many ordinary enemies are replaced by others of about their size, so no dragon is put in a tunnel."),
       pick(
         "Mix bosses and ordinary",
         "Whether some bosses may trade places with ordinary enemies: the boss goes out into the world, and the ordinary enemy takes its arena. Needs Bosses above 0.",

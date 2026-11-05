@@ -143,7 +143,15 @@ button { font: inherit; color: inherit; border: 0; background: none; padding: 0;
 .rows { padding: 4px 0; }
 .sr { position: relative; display: grid; grid-template-columns: 160px minmax(0, 1fr) 44px; gap: 12px; align-items: center; min-height: 40px; padding: 0 16px; }
 .sr::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1px; background: var(--border); }
-.sr:last-child::after { display: none; }
+.sr:last-child::after, .item:last-child > .sr::after { display: none; }
+.item:not(:last-child) > .help::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: 1px; background: var(--border); }
+.item:has(> .help:not([hidden])) > .sr::after { display: none; }
+.help { position: relative; margin: 0; padding: 0 16px 12px; font-size: 13px; line-height: 1.45; color: var(--text-secondary); text-wrap: pretty; }
+.help[hidden] { display: none; }
+.sub { margin: -4px 0 0; padding: 0 16px 10px; font-size: 13px; color: var(--text-tertiary); text-wrap: pretty; }
+.info { width: 16px; height: 16px; flex: none; display: inline-grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: var(--bg-raised); color: var(--text-tertiary); font: italic 600 11px/1 var(--font-display); cursor: pointer; transition: background var(--dn) var(--snappy), color var(--dn) var(--snappy); }
+.info:hover, .info.on { background: var(--accent-muted); color: var(--accent); }
+.info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sr .n { display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; }
 .sr output { text-align: right; font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .sr.pick { grid-template-columns: minmax(0, 1fr) auto; }

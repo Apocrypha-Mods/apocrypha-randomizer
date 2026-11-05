@@ -108,3 +108,10 @@ test("the whole map is off unless asked", () => {
   assert.equal(L.request(1, L.defaults()).wholeMap, false);
   assert.equal(L.request(1, { ...L.defaults(), wholeMap: true }).wholeMap, true);
 });
+
+test("every section has its line and every item slider its explanation", () => {
+  for (const s of ["Items", "Lean towards late", "Other places", "Enemies"]) assert.ok(L.SECTIONS[s], s);
+  for (const [k] of L.CATEGORIES) assert.ok(L.SHUFFLE_HELP[k], k);
+  for (const [k, label] of L.LEANS) assert.ok(L.leanHelp(k, label).length > 20, k);
+  for (const [k, , about] of L.PLACES) assert.ok(about, k);
+});

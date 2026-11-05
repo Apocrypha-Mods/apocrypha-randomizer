@@ -23,6 +23,35 @@ export const PLACES = [
   ["npc-gear", "NPC gear", "What NPCs wear and hold. Nothing a player picks up. A weapon changes only if the weapons slider allows it too, armour the armour slider."],
 ];
 
+/** The line under each section's heading. */
+export const SECTIONS = {
+  Items: "How much of each kind of item moves to a new place.",
+  "Lean towards late": "Push what moves deeper into the game. At 0% it can land anywhere.",
+  "Other places": "Which kinds of places join the shuffle, beside chests, bodies and bosses.",
+  Enemies: "Who stands where. Rewards always stay with the place.",
+};
+
+/** What each item slider moves, opened by its ⓘ. */
+export const SHUFFLE_HELP = {
+  keys: "Medallions, Great Runes, keys and other items that open the way. However many move, every seed is proven finishable.",
+  weapons: "100%: every weapon moves. 0%: every weapon stays where the game has it, shops included.",
+  armour: "Every piece of armour. 0% keeps each where the game has it.",
+  talismans: "Every talisman. 0% keeps each where the game has it.",
+  spells: "Sorceries and incantations.",
+  "ashes-of-war": "Ashes of War, which give a weapon a new skill.",
+  "spirit-ashes": "Spirit ashes for summoning help.",
+  upgrades: "Smithing and Somber stones, Golden Seeds and Sacred Tears.",
+  quest: "Quest items, tools, letters and cookbooks.",
+  consumables: "Consumables and crafting materials.",
+};
+
+/** What each lean slider does, opened by its ⓘ. */
+export function leanHelp(k, label) {
+  if (k === "keys") return "How deep key items lean. High, they tend to sit far into the game, so one opens the way to the next.";
+  if (k === "gathering") return "How strongly what plants and ores give leans towards later areas.";
+  return `How strongly moved ${label.toLowerCase()} lean towards later areas. High, the better ones tend to be found deeper in.`;
+}
+
 /** What takes a bias: every category of item, and gathering. */
 export const LEANS = [...CATEGORIES, ["gathering", "Gathering"]];
 
