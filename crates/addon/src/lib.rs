@@ -145,6 +145,9 @@ struct Run {
     /// As `apoc-rando --whole-map`.
     #[serde(default)]
     whole_map: bool,
+    /// As `apoc-rando --night-bosses-always`.
+    #[serde(default)]
+    night_bosses_always: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -328,6 +331,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.keep_whetblades = request.keep_whetblades;
     options.keep_maps = request.keep_maps;
     options.whole_map = request.whole_map;
+    options.night_bosses_always = request.night_bosses_always;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;

@@ -262,6 +262,17 @@ function groups() {
         (v) => (st.scale = v),
       ),
       pick(
+        "Night bosses at any hour",
+        "Night's Cavalry ride by day as well as by night. Deathbirds and Bell Bearing Hunters still keep to the night for now.",
+        [
+          [false, "No"],
+          [true, "Yes"],
+        ],
+        !!st.nightBosses,
+        (v) => (st.nightBosses = v),
+        untested(""),
+      ),
+      pick(
         "New models per map",
         "The most models ordinary enemies may add to one map. The game's limit is not known, so higher may crash it.",
         L.MODEL_LIMITS,

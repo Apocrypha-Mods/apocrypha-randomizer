@@ -19,6 +19,7 @@ use rayon::prelude::*;
 pub mod bearings;
 pub mod capital;
 pub mod far;
+pub mod night;
 pub mod whole_map;
 
 pub use enemies::Options as EnemyOptions;
@@ -619,6 +620,10 @@ pub fn build(
             files, job, sources, model, &mut reg, sink, say,
         )?)
     };
+    if options.night_bosses_always {
+        let n = night::apply(&mut reg)?;
+        say(&format!("night bosses at any hour: {n} rows"));
+    }
     sink.put("regulation.bin", reg.write()?)?;
     let mut log = items::spoiler(&bound, &units, &plan);
     log += "\nNPC equipment\n";

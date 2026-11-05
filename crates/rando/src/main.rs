@@ -108,6 +108,10 @@ struct Sliders {
     /// were held. Graces still show only once touched.
     #[arg(long)]
     whole_map: bool,
+    /// Night-only bosses at any hour: Night's Cavalry and their horses, for now.
+    /// Not yet seen in the game.
+    #[arg(long)]
+    night_bosses_always: bool,
 }
 
 impl Sliders {
@@ -120,6 +124,7 @@ impl Sliders {
         o.keep_whetblades = self.keep_whetblades;
         o.keep_maps = self.keep_maps;
         o.whole_map = self.whole_map;
+        o.night_bosses_always = self.night_bosses_always;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

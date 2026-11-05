@@ -80,6 +80,7 @@ export const defaults = () => ({
   keepWhetblades: false,
   keepMaps: false,
   wholeMap: false,
+  nightBosses: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -118,6 +119,7 @@ export function request(seed, s, stack = null) {
     keepWhetblades: !!s.keepWhetblades,
     keepMaps: !!s.keepMaps,
     wholeMap: !!s.wholeMap,
+    nightBossesAlways: !!s.nightBosses,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

@@ -296,6 +296,17 @@ A row of SpEffectParam whose +0x10 is a health rate (see hp). One character's ro
 differ here by where they stand: Margit 7030, Morgott 7110."""
 
 [[layout.field]]
+name = "effect_c"
+offset = 0x54
+kind = "i32"
+confidence = "probable"
+evidence = """
+A SpEffectParam row, as the words beside it are (+0x4C, +0x50). Effect 11800 is here on
+exactly 23 rows, Night's Cavalry and their horses (31500000 to 31501052, 31600000 to
+31600052), and on no other row; no script tests the hour and no map field marks them,
+so it is taken to keep them to the night. Not yet seen in play (2026-11-05)."""
+
+[[layout.field]]
 name = "scale_b"
 offset = 0x6C
 kind = "i32"

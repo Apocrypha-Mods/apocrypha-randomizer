@@ -152,6 +152,9 @@ pub struct Options {
     /// fragment were held; graces still show only once touched (Nova, 2026-11-05).
     /// Written into the seed's script; placement ignores it.
     pub whole_map: bool,
+    /// Whether night-only bosses are out at any hour (Nova, 2026-11-05): Night's
+    /// Cavalry for now. Written into the seed's tables; placement ignores it.
+    pub night_bosses_always: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -172,6 +175,7 @@ impl Default for Options {
             keep_whetblades: false,
             keep_maps: false,
             whole_map: false,
+            night_bosses_always: false,
         }
     }
 }

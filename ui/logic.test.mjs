@@ -104,6 +104,11 @@ test("whetblades and map fragments move unless kept in place", () => {
   assert.equal(k.keepMaps, true);
 });
 
+test("night bosses keep to the night unless asked", () => {
+  assert.equal(L.request(1, L.defaults()).nightBossesAlways, false);
+  assert.equal(L.request(1, { ...L.defaults(), nightBosses: true }).nightBossesAlways, true);
+});
+
 test("the whole map is off unless asked", () => {
   assert.equal(L.request(1, L.defaults()).wholeMap, false);
   assert.equal(L.request(1, { ...L.defaults(), wholeMap: true }).wholeMap, true);
