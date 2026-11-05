@@ -182,7 +182,7 @@ function groups() {
       slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), untested("")),
       slider("Boss mix", st.mix ?? 0, (v) => (st.mix = v), untested("The share of bosses that trade places with an ordinary enemy. Needs Bosses above 0. ")),
       pick(
-        "Strength",
+        "Scaling",
         "Whether a moved enemy takes the health and strength of the place it lands on, or keeps its own",
         [
           [true, "Of the place"],
