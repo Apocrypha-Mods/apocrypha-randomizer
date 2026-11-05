@@ -244,7 +244,7 @@ function groups() {
     ),
     section(
       "Enemies",
-      slider("Bosses", st.bosses, (v) => (st.bosses = v), untested(""), "How many boss fights get a different boss. 100%: every arena has someone new; 0%: every boss stays."),
+      slider("Bosses", st.bosses, (v) => (st.bosses = v), null, "How many boss fights get a different boss. 100%: every arena has someone new; 0%: every boss stays."),
       slider("Ordinary", st.ordinary ?? 0, (v) => (st.ordinary = v), untested(""), "How many ordinary enemies are replaced by others of about their size, so no dragon is put in a tunnel."),
       pick(
         "Mix bosses and ordinary",
