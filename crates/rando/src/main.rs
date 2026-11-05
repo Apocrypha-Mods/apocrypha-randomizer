@@ -104,6 +104,10 @@ struct Sliders {
     /// Leave map fragments where the game has them.
     #[arg(long)]
     keep_maps: bool,
+    /// Draw every piece of the world map from the start, as if every map fragment
+    /// were held. Graces still show only once touched.
+    #[arg(long)]
+    whole_map: bool,
 }
 
 impl Sliders {
@@ -115,6 +119,7 @@ impl Sliders {
         o.auto_upgrade = self.auto_upgrade;
         o.keep_whetblades = self.keep_whetblades;
         o.keep_maps = self.keep_maps;
+        o.whole_map = self.whole_map;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

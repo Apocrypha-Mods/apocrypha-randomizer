@@ -813,3 +813,23 @@ evidence = """
 A SpEffectParam row in all 157 rows, and the effect does what the talisman's caption
 says: Crimson Amber Medallion's raises health_rate, Arsenal Charm's +0xE4, the
 -drake talismans' negation_rate (see SP_EFFECT_PARAM_ST)."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "WORLD_MAP_PIECE_PARAM_ST"
+row_size = 64
+tables = ["WorldMapPieceParam"]
+
+[[layout.field]]
+name = "open_flag"
+offset = 0x04
+kind = "u32"
+confidence = "probable"
+evidence = """
+An event flag in all 34 rows on 2.7.2, 62000 to 62084, one a row and in blocks as the
+map's regions are (62010 to 62012 Limgrave, 62060 to 62065 underground, 62080 to 62084
+the expansion); the floats after it read as a rectangle of the world map. The 24 map
+fragments' goods rows name none of these flags and no script tests a fragment held, so
+the game turns the flag on itself when a fragment is picked up. Deeproot Depths' piece,
+62002, is the one a script sets (m12_05 event 12052500, on entering), so the flag alone
+draws its piece. Not yet seen in play."""

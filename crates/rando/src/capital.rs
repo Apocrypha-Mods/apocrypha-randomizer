@@ -95,7 +95,7 @@ const GOODS: u8 = 3;
 /// `if_flag_count`'s comparison: at least.
 const AT_LEAST: u32 = 4;
 
-fn ins(bank: u32, id: u32, words: &[u32]) -> Instruction {
+pub(crate) fn ins(bank: u32, id: u32, words: &[u32]) -> Instruction {
     Instruction {
         bank,
         id,
@@ -123,12 +123,12 @@ fn combine(group: u8, source: u8) -> Instruction {
     ins(0, 0, &[packed([group, 1, source, 0])])
 }
 
-fn set_on(flag: u32) -> Instruction {
+pub(crate) fn set_on(flag: u32) -> Instruction {
     ins(2003, 66, &[0, flag, 1])
 }
 
 /// Start an event of no arguments, as the game's own starts do (`start_event`).
-fn start(id: i64) -> Instruction {
+pub(crate) fn start(id: i64) -> Instruction {
     ins(2000, 0, &[0, id as u32, 0])
 }
 

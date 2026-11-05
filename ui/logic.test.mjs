@@ -103,3 +103,8 @@ test("whetblades and map fragments move unless kept in place", () => {
   assert.equal(k.keepWhetblades, true);
   assert.equal(k.keepMaps, true);
 });
+
+test("the whole map is off unless asked", () => {
+  assert.equal(L.request(1, L.defaults()).wholeMap, false);
+  assert.equal(L.request(1, { ...L.defaults(), wholeMap: true }).wholeMap, true);
+});

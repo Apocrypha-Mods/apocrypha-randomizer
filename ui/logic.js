@@ -50,6 +50,7 @@ export const defaults = () => ({
   leyndellRunes: 2,
   keepWhetblades: false,
   keepMaps: false,
+  wholeMap: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -87,6 +88,7 @@ export function request(seed, s, stack = null) {
     leyndellRunes: s.leyndellRunes ?? 2,
     keepWhetblades: !!s.keepWhetblades,
     keepMaps: !!s.keepMaps,
+    wholeMap: !!s.wholeMap,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

@@ -148,6 +148,10 @@ pub struct Options {
     pub keep_whetblades: bool,
     /// Whether map fragments stay where the game has them (Nova, 2026-11-05).
     pub keep_maps: bool,
+    /// Whether every piece of the world map is drawn from the start, as if every
+    /// fragment were held; graces still show only once touched (Nova, 2026-11-05).
+    /// Written into the seed's script; placement ignores it.
+    pub whole_map: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -167,6 +171,7 @@ impl Default for Options {
             leyndell_runes: DEFAULT_LEYNDELL_RUNES,
             keep_whetblades: false,
             keep_maps: false,
+            whole_map: false,
         }
     }
 }

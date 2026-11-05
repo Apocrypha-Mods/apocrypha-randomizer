@@ -19,6 +19,7 @@ use rayon::prelude::*;
 pub mod bearings;
 pub mod capital;
 pub mod far;
+pub mod whole_map;
 
 pub use enemies::Options as EnemyOptions;
 pub use items::Options as ItemOptions;
@@ -606,7 +607,10 @@ pub fn build(
     };
     menu_text(files, sink, &items::keepsake_items(&units, &plan), talk)?;
     // Always, so the game's gate asks what the proof asked (`capital`).
-    let common = capital::apply(&sources.common, options.leyndell_runes)?;
+    let mut common = capital::apply(&sources.common, options.leyndell_runes)?;
+    if options.whole_map {
+        common = whole_map::apply(&common, &sources.reg)?;
+    }
     put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
     let enemy_log = if foes.is_off() {
         None

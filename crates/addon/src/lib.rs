@@ -142,6 +142,9 @@ struct Run {
     /// As `apoc-rando --keep-maps`.
     #[serde(default)]
     keep_maps: bool,
+    /// As `apoc-rando --whole-map`.
+    #[serde(default)]
+    whole_map: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -324,6 +327,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.auto_upgrade = request.auto_upgrade;
     options.keep_whetblades = request.keep_whetblades;
     options.keep_maps = request.keep_maps;
+    options.whole_map = request.whole_map;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;

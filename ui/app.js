@@ -172,6 +172,17 @@ function groups() {
         (v) => (st.keepMaps = v),
       ),
       pick(
+        "Start with the whole map",
+        "Every part of the world map is drawn from the start, landmarks included, as if you held every map fragment. Sites of grace still appear only once you touch them.",
+        [
+          [false, "No"],
+          [true, "Yes"],
+        ],
+        !!st.wholeMap,
+        (v) => (st.wholeMap = v),
+        untested(""),
+      ),
+      pick(
         "Great Runes for Leyndell",
         "How many of Godrick's, Radahn's, Rykard's, Mohg's and Malenia's Great Runes, restored or not, and Rennala's Great Rune of the Unborn open the capital's gate. The game asks for 2.",
         L.LEYNDELL_RUNES,
