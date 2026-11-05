@@ -94,7 +94,7 @@ const MAX_STEPS: usize = 200_000;
 /// Condition groups run from -15 to 15.
 const GROUPS: usize = 31;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Expr {
     Lit(Lit),
     All(Vec<Expr>),
@@ -315,13 +315,18 @@ pub fn ways_to(
     want: impl Fn(&Instruction) -> bool,
 ) -> BTreeMap<usize, Vec<Way>> {
     let mut found: BTreeMap<usize, Vec<Way>> = BTreeMap::new();
-    let mut todo = vec![Path {
-        at: 0,
-        needs: vec![Way::new()],
-        groups: vec![Vec::new(); GROUPS],
-    }];
+    // Paths waiting to go on, by where they are and their open groups. Every
+    // jump goes forward (a jump backwards ends the path), so taking the nearest
+    // first means every path that can meet another at an instruction, with the
+    // same groups open, has arrived before it goes on: from there they walk the
+    // same way, so they go on as one, needing what either needed. Followed one
+    // by one, some events branch on the same tests so often that their paths
+    // ran into the thousands (common 4739 took 20 s of a seed's 70).
+    let mut todo: BTreeMap<(usize, Vec<Vec<Expr>>), Vec<Way>> = BTreeMap::new();
+    todo.insert((0, vec![Vec::new(); GROUPS]), vec![Way::new()]);
     let mut steps = 0;
-    while let Some(mut p) = todo.pop() {
+    while let Some(((at, groups), needs)) = todo.pop_first() {
+        let mut p = Path { at, needs, groups };
         while let Some(ins) = instructions.get(p.at) {
             steps += 1;
             if steps > MAX_STEPS {
@@ -337,7 +342,7 @@ pub fn ways_to(
             };
             match &next[..] {
                 // Straight on, with nothing new to meet.
-                [(Some(to), None)] => p.at = *to,
+                [(Some(to), None)] if *to > p.at => p.at = *to,
                 _ => {
                     for (to, e) in next {
                         let Some(to) = to else { continue };
@@ -349,7 +354,11 @@ pub fn ways_to(
                                 groups: p.groups.clone(),
                             }),
                         };
-                        todo.extend(path);
+                        if let Some(path) = path {
+                            let needs = todo.entry((path.at, path.groups)).or_default();
+                            needs.extend(path.needs);
+                            *needs = trim(std::mem::take(needs));
+                        }
                     }
                     break;
                 }
