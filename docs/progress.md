@@ -2406,3 +2406,10 @@ Built by Nova's choice: Strength is called **Scaling** on the page (c145db4); a 
 Not explained: Nova saw "11" when using Rykard's remembrance and got 50,000 runes. The seed changes no goods row, so the runes are the game's own; where the 11 showed is asked.
 
 Open: night-only bosses at any hour (asked by Nova). The night rule is not one NpcParam field; AI rows, effects and scripts are to read, then a daytime lab check.
+
+## Night-only bosses: what the files say (2026-11-05, no lab run)
+
+Asked by Nova: an option for night-only bosses at any hour. Read so far, nothing built:
+- **No script tests the hour.** The Night's Cavalry spots' events (m60_43_37 event 0's starts) are common 90005476 (the horse: dies with its rider, effect 11805 on the horse), 90005860 (death and reward), 90005871 and 90005872 (bar and music), and a map event of their own for the mount; none holds a time test. 90005477 is started with 0 and is in neither common script.
+- **No map field marks them.** Of every byte and word of the 23,203 enemy parts, none is shared by all 20 night bosses' parts (Night's Cavalry, Deathbirds, Death Rite Birds, Bell Bearing Hunters) and rare elsewhere.
+- **The likeliest place is an effect.** Night's Cavalry's NpcParam carries effect 11800 at +0x54, which no other boss compared has; it differs from 5360 (Bell Bearing Hunters, Erdtree Avatars) only at +0x154, +0x170 and +0x25C (0.2 against 1.0). Deathbirds and Death Rite Birds carry 90000 at +0x64, as Tibia Mariners do, who are not night-only. Bell Bearing Hunters may come by an event at their shacks instead. Which of these hides a body by day is for the lab: a seed without the effect, warped to a Cavalry spot at noon.
