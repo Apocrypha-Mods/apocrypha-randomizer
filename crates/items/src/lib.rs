@@ -185,6 +185,9 @@ pub struct Wants {
     /// For a bow, crossbow or ballista: the first two digits (50..=53) of the
     /// ammunition it shoots.
     pub ammo: Option<u8>,
+    /// Whether it is a weapon to fight with: not a shield, a staff, a seal or a
+    /// torch.
+    pub strikes: bool,
 }
 
 /// A starting class, as its gear must suit it.
@@ -213,8 +216,9 @@ impl Class {
 /// What one of a class's starting slots may take, with usable starting gear.
 struct Suits {
     class: Class,
-    /// For a weapon slot that must hold a catalyst: the schools that would do.
-    catalyst: Option<[bool; 2]>,
+    /// For a weapon slot that must fill what the class lacks: a catalyst of the
+    /// schools marked, or, if the flag is set, a weapon to fight with.
+    need: Option<([bool; 2], bool)>,
     /// The schools the class holds a catalyst for, and its memory left.
     casts: [bool; 2],
     memory: u8,
@@ -233,6 +237,7 @@ impl Suits {
         let mut casts = [false; 2];
         let mut spells = [false; 2];
         let mut used = 0u8;
+        let armed = held.iter().any(|w| w.strikes);
         for w in &held {
             if let Some(s) = w.casts {
                 casts[s as usize] = true;
@@ -248,25 +253,23 @@ impl Suits {
                 .filter(|&&v| placed[v].is_none() && units[v].place == Place::Start(field))
                 .count()
         };
-        let mut catalyst = None;
+        let mut need = None;
         if units[u].place == Place::Start("weapon") {
             // Spells the class keeps need their catalyst; spells still to come
-            // need one of either school. The last weapon slots left are made to
-            // hold them.
+            // need one of either school; and every class needs a weapon to fight
+            // with. The last weapon slots left are made to hold what is lacking.
             let missing = [0, 1].map(|s| spells[s] && !casts[s]);
-            let wanted = missing.iter().filter(|&&m| m).count()
-                + usize::from(open("magic") > 0 && casts == [false; 2] && missing == [false; 2]);
+            let any = open("magic") > 0 && casts == [false; 2] && missing == [false; 2];
+            let wanted =
+                missing.iter().filter(|&&m| m).count() + usize::from(any) + usize::from(!armed);
             if wanted > 0 && wanted >= open("weapon") {
-                catalyst = Some(if missing == [false; 2] {
-                    [true; 2]
-                } else {
-                    missing
-                });
+                let schools = if any { [true; 2] } else { missing };
+                need = Some((schools, !armed));
             }
         }
         Some(Suits {
             class,
-            catalyst,
+            need,
             casts,
             memory: START_MEMORY.saturating_sub(used),
         })
@@ -275,9 +278,9 @@ impl Suits {
     fn allows(&self, item: &Unit) -> bool {
         let w = &item.wants;
         self.class.wields(w)
-            && self
-                .catalyst
-                .is_none_or(|ok| w.casts.is_some_and(|s| ok[s as usize]))
+            && self.need.is_none_or(|(schools, strike)| {
+                w.casts.is_some_and(|s| schools[s as usize]) || (strike && w.strikes)
+            })
             && w.spell
                 .is_none_or(|(s, m)| self.casts[s as usize] && m <= self.memory)
     }
@@ -350,6 +353,7 @@ fn read_wants(reg: &Regulation, units: &mut [Unit]) -> Result<()> {
                         44 => Some(53),
                         _ => None,
                     },
+                    strikes: !matches!(id / 1_000_000, 24 | 30..=34),
                 }
             }
             ItemKind::Goods => {
@@ -1238,7 +1242,8 @@ fn class_slots(units: &[Unit]) -> BTreeMap<i32, Vec<usize>> {
     out
 }
 
-/// Whether every class can use what it starts with: wield each weapon, and cast
+/// Whether every class can use what it starts with: hold a weapon to fight with
+/// (not only shields, catalysts and torches), wield each weapon, and cast
 /// each spell with a catalyst it holds, in the memory it has.
 pub fn usable_start(units: &[Unit], plan: &Plan) -> std::result::Result<(), String> {
     for (row, slots) in class_slots(units) {
@@ -1258,6 +1263,9 @@ pub fn usable_start(units: &[Unit], plan: &Plan) -> std::result::Result<(), Stri
                 }
                 memory += u16::from(m);
             }
+        }
+        if !held.iter().any(|i| i.wants.strikes) {
+            return Err(format!("class {row} has no weapon to fight with"));
         }
         if memory > u16::from(START_MEMORY) {
             return Err(format!("class {row}'s spells take {memory} memory slots"));
