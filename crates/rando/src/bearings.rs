@@ -8,7 +8,8 @@
 //! same stock.
 //!
 //! What is written:
-//! - an ItemLotParam_map row per merchant, numbered as its `given` flag, giving
+//! - an ItemLotParam_map row per merchant, numbered ten times its `given` flag so
+//!   no lot runs on into the next (`lot_for`), giving
 //!   the bearing and turning that flag on; laid out as the game's own bearing
 //!   lots are (Sellen's 111000, Thops's 113600: one goods, weight 1000, a flag);
 //! - in each of the merchant's talk scripts, in every menu that opens one of the
@@ -173,10 +174,21 @@ pub fn apply(
 }
 
 fn lot_id(entry: &GivenBearing) -> Result<i32> {
-    i32::try_from(entry.given).map_err(|_| format_err("a bearing's flag past i32"))
+    lot_for(entry.given)
 }
 
-/// One lot per merchant, numbered as its flag, laid out as the game's own lot
+/// The lot giving the bearing whose `given` flag is `flag`: ten times the flag.
+/// The game runs a lot on into the rows numbered after it, so lots numbered as
+/// the flags, one after another, gave every later merchant's bearing too (Kalé's
+/// gave Gostoc's and Pidia's, seen in play 2026-11-05). Spaced by ten, none runs on.
+pub fn lot_for(flag: u32) -> Result<i32> {
+    i64::from(flag)
+        .checked_mul(10)
+        .and_then(|id| i32::try_from(id).ok())
+        .ok_or_else(|| format_err("a bearing's lot past i32"))
+}
+
+/// One lot per merchant, numbered by `lot_for`, laid out as the game's own lot
 /// for a bearing of the model is.
 fn add_lots(reg: &mut Regulation, given: &[Given]) -> Result<()> {
     let layout = for_table(LOTS).ok_or_else(|| format_err("no item lot layout"))?;
@@ -195,8 +207,9 @@ fn add_lots(reg: &mut Regulation, given: &[Given]) -> Result<()> {
     };
     for g in given {
         let id = lot_id(g.entry)?;
-        if table.rows.iter().any(|r| r.id == id) {
-            return Err(format_err(format!("{LOTS} already has a row {id}")));
+        // The row after it must be free too, or the game would give it as well.
+        if let Some(r) = table.rows.iter().find(|r| r.id == id || r.id == id + 1) {
+            return Err(format_err(format!("{LOTS} already has a row {}", r.id)));
         }
         let own = |r: &&Row| alone(&r.data) && item.get(&r.data, 0) == i64::from(g.bearing.goods);
         let template = table

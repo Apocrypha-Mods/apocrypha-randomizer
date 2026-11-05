@@ -67,7 +67,10 @@ fn the_flags_lots_and_text_added_are_free_in_the_game() {
         let t = g.sources.reg.table(name).unwrap();
         for r in &t.rows {
             for f in &flags {
-                assert_ne!(r.id as u32, *f, "{name} has a row {f}");
+                let lot = bearings::lot_for(*f).unwrap();
+                if name == "ItemLotParam_map" {
+                    assert!(r.id != lot && r.id != lot + 1, "{name} has a row {}", r.id);
+                }
                 assert!(!holds(&r.data, *f), "{name} row {} holds {f}", r.id);
             }
         }
@@ -181,8 +184,15 @@ fn every_merchant_menu_offers_the_bearing_once_and_nothing_else_changes() {
         let row = lots
             .rows
             .iter()
-            .find(|r| r.id as u32 == b.entry.given)
+            .find(|r| r.id == bearings::lot_for(b.entry.given).unwrap())
             .unwrap();
+        // The game gives a lot and every row numbered straight after it.
+        assert!(
+            !lots.rows.iter().any(|r| r.id == row.id + 1),
+            "{}'s lot runs on into row {}",
+            b.entry.item,
+            row.id + 1
+        );
         let f = |n: &str, i| layout.field(n).get(&row.data, i);
         assert_eq!(
             f("item_id", 0),
@@ -281,7 +291,7 @@ fn every_merchant_menu_offers_the_bearing_once_and_nothing_else_changes() {
             );
             assert_eq!(
                 after.command_args(&cmds[0])[0].and_then(expr::constant),
-                Some(b.entry.given as i32)
+                Some(bearings::lot_for(b.entry.given).unwrap())
             );
             assert_eq!(
                 after.command_args(&cmds[1])[0].and_then(expr::constant),
