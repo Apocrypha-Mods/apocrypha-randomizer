@@ -2437,3 +2437,17 @@ Asked by Nova: a switch for starting gear each class can use, or fully random as
 
 Nova played seeds with bosses and ordinary enemies moved and both worked (2026-11-05): the Bosses slider is no longer marked untested on the page. Ordinary stays marked until Stormveil, where the riders and flamethrowers now move, is played through.
 Nova also played the mix before its switch existed and it worked: Agheel Lake's dragon became a mutated dog of Caelid, Margit a small crab. Its switch is no longer marked untested.
+
+## Lab: Leyndell's gate and the whole map (2026-11-05)
+
+Asked by Nova. `apoc-fs test-flag <game> <mod> --flag F --give G,…` (new): an event of ours in the mod's `common.emevd` (9990100, started first in event 0, which can end early on flag 2052) gives each goods of `--give` a second after loading, then 33 Smithing Stone [1] once flag F is on. The inventory log (`APOC_NATIVE_INVENTORY=1`) lists goods as kind 11, id 0x40000000 + goods id. Three launches, `ER_CPU=300`, fresh copies of `apoc-rando-boot.sl2` (at Margit's fog), seed 1 with nothing moved, flag 182 (the gate's):
+
+| Run | Runes asked | Given | 33 stones (182 on) |
+| --- | --- | --- | --- |
+| A | 0 | nothing | yes, as the game loaded |
+| B | 1 | Godrick's Great Rune (8148) | yes, after the rune's pop-up |
+| C | 2 | Godrick's Great Rune | no, by the end of the run |
+
+So in the game our count turns 182 on at what the option asks and not before. The rune's pop-up and the Great Runes tutorial showed in B and C; the rune itself is not in the inventories the module reads (key items are kept elsewhere). That the gate opens on 182 and 105 is the game's own event (m60_45_52 1045522500), not walked to. "Great Runes for Leyndell" is no longer marked untested.
+
+**The whole map: not seen.** In the lab neither G nor the main menu opens the map (the menu, at Margit's fog, lists no Map), and the pop-ups covered the screen in B. Left marked untested, for Nova to look at in play.

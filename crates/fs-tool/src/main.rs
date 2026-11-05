@@ -263,6 +263,19 @@ enum Command {
         #[arg(long)]
         show: Option<u64>,
     },
+    /// A probe for the lab: on loading, give the player each of `give` (goods ids),
+    /// then 33 Smithing Stone [1] once `flag` is on, for the inventory log or a
+    /// screenshot to show. Built on the mod folder's own `common.emevd`. Never for a
+    /// seed that is meant to be played as itself.
+    TestFlag {
+        game: PathBuf,
+        /// The mod folder to change; it must hold `event/common.emevd.dcx`.
+        out: PathBuf,
+        #[arg(long)]
+        flag: u32,
+        #[arg(long, value_delimiter = ',')]
+        give: Vec<i64>,
+    },
     /// Warp the player on every load of the chapel, to look at a far place in
     /// the lab. Never for a seed that is meant to be played as itself.
     TestWarp {
@@ -634,6 +647,12 @@ fn main() {
             show,
         } => far_copies::grace_danger(game, seeds, radius, show),
         Command::TestCalm { out } => test_kit::calm(out),
+        Command::TestFlag {
+            game,
+            out,
+            flag,
+            give,
+        } => test_kit::flag_probe(game, out, flag, &give),
         Command::TestWarp {
             game,
             out,

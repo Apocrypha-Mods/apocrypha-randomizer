@@ -211,7 +211,6 @@ function groups() {
         L.LEYNDELL_RUNES,
         st.leyndellRunes ?? 2,
         (v) => (st.leyndellRunes = v),
-        untested("The game's gate is rewritten to count these. "),
       ),
     ),
     section(

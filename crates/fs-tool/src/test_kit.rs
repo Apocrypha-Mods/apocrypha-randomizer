@@ -112,6 +112,105 @@ pub fn run(game: PathBuf, out: PathBuf) -> Result<()> {
     Ok(())
 }
 
+/// The probe's event in `common.emevd`, and the goods it gives once its flag is on.
+const PROBE_EVENT: i64 = 9_990_100;
+const MARKER: i64 = 10100;
+const MARKER_COUNT: i64 = 33;
+
+/// Give each of `give` on loading, then [`MARKER_COUNT`] of [`MARKER`] once `flag` is
+/// on: an event of ours in the mod folder's `common.emevd`, started from its event 0.
+pub fn flag_probe(game: PathBuf, out: PathBuf, flag: u32, give: &[i64]) -> Result<()> {
+    let file = std::fs::read(out.join("regulation.bin"))?;
+    let exe = std::fs::read(game.join("eldenring.exe"))?;
+    let mut reg = Regulation::read(&fs_param::crypto::find_key(&exe, &file)?, &file)?;
+    let mut table = reg.table("ItemLotParam_map")?;
+    let ids: std::collections::BTreeSet<i32> = table.rows.iter().map(|r| r.id).collect();
+    let lots: Vec<i32> = SPARE_LOTS
+        .iter()
+        .copied()
+        .filter(|id| ids.contains(id) && !ids.contains(&(id + 1)))
+        .take(give.len() + 1)
+        .collect();
+    if lots.len() < give.len() + 1 {
+        return Err(format_err("not enough spare lots"));
+    }
+    let layout = fs_param::layout::for_table("ItemLotParam_map")
+        .ok_or_else(|| format_err("no ItemLotParam_map layout"))?;
+    let goods: Vec<(i64, i64)> = give
+        .iter()
+        .map(|&g| (g, 1))
+        .chain([(MARKER, MARKER_COUNT)])
+        .collect();
+    for (&lot, &(item, count)) in lots.iter().zip(&goods) {
+        let row = table
+            .rows
+            .iter_mut()
+            .find(|r| r.id == lot)
+            .ok_or_else(|| format_err("no such lot"))?;
+        for i in 0..8 {
+            let first = i == 0;
+            let f = |name: &str| layout.field(name);
+            f("item_id").set(&mut row.data, i, if first { item } else { 0 })?;
+            f("item_category").set(&mut row.data, i, i64::from(first))?;
+            f("weight").set(&mut row.data, i, if first { 1000 } else { 0 })?;
+            f("count").set(&mut row.data, i, if first { count } else { 0 })?;
+        }
+        layout.field("get_item_flag").set(&mut row.data, 0, 0)?;
+    }
+    reg.set_table("ItemLotParam_map", &table)?;
+    let reg_path = out.join("regulation.bin");
+    // A new file: the folder may share this one with a copy.
+    std::fs::remove_file(&reg_path)?;
+    std::fs::write(&reg_path, reg.write()?)?;
+
+    let path = out.join("event/common.emevd.dcx");
+    let (header, plain) = fs_dcx::decompress(&std::fs::read(&path)?)?;
+    let mut script = Emevd::read(&plain)?;
+    if script.events.iter().any(|e| e.id == PROBE_EVENT) {
+        return Err(format_err("the probe is already in this folder"));
+    }
+    let word = |w: u32| w.to_le_bytes();
+    let mut probe = Vec::new();
+    probe.push(instruction(1001, 0, 1.0f32.to_le_bytes().to_vec()));
+    for &lot in &lots[..give.len()] {
+        probe.push(instruction(2003, 4, lot.to_le_bytes().to_vec()));
+    }
+    // if_flag into the main group: wait for the flag on.
+    let mut wait = vec![0u8, 1, 0, 0];
+    wait.extend(word(flag));
+    probe.push(instruction(3, 0, wait));
+    probe.push(instruction(
+        2003,
+        4,
+        lots[give.len()].to_le_bytes().to_vec(),
+    ));
+    script.events.push(fs_emevd::Event {
+        id: PROBE_EVENT,
+        rest: 0,
+        instructions: probe,
+        parameters: vec![],
+    });
+    let zero = script
+        .events
+        .iter_mut()
+        .find(|e| e.id == 0)
+        .ok_or_else(|| format_err("common.emevd has no event 0"))?;
+    let mut start = vec![0u8; 4];
+    start.extend((PROBE_EVENT as u32).to_le_bytes());
+    start.extend(0u32.to_le_bytes());
+    // First: event 0 may end early on a flag, before its later starts.
+    zero.instructions.insert(0, instruction(2000, 0, start));
+    std::fs::remove_file(&path)?;
+    std::fs::write(
+        &path,
+        fs_dcx::compress(&header.with_algorithm(Algorithm::Zstd), &script.write()?)?,
+    )?;
+    eprintln!(
+        "lots {lots:?}: gives {give:?}, then {MARKER_COUNT} of {MARKER} once flag {flag} is on"
+    );
+    Ok(())
+}
+
 /// Add a warp to the script of `from`, or the chapel's: 2003[14] takes the map's
 /// four bytes, then the entity to land on, as the game's own scripts do.
 pub fn warp(
