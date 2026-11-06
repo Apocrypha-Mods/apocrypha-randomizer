@@ -83,6 +83,16 @@ export const OOPS = [
   ["Bayle the Dread", "Bayle the Dread"],
 ];
 
+/** Messmer's Kindling's shards as typed: 1 to 20, and 1 to that many needed; 1 shard is the Kindling as it is. */
+export function shardsOf(count, needed) {
+  const whole = (v, lo, hi, or) => {
+    const n = Number(v);
+    return Number.isInteger(n) && n >= lo && n <= hi ? n : or;
+  };
+  const c = whole(count, 1, 20, 1);
+  return { kindlingShards: c, kindlingNeeded: whole(needed, 1, c, c) };
+}
+
 /** Onslaught as typed: a whole number 1 to 10, anything else as the game (1). */
 export function onslaughtOf(v) {
   const n = Number(v);
@@ -123,6 +133,8 @@ export const defaults = () => ({
   oopsAll: "",
   onslaught: 1,
   gaolKeys: false,
+  kindlingShards: 1,
+  kindlingNeeded: 1,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -170,6 +182,7 @@ export function request(seed, s, stack = null) {
     hidden: !!s.hiddenSeed,
     oopsAll: s.oopsAll || "",
     gaolKeys: !!s.gaolKeys,
+    ...shardsOf(s.kindlingShards, s.kindlingNeeded),
     onslaught: onslaughtOf(s.onslaught),
     noMaleniaHeal: !!s.noMaleniaHeal,
     noGargoylePoison: !!s.noGargoylePoison,

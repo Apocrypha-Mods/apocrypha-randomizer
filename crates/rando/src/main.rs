@@ -122,6 +122,10 @@ struct Sliders {
     /// it they stay where the game has them.
     #[arg(long)]
     gaol_keys: bool,
+    /// Messmer's Kindling in shards, as NEEDED/COUNT: `--kindling-shards 3/5` puts five
+    /// shards in the world, any three of which burn the Sealing Tree. 1 to 20 shards.
+    #[arg(long, value_name = "NEEDED/COUNT")]
+    kindling_shards: Option<String>,
     /// Leave the Whetstone Knife and the whetblades where the game has them.
     #[arg(long)]
     keep_whetblades: bool,
@@ -179,6 +183,11 @@ impl Sliders {
         o.no_requirements = self.no_requirements;
         o.no_malenia_heal = self.no_malenia_heal;
         o.gaol_keys = self.gaol_keys;
+        if let Some(spec) = &self.kindling_shards {
+            let (needed, count) = rando::shards_of(spec).map_err(format_err)?;
+            o.kindling_shards = count;
+            o.kindling_needed = needed;
+        }
         o.no_gargoyle_poison = self.no_gargoyle_poison;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;

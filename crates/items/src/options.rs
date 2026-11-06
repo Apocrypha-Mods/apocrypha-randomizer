@@ -182,6 +182,11 @@ pub struct Options {
     /// 2026-11-06). Off, they stay where the game has them; on, the area map asks for
     /// both to enter the gaol.
     pub gaol_keys: bool,
+    /// Messmer's Kindling in this many shards, 1 for the Kindling as it is (spec
+    /// `kindling_shards`, Nova, 2026-11-06), of which [`Options::kindling_needed`] burn
+    /// the Sealing Tree.
+    pub kindling_shards: u8,
+    pub kindling_needed: u8,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -210,6 +215,8 @@ impl Default for Options {
             no_malenia_heal: false,
             no_gargoyle_poison: false,
             gaol_keys: false,
+            kindling_shards: 1,
+            kindling_needed: 1,
         }
     }
 }
@@ -347,6 +354,13 @@ impl fmt::Display for Options {
             "  Lamenter's Gaol's keys shuffled: {}",
             on(self.gaol_keys)
         )?;
+        if self.kindling_shards > 1 {
+            writeln!(
+                f,
+                "  Messmer's Kindling: {} shards, {} to burn the Sealing Tree",
+                self.kindling_shards, self.kindling_needed
+            )?;
+        }
         writeln!(f, "  Great Runes to open Leyndell: {}", self.leyndell_runes)
     }
 }

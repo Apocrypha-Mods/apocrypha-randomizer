@@ -173,6 +173,11 @@ struct Run {
     /// As `apoc-rando --onslaught`: 1 for none.
     #[serde(default = "one")]
     onslaught: u8,
+    /// As `apoc-rando --kindling-shards NEEDED/COUNT`: 1 shard for the Kindling as it is.
+    #[serde(default = "one")]
+    kindling_shards: u8,
+    #[serde(default = "one")]
+    kindling_needed: u8,
     /// As `apoc-rando --gaol-keys`.
     #[serde(default)]
     gaol_keys: bool,
@@ -376,6 +381,15 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.no_requirements = request.no_requirements;
     options.no_malenia_heal = request.no_malenia_heal;
     options.gaol_keys = request.gaol_keys;
+    if request.kindling_shards > 1 {
+        let (n, c) = rando::shards_of(&format!(
+            "{}/{}",
+            request.kindling_needed, request.kindling_shards
+        ))
+        .map_err(format_err)?;
+        options.kindling_shards = c;
+        options.kindling_needed = n;
+    }
     options.no_gargoyle_poison = request.no_gargoyle_poison;
     options
         .set_leyndell_runes(request.leyndell_runes)

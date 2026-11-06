@@ -19,6 +19,7 @@ use rayon::prelude::*;
 pub mod bearings;
 pub mod capital;
 pub mod far;
+pub mod kindling;
 pub mod night;
 pub mod tweaks;
 pub mod whole_map;
@@ -149,6 +150,21 @@ pub struct Outcome {
     pub spoiler: Option<PathBuf>,
     /// The me3 profile that loads it all, with a save of the seed's own.
     pub profile: Option<PathBuf>,
+}
+
+/// `NEEDED/COUNT` shards of Messmer's Kindling, as typed: 1 to 20 shards, at least one
+/// needed and at most all.
+pub fn shards_of(spec: &str) -> std::result::Result<(u8, u8), String> {
+    let bad = || format!("'{spec}': shards are NEEDED/COUNT, such as 3/5, with 1 to 20 shards");
+    let (n, c) = spec.trim().split_once('/').ok_or_else(bad)?;
+    let (n, c): (u8, u8) = (
+        n.trim().parse().map_err(|_| bad())?,
+        c.trim().parse().map_err(|_| bad())?,
+    );
+    if c == 0 || c > items::kindling::MOST || n == 0 || n > c {
+        return Err(bad());
+    }
+    Ok((n, c))
 }
 
 /// A seed nobody chose and nobody is told, for a hidden seed: drawn from the
@@ -619,7 +635,8 @@ pub fn build(
             bound.problems
         )));
     }
-    let units = items::units(model, &bound, &sources.reg)?;
+    let mut units = items::units(model, &bound, &sources.reg)?;
+    items::kindling::split(model, &mut units, options.kindling_shards).map_err(format_err)?;
     let mut options = options.clone();
     options.enemies_move = !foes.is_off();
     let options = &options;
@@ -642,14 +659,24 @@ pub fn build(
     if options.whole_map {
         common = whole_map::apply(&common, &sources.reg)?;
     }
+    common = kindling::apply(&common, options.kindling_shards, options.kindling_needed)?;
+    kindling::goods(&mut reg, options.kindling_shards)?;
     put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
     let night = options.night_bosses_always;
-    let (enemy_log, written) = if foes.is_off() {
-        (None, BTreeSet::new())
+    let moved = if foes.is_off() {
+        Moved::default()
     } else {
-        let (log, written) = move_enemies(files, job, sources, model, &mut reg, sink, say)?;
-        (Some(log), written)
+        move_enemies(files, job, sources, model, &mut reg, sink, say)?
     };
+    item_text(
+        files,
+        sink,
+        &moved.bar_names,
+        &moved.bar_sources,
+        &kindling::text(options.kindling_shards),
+    )?;
+    let written = moved.written;
+    let enemy_log = (!foes.is_off()).then_some(moved.log);
     if night {
         let n = night::apply(&mut reg)?;
         // The scripts the enemies left alone; those they changed were edited as written.
@@ -725,6 +752,12 @@ pub fn graph_for(options: &items::Options) -> Result<logic::Graph> {
         .set_leyndell_runes(usize::from(options.leyndell_runes))
         .map_err(format_err)?;
     graph.set_gaol_keys(options.gaol_keys).map_err(format_err)?;
+    graph
+        .set_kindling_shards(
+            &items::kindling::names(options.kindling_shards),
+            usize::from(options.kindling_needed),
+        )
+        .map_err(format_err)?;
     Ok(graph)
 }
 
@@ -735,7 +768,19 @@ fn put_compressed(files: &GameFiles, out: &dyn Sink, path: &str, plain: &[u8]) -
     out.put(path.trim_start_matches('/'), data)
 }
 
-/// Move the enemies and write what changed: maps, scripts and health bar names.
+/// What moving the enemies left for the rest of the seed.
+#[derive(Default)]
+struct Moved {
+    log: String,
+    /// The maps whose scripts were written.
+    written: BTreeSet<MapId>,
+    /// Health bar text for [`item_text`].
+    bar_names: BTreeMap<i32, String>,
+    bar_sources: BTreeMap<i32, i32>,
+}
+
+/// Move the enemies and write what changed: maps and scripts. Health bar names are
+/// left for [`item_text`].
 fn move_enemies(
     files: &GameFiles,
     job: Job,
@@ -744,7 +789,7 @@ fn move_enemies(
     reg: &mut fs_param::Regulation,
     out: &dyn Sink,
     say: Say,
-) -> Result<(String, BTreeSet<MapId>)> {
+) -> Result<Moved> {
     let (seed, foes) = (job.seed, job.enemies);
     let night = job.options.night_bosses_always;
     let pool = enemies::pool(sources, model)?;
@@ -782,7 +827,6 @@ fn move_enemies(
         twins.differing,
         twins.unmatched
     ));
-    bar_text(files, out, &applied.bar_names, &applied.bar_sources)?;
     say(&format!(
         "enemies: {} maps changed, {} scripts, {} new NpcParam rows",
         applied.maps.len(),
@@ -795,7 +839,12 @@ fn move_enemies(
             applied.onslaught.copies, applied.onslaught.maps
         ));
     }
-    Ok((enemies::spoiler(&pool, &plan, foes), written))
+    Ok(Moved {
+        log: enemies::spoiler(&pool, &plan, foes),
+        written,
+        bar_names: applied.bar_names,
+        bar_sources: applied.bar_sources,
+    })
 }
 
 /// The languages the game ships text in; each is written where the game holds it.
@@ -828,14 +877,28 @@ fn rewrite_text(
     out.put(path.trim_start_matches('/'), data)
 }
 
-/// A health bar names who stands there now, in each language, from that language's
-/// own name for them; English where it has none.
-fn bar_text(
+/// A goods row the seed adds, named in each language from a goods row of the game:
+/// its name with `suffix`, and its help and caption as they are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewGoods {
+    pub id: i32,
+    pub from: i32,
+    pub suffix: String,
+}
+
+/// The item text binder, written once: a health bar names who stands there now, in each
+/// language, from that language's own name for them, English where it has none; and new
+/// goods take their names from the rows they copy.
+fn item_text(
     files: &GameFiles,
     out: &dyn Sink,
     names: &BTreeMap<i32, String>,
     sources: &BTreeMap<i32, i32>,
+    goods: &[NewGoods],
 ) -> Result<()> {
+    if names.is_empty() && goods.is_empty() {
+        return Ok(());
+    }
     for language in LANGUAGES {
         let path = format!("/msg/{language}/item_dlc02.msgbnd.dcx");
         if !files.exists(&path) {
@@ -844,10 +907,38 @@ fn bar_text(
         let text = language_text(files, language)?;
         let npc = text.get("NpcName");
         rewrite_text(files, out, &path, |f| {
-            let is_npc_name = f
-                .short_name()
-                .is_some_and(|n| n.starts_with("NpcName") && n.ends_with(".fmg"));
-            if !is_npc_name {
+            let short = f.short_name().unwrap_or_default().to_string();
+            let goods_table = ["GoodsName", "GoodsInfo", "GoodsCaption"]
+                .into_iter()
+                .find(|t| short.starts_with(t) && short.ends_with(".fmg"));
+            if let Some(table) = goods_table
+                && !goods.is_empty()
+            {
+                let mut fmg = fs_fmg::Fmg::read(&f.data)?;
+                let mut changed = false;
+                for g in goods {
+                    // Into the file that holds the row copied, and only there.
+                    let Some(Some(own)) = fmg.entries.get(&g.from).cloned() else {
+                        continue;
+                    };
+                    if fmg.entries.get(&g.id).is_some_and(|t| t.is_some()) {
+                        return Err(format_err(format!("{path}: goods text {} is taken", g.id)));
+                    }
+                    let shown = if table == "GoodsName" {
+                        format!("{own}{}", g.suffix)
+                    } else {
+                        own
+                    };
+                    fmg.entries.insert(g.id, Some(shown));
+                    changed = true;
+                }
+                if changed {
+                    f.data = fmg.write()?;
+                }
+                return Ok(());
+            }
+            let is_npc_name = short.starts_with("NpcName") && short.ends_with(".fmg");
+            if !is_npc_name || names.is_empty() {
                 return Ok(());
             }
             let mut fmg = fs_fmg::Fmg::read(&f.data)?;
@@ -1015,7 +1106,8 @@ pub fn check(
     let model = extract_model(game, &sources, mods)?;
     let graph = graph_for(options)?;
     let bound = logic::Bound::new(&graph, &model);
-    let units = items::units(&model, &bound, &sources.reg)?;
+    let mut units = items::units(&model, &bound, &sources.reg)?;
+    items::kindling::split(&model, &mut units, options.kindling_shards).map_err(format_err)?;
     let keys = bound.key_items();
     let key_slots = units
         .iter()
@@ -1053,6 +1145,15 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shards_are_needed_of_count() {
+        assert_eq!(shards_of("3/5"), Ok((3, 5)));
+        assert_eq!(shards_of(" 20 / 20 "), Ok((20, 20)));
+        for bad in ["0/5", "6/5", "1/21", "3", "a/b", "1/0"] {
+            assert!(shards_of(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn a_bar_shows_the_new_name_with_the_old_title() {

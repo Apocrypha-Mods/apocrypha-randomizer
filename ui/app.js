@@ -206,6 +206,42 @@ function groups() {
         (v) => (st.gaolKeys = v),
         untested(""),
       ),
+      (() => {
+        const num = (label, get, set) =>
+          h("input.inp.num", {
+            type: "number",
+            min: "1",
+            max: "20",
+            step: "1",
+            value: String(get()),
+            "aria-label": label,
+            onchange: (e) => {
+              set(e.target.value);
+              const s = L.shardsOf(st.kindlingShards, st.kindlingNeeded);
+              st.kindlingShards = s.kindlingShards;
+              st.kindlingNeeded = s.kindlingNeeded;
+              e.target.value = String(get());
+              saveSettings();
+            },
+          });
+        const now = () => L.shardsOf(st.kindlingShards, st.kindlingNeeded);
+        return explained(
+          h(
+            "div.sr.pick",
+            {},
+            h("span.n", {}, "Messmer's Kindling shards", untested("")),
+            h(
+              "div.seedrow",
+              {},
+              num("Shards needed", () => now().kindlingNeeded, (v) => (st.kindlingNeeded = v)),
+              h("span.sec", {}, "of"),
+              num("Shards in the world", () => now().kindlingShards, (v) => (st.kindlingShards = v)),
+            ),
+          ),
+          "Messmer's Kindling shards",
+          "Split Messmer's Kindling, which burns the Sealing Tree in the DLC, into shards spread through the world: 3 of 5 means five shards are hidden and any three burn the tree. 1 of 1 is the Kindling as the game has it. Each shard takes the place of a rune in a DLC treasure.",
+        );
+      })(),
       pick(
         "Start with the whole map",
         "Every part of the world map is drawn from the start, landmarks included, as if you held every map fragment. Sites of grace still appear only once you touch them.",

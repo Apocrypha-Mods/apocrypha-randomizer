@@ -167,3 +167,13 @@ test("Lamenter's Gaol's keys stay unless asked", () => {
   assert.equal(L.request(1, L.defaults()).gaolKeys, false);
   assert.equal(L.request(1, { ...L.defaults(), gaolKeys: true }).gaolKeys, true);
 });
+
+test("Kindling shards: 1 to 20, needing 1 to that many, else the Kindling as it is", () => {
+  const off = L.request(1, L.defaults());
+  assert.deepEqual([off.kindlingShards, off.kindlingNeeded], [1, 1]);
+  const on = L.request(1, { ...L.defaults(), kindlingShards: 5, kindlingNeeded: 3 });
+  assert.deepEqual([on.kindlingShards, on.kindlingNeeded], [5, 3]);
+  assert.deepEqual(L.shardsOf(21, 3), { kindlingShards: 1, kindlingNeeded: 1 });
+  assert.deepEqual(L.shardsOf(4, 9), { kindlingShards: 4, kindlingNeeded: 4 });
+  assert.deepEqual(L.shardsOf("6", "0"), { kindlingShards: 6, kindlingNeeded: 6 });
+});

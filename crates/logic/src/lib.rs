@@ -233,6 +233,10 @@ pub struct Graph {
     /// Where the bearings are handed over: their rows also ask for it.
     #[serde(default)]
     pub bearing_area: Option<String>,
+    /// Items a seed makes that the game does not have (Messmer's Kindling's shards):
+    /// asked for, though no location of the model gives them.
+    #[serde(skip)]
+    pub made: Vec<String>,
 }
 
 /// Elden Ring's graph.
@@ -289,6 +293,52 @@ impl Graph {
         edge.need
             .items
             .extend(GAOL_KEYS.iter().map(|k| k.to_string()));
+        Ok(())
+    }
+}
+
+impl Graph {
+    /// Messmer's Kindling in shards (spec `kindling_shards`): every need of the Kindling
+    /// becomes a need of `needed` of `shards`. A need that already counts something
+    /// else is refused, as one need holds one count.
+    pub fn set_kindling_shards(&mut self, shards: &[String], needed: usize) -> Result<(), String> {
+        const KINDLING: &str = "Messmer's Kindling";
+        if shards.len() <= 1 {
+            return Ok(());
+        }
+        if needed == 0 || needed > shards.len() {
+            return Err(format!(
+                "the Sealing Tree asks for 1 to {} shards, not {needed}",
+                shards.len()
+            ));
+        }
+        let mut found = 0;
+        let needs = self
+            .edges
+            .iter_mut()
+            .map(|e| &mut e.need)
+            .chain(self.places.iter_mut().map(|p| &mut p.need))
+            .chain(self.on_sale.iter_mut().map(|o| &mut o.need))
+            .chain([&mut self.goal]);
+        for need in needs {
+            if !need.items.iter().any(|i| i == KINDLING) {
+                continue;
+            }
+            if need.any.is_some() {
+                return Err("a need of Messmer's Kindling already counts other items".into());
+            }
+            need.items.retain(|i| i != KINDLING);
+            self.made.extend(shards.iter().cloned());
+            need.any = Some(AnyOf {
+                n: needed,
+                items: shards.to_vec(),
+                bosses: vec![],
+            });
+            found += 1;
+        }
+        if found == 0 {
+            return Err("nothing in the area map asks for Messmer's Kindling".into());
+        }
         Ok(())
     }
 }
@@ -461,7 +511,7 @@ impl<'a> Bound<'a> {
         needs.extend(graph.on_sale.iter().map(|o| &o.need));
         for n in &needs {
             for item in n.items.iter().chain(n.any.iter().flat_map(|a| &a.items)) {
-                if !item_names.contains(item.as_str()) {
+                if !item_names.contains(item.as_str()) && !graph.made.contains(item) {
                     problems.push(format!("no item {item} anywhere in the model"));
                 }
             }

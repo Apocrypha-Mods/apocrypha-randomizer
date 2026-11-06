@@ -55,6 +55,7 @@ use gamedata::model::{Item, ItemKind, Kind};
 use logic::Bound;
 
 pub mod depth;
+pub mod kindling;
 pub mod options;
 pub mod rng;
 
