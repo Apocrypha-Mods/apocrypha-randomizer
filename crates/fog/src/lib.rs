@@ -3,3 +3,4 @@
 //! randomizer, it can run with it: the item proof then walks the doors as shuffled.
 
 pub mod doors;
+pub mod rooms;

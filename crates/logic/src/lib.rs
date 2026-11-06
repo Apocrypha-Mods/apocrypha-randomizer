@@ -76,6 +76,24 @@ pub struct Area {
     pub sure: bool,
     #[serde(default)]
     pub note: String,
+    /// A fog gate room's bosses, by defeat flag: each boss, and every location tied to
+    /// its entity (its rewards and drops), is in this area wherever it stands.
+    #[serde(default)]
+    pub boss_flags: Vec<u32>,
+    /// A fog gate room's arena: no key item is put within `radius` metres of
+    /// `position` in `map` (the arena's own treasures), as which side of the wall such
+    /// a spot is on is not read.
+    #[serde(default)]
+    pub keys_kept_out: Vec<KeptOut>,
+}
+
+/// A circle of a map no key item is put in.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeptOut {
+    pub map: String,
+    pub position: [f32; 3],
+    pub radius: f32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -431,6 +449,52 @@ pub struct Bound<'a> {
     pub boss_area: Vec<Option<usize>>,
     /// What the draft names that the model does not have, and other faults.
     pub problems: Vec<String>,
+    /// Areas' map prefixes, and the graces placed in areas, for [`Bound::area_at`].
+    maps_of: Vec<(String, usize)>,
+    placed_graces: Vec<(usize, MapId, [f32; 3])>,
+}
+
+/// The area whose map prefix is the longest match.
+fn area_by_map(maps_of: &[(String, usize)], map: Option<MapId>) -> Option<usize> {
+    maps_of
+        .iter()
+        .filter(|(spec, _)| matches_map(spec, map))
+        .max_by_key(|(spec, _)| spec.len())
+        .map(|&(_, a)| a)
+}
+
+/// The area of the nearest grace: in the open worlds, anywhere on the same world; else
+/// in the same map, or with no position, the area most of the map's graces are in.
+fn area_by_grace(
+    placed_graces: &[(usize, MapId, [f32; 3])],
+    map: Option<MapId>,
+    pos: Option<[f32; 3]>,
+) -> Option<usize> {
+    let map = map?;
+    if let Some(here) = map.world(pos.unwrap_or([0.0; 3])) {
+        return placed_graces
+            .iter()
+            .filter(|(_, m, _)| m.area() == map.area())
+            .filter_map(|&(a, m, gp)| Some((a, distance(here, m.world(gp)?))))
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+            .map(|(a, _)| a);
+    }
+    let here: Vec<&(usize, MapId, [f32; 3])> =
+        placed_graces.iter().filter(|(_, m, _)| *m == map).collect();
+    match pos {
+        Some(p) => here
+            .iter()
+            .map(|&&(a, _, gp)| (a, distance([p[0], p[2]], [gp[0], gp[2]])))
+            .min_by(|x, y| x.1.total_cmp(&y.1))
+            .map(|(a, _)| a),
+        None => {
+            let mut count: BTreeMap<usize, usize> = BTreeMap::new();
+            for &&(a, _, _) in &here {
+                *count.entry(a).or_default() += 1;
+            }
+            count.into_iter().max_by_key(|&(_, n)| n).map(|(a, _)| a)
+        }
+    }
 }
 
 fn matches_map(spec: &str, map: Option<MapId>) -> bool {
@@ -576,11 +640,11 @@ impl<'a> Bound<'a> {
         }
 
         // Where each location is.
-        let maps_of: Vec<(&str, usize)> = graph
+        let maps_of: Vec<(String, usize)> = graph
             .areas
             .iter()
             .enumerate()
-            .flat_map(|(i, a)| a.maps.iter().map(move |m| (m.as_str(), i)))
+            .flat_map(|(i, a)| a.maps.iter().map(move |m| (m.clone(), i)))
             .collect();
         let placed_graces: Vec<(usize, MapId, [f32; 3])> = model
             .graces
@@ -588,43 +652,11 @@ impl<'a> Bound<'a> {
             .enumerate()
             .filter_map(|(i, g)| Some((grace_area[i]?, g.map?, g.position?)))
             .collect();
-        let by_map = |map: Option<MapId>| {
-            maps_of
-                .iter()
-                .filter(|(spec, _)| matches_map(spec, map))
-                .max_by_key(|(spec, _)| spec.len())
-                .map(|&(_, a)| a)
-        };
-        let by_grace = |map: Option<MapId>, pos: Option<[f32; 3]>| -> Option<usize> {
-            let map = map?;
-            // In the open worlds, the nearest on the same world; a location
-            // with no position stands at its tile's centre.
-            if let Some(here) = map.world(pos.unwrap_or([0.0; 3])) {
-                return placed_graces
-                    .iter()
-                    .filter(|(_, m, _)| m.area() == map.area())
-                    .filter_map(|&(a, m, gp)| Some((a, distance(here, m.world(gp)?))))
-                    .min_by(|x, y| x.1.total_cmp(&y.1))
-                    .map(|(a, _)| a);
-            }
-            let here: Vec<&(usize, MapId, [f32; 3])> =
-                placed_graces.iter().filter(|(_, m, _)| *m == map).collect();
-            match pos {
-                Some(p) => here
-                    .iter()
-                    .map(|&&(a, _, gp)| (a, distance([p[0], p[2]], [gp[0], gp[2]])))
-                    .min_by(|x, y| x.1.total_cmp(&y.1))
-                    .map(|(a, _)| a),
-                // With no position, the area most of the map's graces are in.
-                None => {
-                    let mut count: BTreeMap<usize, usize> = BTreeMap::new();
-                    for &&(a, _, _) in &here {
-                        *count.entry(a).or_default() += 1;
-                    }
-                    count.into_iter().max_by_key(|&(_, n)| n).map(|(a, _)| a)
-                }
-            }
-        };
+        let by_map = |map: Option<MapId>| area_by_map(&maps_of, map);
+        // In the open worlds, the nearest grace on the same world; a location with no
+        // position stands at its tile's centre.
+        let by_grace =
+            |map: Option<MapId>, pos: Option<[f32; 3]>| area_by_grace(&placed_graces, map, pos);
         let place_of = |l: &Location| {
             graph.places.iter().find(|p| {
                 p.kind == l.kind && l.items.iter().any(|i| i.name.as_deref() == Some(&p.item))
@@ -789,7 +821,7 @@ impl<'a> Bound<'a> {
                     .collect(),
             );
         }
-        let boss_area = model
+        let mut boss_area: Vec<Option<usize>> = model
             .bosses
             .iter()
             .map(|b| {
@@ -797,6 +829,42 @@ impl<'a> Bound<'a> {
                 by_map(b.map).or_else(|| by_grace(b.map, pos))
             })
             .collect();
+        // Fog gate rooms: their bosses, what those bosses give, and their arenas kept
+        // free of key items.
+        for (ai, a) in graph.areas.iter().enumerate() {
+            for &flag in &a.boss_flags {
+                let mut found = false;
+                for (bi, b) in model.bosses.iter().enumerate() {
+                    if b.defeat_flag != flag {
+                        continue;
+                    }
+                    found = true;
+                    boss_area[bi] = Some(ai);
+                    if let Some(e) = b.entity {
+                        for (li, l) in model.locations.iter().enumerate() {
+                            if l.entity == Some(e) {
+                                location_area[li] = Some(ai);
+                            }
+                        }
+                    }
+                }
+                if !found {
+                    problems.push(format!("{}: no boss with defeat flag {flag}", a.id));
+                }
+            }
+            for k in &a.keys_kept_out {
+                for (li, l) in model.locations.iter().enumerate() {
+                    let pos = l.position.or_else(|| enemy_at.get(&l.entity?).copied());
+                    if let Some(p) = pos
+                        && matches_map(&k.map, l.map)
+                        && distance([p[0], p[2]], [k.position[0], k.position[2]]) <= k.radius
+                        && location_area[li] != Some(ai)
+                    {
+                        location_terms[li].missable = true;
+                    }
+                }
+            }
+        }
         let mut waited_on = vec![false; model.locations.len()];
         for t in &location_terms {
             for r in t.ways.iter().flatten().flatten() {
@@ -817,6 +885,8 @@ impl<'a> Bound<'a> {
             location_unused,
             boss_area,
             problems,
+            maps_of,
+            placed_graces,
         }
     }
 
@@ -1074,6 +1144,15 @@ impl<'a> Bound<'a> {
 }
 
 /// A boss by `name` or `name@map`, which must pick out exactly one.
+impl Bound<'_> {
+    /// The area a spot of a map is in, as a location there would be: by the map's
+    /// longest prefix an area lists, else the nearest grace.
+    pub fn area_at(&self, map: MapId, position: [f32; 3]) -> Option<usize> {
+        area_by_map(&self.maps_of, Some(map))
+            .or_else(|| area_by_grace(&self.placed_graces, Some(map), Some(position)))
+    }
+}
+
 pub fn find_boss(model: &Model, spec: &str) -> Result<usize, String> {
     let (name, map) = split_at_map(spec);
     let found: Vec<usize> = model
