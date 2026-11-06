@@ -176,3 +176,31 @@ pub fn no_gargoyle_poison(reg: &mut Regulation) -> Result<Vec<i32>> {
     reg.set_table("Bullet", &table)?;
     Ok(changed)
 }
+
+/// The effect common event 1070 puts on the player inside the Abyssal Woods (regions
+/// 2049412690, 2052432690 and 2050422690, named for riding forbidden), and the
+/// behaviour that keeps Torrent away: 433, which only it and effect 190 (put on the
+/// player in scripted sequences, taken off by 191) hold. Its twin 19996, given outside,
+/// holds 0.
+pub const WOODS_EFFECT: i32 = 19995;
+pub const NO_TORRENT: i64 = 433;
+
+/// Torrent in the Abyssal Woods (Nova, 2026-11-06): the woods' effect keeps no
+/// behaviour. Untested in play.
+pub fn torrent_in_woods(reg: &mut Regulation) -> Result<()> {
+    let f = layout("SpEffectParam")?.field("behaviour");
+    let mut table = reg.table("SpEffectParam")?;
+    let row = table
+        .rows
+        .iter_mut()
+        .find(|r| r.id == WOODS_EFFECT)
+        .ok_or_else(|| format_err(format!("no effect {WOODS_EFFECT}")))?;
+    if f.get(&row.data, 0) != NO_TORRENT {
+        return Err(format_err(format!(
+            "effect {WOODS_EFFECT} has behaviour {}, not {NO_TORRENT}",
+            f.get(&row.data, 0)
+        )));
+    }
+    f.set(&mut row.data, 0, 0)?;
+    reg.set_table("SpEffectParam", &table)
+}

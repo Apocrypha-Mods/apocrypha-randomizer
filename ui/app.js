@@ -536,6 +536,50 @@ function groups() {
         (v) => (st.noGargoylePoison = v),
         untested(""),
       ),
+      pick(
+        "Torrent in the Abyssal Woods",
+        "Torrent can be called in the DLC's Abyssal Woods, where the game sends him away. The woods were built to be walked, so riding may take you past things meant to be found slowly.",
+        [
+          [false, "As the game"],
+          [true, "Allowed"],
+        ],
+        !!st.torrentWoods,
+        (v) => (st.torrentWoods = v),
+        untested(""),
+      ),
+      pick(
+        "Boss music",
+        "Each boss arena plays another boss's theme, its second phase as that theme has it. A theme may stay silent somewhere the game does not load its sounds.",
+        [
+          [false, "As the game"],
+          [true, "Shuffled"],
+        ],
+        !!st.bossMusic,
+        (v) => (st.bossMusic = v),
+        untested(""),
+      ),
+      pick(
+        "Area music",
+        "The music of the base game's areas, dungeons and the Roundtable Hold changes places among them. Stormveil and the DLC's open world keep theirs.",
+        [
+          [false, "As the game"],
+          [true, "Shuffled"],
+        ],
+        !!st.areaMusic,
+        (v) => (st.areaMusic = v),
+        untested(""),
+      ),
+      pick(
+        "Enemy colours",
+        "Each kind of ordinary enemy is drawn in one of twelve colours, the same for every enemy of that kind in a seed. Bosses, NPCs and invaders keep their own look.",
+        [
+          [false, "As the game"],
+          [true, "Coloured"],
+        ],
+        !!st.enemyColours,
+        (v) => (st.enemyColours = v),
+        untested(""),
+      ),
     ),
   );
 }

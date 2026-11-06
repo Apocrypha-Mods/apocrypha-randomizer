@@ -18,10 +18,12 @@ use rayon::prelude::*;
 
 pub mod bearings;
 pub mod capital;
+pub mod colours;
 pub mod dlc_start;
 pub mod far;
 pub mod gestures;
 pub mod kindling;
+pub mod music;
 pub mod night;
 pub mod tweaks;
 pub mod whole_map;
@@ -717,6 +719,12 @@ pub fn build(
         changed |= gestures.edit(tile_of(m), script)?;
         Ok(changed)
     };
+    // Before the enemies move, so the rows they copy carry the colour along.
+    if options.enemy_colours {
+        let rows = colours::rows_to_colour(model);
+        let n = colours::apply(&mut reg, &rows, seed)?;
+        say(&format!("enemy colours: {} kinds of enemy", n.len()));
+    }
     let moved = if foes.is_off() {
         Moved::default()
     } else {
@@ -786,6 +794,21 @@ pub fn build(
     if options.no_requirements {
         let n = tweaks::no_requirements(&mut reg)?;
         say(&format!("no stat requirements: {n} rows"));
+    }
+    if options.torrent_woods {
+        tweaks::torrent_in_woods(&mut reg)?;
+        say("Torrent in the Abyssal Woods");
+    }
+    if options.boss_music {
+        let mut scripts: Vec<&fs_emevd::Emevd> = vec![&sources.common, &sources.common_func];
+        scripts.extend(sources.scripts.iter().map(|(_, s)| s));
+        let played = music::played(&scripts);
+        let n = music::shuffle_boss(&mut reg, &played, seed)?;
+        say(&format!("boss music shuffled: {n} themes"));
+    }
+    if options.area_music {
+        let n = music::shuffle_areas(&mut reg, seed)?;
+        say(&format!("area music shuffled: {} pieces", n.len()));
     }
     if options.no_malenia_heal {
         let n = tweaks::no_malenia_heal(&mut reg)?;

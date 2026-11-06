@@ -194,6 +194,18 @@ struct Sliders {
     /// The poison clouds the Valiant Gargoyles' breath leaves behind no longer hurt.
     #[arg(long)]
     no_gargoyle_poison: bool,
+    /// Torrent can be called in the Abyssal Woods.
+    #[arg(long)]
+    torrent_woods: bool,
+    /// Each boss arena plays another boss's theme.
+    #[arg(long)]
+    boss_music: bool,
+    /// The music of the base game's areas changes places among them.
+    #[arg(long)]
+    area_music: bool,
+    /// Each kind of ordinary enemy is drawn in a colour of the seed's.
+    #[arg(long)]
+    enemy_colours: bool,
 }
 
 impl Sliders {
@@ -226,6 +238,10 @@ impl Sliders {
             o.kindling_needed = needed;
         }
         o.no_gargoyle_poison = self.no_gargoyle_poison;
+        o.torrent_woods = self.torrent_woods;
+        o.boss_music = self.boss_music;
+        o.area_music = self.area_music;
+        o.enemy_colours = self.enemy_colours;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

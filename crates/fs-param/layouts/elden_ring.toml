@@ -228,6 +228,16 @@ row_size = 736
 tables = ["NpcParam"]
 
 [[layout.field]]
+name = "effect_last"
+offset = 0x224
+kind = "i32"
+confidence = "probable"
+evidence = """
+The last of the SpEffectParam slots that run from +0x1E4 in steps of 4 (the Deathbird's
+17650 sits at +0x1E8, the ghostly enemies' 295000 at +0x210); -1 on 6,670 of 7,045
+rows, else an effect (4301 on 187)."""
+
+[[layout.field]]
 name = "name_id"
 offset = 0x0C
 kind = "i32"
@@ -740,6 +750,16 @@ row_size = 912
 tables = ["SpEffectParam"]
 
 [[layout.field]]
+name = "vfx"
+offset = 0x170
+kind = "i32"
+confidence = "probable"
+evidence = """
+A SpEffectVfxParam row: 18672 holds 57100 and the ghostly enemies' 295000 holds 57000,
+each of which names the PhantomParam row the body is drawn with (201, 200); 18672
+differs from the blank effect 90000 only here and in two bytes (+0x163, +0x259)."""
+
+[[layout.field]]
 name = "behaviour"
 offset = 0x156
 kind = "u16"
@@ -1070,3 +1090,55 @@ confidence = "confirmed"
 evidence = """
 Its weight as the menus show it: the Vagabond's set reads Vagabond Knight Helm 4.0,
 Armor 10.6, Gauntlets 3.5, Greaves 5.7."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "SP_EFFECT_VFX_PARAM_ST"
+row_size = 164
+tables = ["SpEffectVfxParam"]
+
+[[layout.field]]
+name = "phantom"
+offset = 0x80
+kind = "i32"
+confidence = "probable"
+evidence = """
+A PhantomParam row, or 0 (1,457 of 1,513 rows): the spirit ashes' 11300 holds 203 and
+the ghostly enemies' 57000 holds 200, the rows that draw them blue and pale."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "PHANTOM_PARAM_ST"
+row_size = 56
+tables = ["PhantomParam"]
+
+[[layout.field]]
+name = "colour"
+offset = 0x14
+kind = "u8"
+count = 15
+stride = 1
+confidence = "probable"
+evidence = """
+Five colours of three bytes each, after five f32 strengths at +0x00. Row 999 draws a
+body as it is (strengths 1 1 1 1 0, colours black, black, white, white, white); the
+spirit ashes' 203 has its first colour ff 3c 3c and look blue, so a colour reads
+blue, green, red. The third colour (bytes 6 to 8) is white on nearly every row and
+pale tints there (9bffff, c8c8ff) go with tinted bodies: taken as the body's own."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "MAP_DEFAULT_INFO_PARAM_ST"
+row_size = 64
+tables = ["MapDefaultInfoParam"]
+
+[[layout.field]]
+name = "bgm_place"
+offset = 0x10
+kind = "i16"
+confidence = "probable"
+evidence = """
+Which area music a map plays: the Roundtable Hold's row 11100000 holds 111, which
+WwiseValueToStrParam_BgmBossChrIdConv row 11000000 + k names as `Bgm_111_Hub`; 999
+(`None`) on Stormveil and the DLC's tiles, which take theirs from the map's own sound
+points. The i16 after it is the ambience."""

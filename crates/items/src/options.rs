@@ -182,6 +182,15 @@ pub struct Options {
     /// Whether the poison clouds the Valiant Gargoyles' breath leaves behind no longer
     /// hurt (Nova, 2026-11-06). Written into the seed's tables; placement ignores it.
     pub no_gargoyle_poison: bool,
+    /// Whether Torrent can be called in the Abyssal Woods (Nova, 2026-11-06).
+    pub torrent_woods: bool,
+    /// Whether boss themes change places among the arenas, and area music among the
+    /// base game's maps (Nova, 2026-11-06).
+    pub boss_music: bool,
+    pub area_music: bool,
+    /// Whether each kind of ordinary enemy is drawn in a colour of the seed's (Nova,
+    /// 2026-11-06). All four are written into the seed's files; placement ignores them.
+    pub enemy_colours: bool,
     /// Whether Lamenter's Gaol's two keys move with the rest (spec `gaol_keys`, Nova,
     /// 2026-11-06). Off, they stay where the game has them; on, the area map asks for
     /// both to enter the gaol.
@@ -236,6 +245,10 @@ impl Default for Options {
             no_requirements: false,
             no_malenia_heal: false,
             no_gargoyle_poison: false,
+            torrent_woods: false,
+            boss_music: false,
+            area_music: false,
+            enemy_colours: false,
             gaol_keys: false,
             kindling_shards: 1,
             kindling_needed: 1,
@@ -379,6 +392,14 @@ impl fmt::Display for Options {
             "  gargoyles' poison clouds hurt: {}",
             on(!self.no_gargoyle_poison)
         )?;
+        writeln!(
+            f,
+            "  Torrent in the Abyssal Woods: {}",
+            on(self.torrent_woods)
+        )?;
+        writeln!(f, "  boss music shuffled: {}", on(self.boss_music))?;
+        writeln!(f, "  area music shuffled: {}", on(self.area_music))?;
+        writeln!(f, "  enemy colours: {}", on(self.enemy_colours))?;
         writeln!(
             f,
             "  Lamenter's Gaol's keys shuffled: {}",

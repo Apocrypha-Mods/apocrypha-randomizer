@@ -206,6 +206,18 @@ struct Run {
     /// As `apoc-rando --no-gargoyle-poison`.
     #[serde(default)]
     no_gargoyle_poison: bool,
+    /// As `apoc-rando --torrent-woods`.
+    #[serde(default)]
+    torrent_woods: bool,
+    /// As `apoc-rando --boss-music`.
+    #[serde(default)]
+    boss_music: bool,
+    /// As `apoc-rando --area-music`.
+    #[serde(default)]
+    area_music: bool,
+    /// As `apoc-rando --enemy-colours`.
+    #[serde(default)]
+    enemy_colours: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -419,6 +431,10 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
         options.kindling_needed = n;
     }
     options.no_gargoyle_poison = request.no_gargoyle_poison;
+    options.torrent_woods = request.torrent_woods;
+    options.boss_music = request.boss_music;
+    options.area_music = request.area_music;
+    options.enemy_colours = request.enemy_colours;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;

@@ -137,6 +137,10 @@ export const defaults = () => ({
   bossRunes: false,
   noMaleniaHeal: false,
   noGargoylePoison: false,
+  torrentWoods: false,
+  bossMusic: false,
+  areaMusic: false,
+  enemyColours: false,
   hiddenSeed: false,
   oopsAll: "",
   onslaught: 1,
@@ -207,6 +211,10 @@ export function request(seed, s, stack = null) {
     onslaught: onslaughtOf(s.onslaught),
     noMaleniaHeal: !!s.noMaleniaHeal,
     noGargoylePoison: !!s.noGargoylePoison,
+    torrentWoods: !!s.torrentWoods,
+    bossMusic: !!s.bossMusic,
+    areaMusic: !!s.areaMusic,
+    enemyColours: !!s.enemyColours,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;
