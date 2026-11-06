@@ -25,6 +25,7 @@ export const PLACES = [
 
 /** The line under each section's heading. */
 export const SECTIONS = {
+  Start: "Where a new character begins.",
   Items: "How much of each kind of item moves to a new place.",
   "Lean towards late": "Push what moves deeper into the game. At 0% it can land anywhere.",
   "Other places": "Which kinds of places join the shuffle, beside chests, bodies and bosses.",
@@ -135,6 +136,7 @@ export const defaults = () => ({
   gaolKeys: false,
   kindlingShards: 1,
   kindlingNeeded: 1,
+  dlcStart: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -182,6 +184,7 @@ export function request(seed, s, stack = null) {
     hidden: !!s.hiddenSeed,
     oopsAll: s.oopsAll || "",
     gaolKeys: !!s.gaolKeys,
+    dlcStart: !!s.dlcStart,
     ...shardsOf(s.kindlingShards, s.kindlingNeeded),
     onslaught: onslaughtOf(s.onslaught),
     noMaleniaHeal: !!s.noMaleniaHeal,

@@ -163,6 +163,20 @@ function groups() {
     "div.groups",
     {},
     section(
+      "Start",
+      pick(
+        "DLC Start",
+        "Skip the base game: a new character is taken from the Chapel of Anticipation straight to the Gravesite Plain in the Land of Shadow, with Torrent's whistle and the Spirit Calling Bell, and the seed is made so the DLC can be finished from there, its last boss the goal. The base game is still there to walk to, but nothing you need is put in it. You arrive at level 1.",
+        [
+          [false, "Off"],
+          [true, "On"],
+        ],
+        !!st.dlcStart,
+        (v) => (st.dlcStart = v),
+        untested(""),
+      ),
+    ),
+    section(
       "Items",
       L.CATEGORIES.map(([k, label]) => slider(label, st.shuffle[k] ?? 100, (v) => (st.shuffle[k] = v), null, L.SHUFFLE_HELP[k])),
       pick(

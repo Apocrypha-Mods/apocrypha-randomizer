@@ -273,6 +273,36 @@ impl Graph {
     }
 }
 
+/// Where a DLC Start begins, and the boss that ends it.
+pub const DLC_START: &str = "gravesite_plain";
+pub const DLC_GOAL: &str = "Radahn, Consort of Miquella";
+
+impl Graph {
+    /// DLC Start (spec `dlc_start`, Nova, 2026-11-06): the seed begins at the Gravesite
+    /// Plain and ends with the DLC's last boss. The way between Mohg's arena and the
+    /// Gravesite Plain is cut, so nothing of the base game counts as reached and every
+    /// key item a DLC seed needs lands in the DLC.
+    pub fn set_dlc_start(&mut self, on: bool) -> Result<(), String> {
+        if !on {
+            return Ok(());
+        }
+        let before = self.edges.len();
+        self.edges.retain(|e| {
+            !(e.from == "mohgwyn_palace" && e.to == DLC_START
+                || e.from == DLC_START && e.to == "mohgwyn_palace")
+        });
+        if self.edges.len() == before {
+            return Err("the area map has no way from Mohg's arena into the DLC".into());
+        }
+        self.start = DLC_START.to_string();
+        self.goal = Need {
+            bosses: vec![DLC_GOAL.to_string()],
+            ..Need::default()
+        };
+        Ok(())
+    }
+}
+
 /// Lamenter's Gaol's keys, as the data file holds them fixed.
 pub const GAOL_KEYS: [&str; 2] = ["Gaol Upper Level Key", "Gaol Lower Level Key"];
 

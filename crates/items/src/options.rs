@@ -187,6 +187,10 @@ pub struct Options {
     /// the Sealing Tree.
     pub kindling_shards: u8,
     pub kindling_needed: u8,
+    /// DLC Start (spec `dlc_start`, Nova, 2026-11-06): the character is taken from the
+    /// Chapel of Anticipation to the Gravesite Plain, and the seed is proven from there
+    /// to the DLC's last boss, with the base game counted for nothing.
+    pub dlc_start: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -217,6 +221,7 @@ impl Default for Options {
             gaol_keys: false,
             kindling_shards: 1,
             kindling_needed: 1,
+            dlc_start: false,
         }
     }
 }
@@ -354,6 +359,7 @@ impl fmt::Display for Options {
             "  Lamenter's Gaol's keys shuffled: {}",
             on(self.gaol_keys)
         )?;
+        writeln!(f, "  DLC Start: {}", on(self.dlc_start))?;
         if self.kindling_shards > 1 {
             writeln!(
                 f,

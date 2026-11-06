@@ -122,6 +122,11 @@ struct Sliders {
     /// it they stay where the game has them.
     #[arg(long)]
     gaol_keys: bool,
+    /// DLC Start: a new character is taken from the Chapel of Anticipation to the
+    /// Gravesite Plain, given Torrent's whistle and the Spirit Calling Bell, and the seed
+    /// is proven from there to the DLC's last boss.
+    #[arg(long)]
+    dlc_start: bool,
     /// Messmer's Kindling in shards, as NEEDED/COUNT: `--kindling-shards 3/5` puts five
     /// shards in the world, any three of which burn the Sealing Tree. 1 to 20 shards.
     #[arg(long, value_name = "NEEDED/COUNT")]
@@ -183,6 +188,7 @@ impl Sliders {
         o.no_requirements = self.no_requirements;
         o.no_malenia_heal = self.no_malenia_heal;
         o.gaol_keys = self.gaol_keys;
+        o.dlc_start = self.dlc_start;
         if let Some(spec) = &self.kindling_shards {
             let (needed, count) = rando::shards_of(spec).map_err(format_err)?;
             o.kindling_shards = count;

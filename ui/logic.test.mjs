@@ -177,3 +177,9 @@ test("Kindling shards: 1 to 20, needing 1 to that many, else the Kindling as it 
   assert.deepEqual(L.shardsOf(4, 9), { kindlingShards: 4, kindlingNeeded: 4 });
   assert.deepEqual(L.shardsOf("6", "0"), { kindlingShards: 6, kindlingNeeded: 6 });
 });
+
+test("DLC Start is off unless asked, and has a section of its own", () => {
+  assert.equal(L.request(1, L.defaults()).dlcStart, false);
+  assert.equal(L.request(1, { ...L.defaults(), dlcStart: true }).dlcStart, true);
+  assert.ok(L.SECTIONS.Start);
+});

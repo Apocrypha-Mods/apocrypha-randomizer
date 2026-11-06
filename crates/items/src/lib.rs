@@ -828,6 +828,13 @@ pub fn plentiful_only(unit: &Unit) -> bool {
     chance_slot(unit) || unit.unlimited
 }
 
+/// Whether the item a unit gives at home must be counted on: all but, with DLC Start
+/// and the DLC kept apart, the base game's, which stay in a base game the seed does not
+/// ask for. Those are placed as any other item.
+fn counted(bound: &Bound, options: &Options, unit: &Unit) -> bool {
+    !(options.dlc_start && options.dlc_separate && !in_dlc(bound.model, unit.location))
+}
+
 /// The quest items, as (kind, id), that some unit gives.
 fn quest_items(bound: &Bound, units: &[Unit]) -> BTreeSet<(ItemKind, i32)> {
     bound
@@ -1034,12 +1041,10 @@ fn attempt(
         .collect();
     let moving = balance_chance_slots(units, moving, &dlc, options.dlc_separate, rng);
     let mut placed: Vec<Option<usize>> = (0..n).map(|u| (!moving[u]).then_some(u)).collect();
-    let mut key_units: Vec<usize> = (0..n)
-        .filter(|&u| moving[u] && units[u].category == Category::Key)
-        .collect();
-    let mut rest: Vec<usize> = (0..n)
-        .filter(|&u| moving[u] && units[u].category != Category::Key)
-        .collect();
+    let is_key =
+        |u: usize| units[u].category == Category::Key && counted(bound, options, &units[u]);
+    let mut key_units: Vec<usize> = (0..n).filter(|&u| moving[u] && is_key(u)).collect();
+    let mut rest: Vec<usize> = (0..n).filter(|&u| moving[u] && !is_key(u)).collect();
     rng.shuffle(&mut key_units);
     rng.shuffle(&mut rest);
     // Weapons with a set affinity first: shops cannot take them, so they
@@ -1094,10 +1099,10 @@ fn attempt(
         {
             continue;
         }
-        let Some(i) = rest
-            .iter()
-            .position(|&u| (units[u].item.kind, units[u].item.id) == *q)
-        else {
+        // One of its own that must be counted on: with DLC Start apart, the DLC's.
+        let Some(i) = rest.iter().position(|&u| {
+            (units[u].item.kind, units[u].item.id) == *q && counted(bound, options, &units[u])
+        }) else {
             continue;
         };
         let from = rest[i];
@@ -1321,6 +1326,7 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
         let from = plan.placed[u];
         if from != u
             && units[from].category == Category::Key
+            && counted(bound, &plan.options, &units[from])
             && !dependable(bound, unit, &plan.options)
         {
             return Err(format!(
@@ -1341,6 +1347,12 @@ pub fn check(bound: &Bound, units: &[Unit], plan: &Plan) -> std::result::Result<
         }
     }
     for q in quest_items(bound, units) {
+        let home_counted = units
+            .iter()
+            .any(|u| (u.item.kind, u.item.id) == q && counted(bound, &plan.options, u));
+        if !home_counted {
+            continue;
+        }
         let got = (0..units.len()).any(|u| {
             let from = plan.placed[u];
             (units[from].item.kind, units[from].item.id) == q

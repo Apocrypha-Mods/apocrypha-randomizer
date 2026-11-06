@@ -18,6 +18,7 @@ use rayon::prelude::*;
 
 pub mod bearings;
 pub mod capital;
+pub mod dlc_start;
 pub mod far;
 pub mod kindling;
 pub mod night;
@@ -661,6 +662,10 @@ pub fn build(
     }
     common = kindling::apply(&common, options.kindling_shards, options.kindling_needed)?;
     kindling::goods(&mut reg, options.kindling_shards)?;
+    if options.dlc_start {
+        common = dlc_start::apply(&common)?;
+        dlc_start::lots(&mut reg)?;
+    }
     put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
     let night = options.night_bosses_always;
     let moved = if foes.is_off() {
@@ -752,6 +757,7 @@ pub fn graph_for(options: &items::Options) -> Result<logic::Graph> {
         .set_leyndell_runes(usize::from(options.leyndell_runes))
         .map_err(format_err)?;
     graph.set_gaol_keys(options.gaol_keys).map_err(format_err)?;
+    graph.set_dlc_start(options.dlc_start).map_err(format_err)?;
     graph
         .set_kindling_shards(
             &items::kindling::names(options.kindling_shards),
