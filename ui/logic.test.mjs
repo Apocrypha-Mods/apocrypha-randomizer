@@ -131,7 +131,7 @@ test("the table options and boss runes are off unless asked, and sent when on", 
 });
 
 test("the quality-of-life switches are off unless asked, and sent when on", () => {
-  const keys = ["noMaleniaHeal", "noGargoylePoison"];
+  const keys = ["noMaleniaHeal", "noGargoylePoison", "randomGestures"];
   const off = L.request(1, L.defaults());
   for (const k of keys) assert.equal(off[k], false, k);
   const on = L.request(1, { ...L.defaults(), ...Object.fromEntries(keys.map((k) => [k, true])) });

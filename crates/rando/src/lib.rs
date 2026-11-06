@@ -20,6 +20,7 @@ pub mod bearings;
 pub mod capital;
 pub mod dlc_start;
 pub mod far;
+pub mod gestures;
 pub mod kindling;
 pub mod night;
 pub mod tweaks;
@@ -668,10 +669,23 @@ pub fn build(
     }
     put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
     let night = options.night_bosses_always;
+    let gestures = if options.random_gestures {
+        gestures::plan(sources, seed)
+    } else {
+        gestures::Plan::default()
+    };
+    let edit = |m: MapId, script: &mut fs_emevd::Emevd| -> Result<bool> {
+        let mut changed = false;
+        if night {
+            changed |= night::edit_script(script);
+        }
+        changed |= gestures.edit(tile_of(m), script)?;
+        Ok(changed)
+    };
     let moved = if foes.is_off() {
         Moved::default()
     } else {
-        move_enemies(files, job, sources, model, &mut reg, sink, say)?
+        move_enemies(files, job, sources, model, &mut reg, sink, &edit, say)?
     };
     item_text(
         files,
@@ -684,25 +698,43 @@ pub fn build(
     let enemy_log = (!foes.is_off()).then_some(moved.log);
     if night {
         let n = night::apply(&mut reg)?;
-        // The scripts the enemies left alone; those they changed were edited as written.
-        let mut scripts = 0;
-        for (m, script) in &sources.scripts {
-            if written.contains(m) {
-                continue;
-            }
-            let mut script = script.clone();
-            if night::edit_script(&mut script) {
-                put_compressed(
-                    files,
-                    sink,
-                    &format!("/event/{m}.emevd.dcx"),
-                    &script.write()?,
-                )?;
+        say(&format!("night bosses at any hour: {n} rows"));
+    }
+    // The scripts the enemies left alone; those they changed were edited as written. A
+    // later version of a tile whose script is the tile's copy takes the same edits.
+    let gesture_maps = gestures.maps();
+    let mut scripts = 0;
+    for (m, script) in &sources.scripts {
+        if written.contains(m) || !(night || gesture_maps.contains_key(m)) {
+            continue;
+        }
+        let mut edited = script.clone();
+        if !edit(*m, &mut edited)? {
+            continue;
+        }
+        let bytes = edited.write()?;
+        put_compressed(files, sink, &format!("/event/{m}.emevd.dcx"), &bytes)?;
+        scripts += 1;
+        if let Some(t) = far::twin(*m)
+            && gesture_maps.contains_key(m)
+            && !written.contains(&t)
+        {
+            let (tp, mp) = (
+                format!("/event/{t}.emevd.dcx"),
+                format!("/event/{m}.emevd.dcx"),
+            );
+            if files.exists(&tp)
+                && fs_dcx::decompress(&files.read(&tp)?)?.1
+                    == fs_dcx::decompress(&files.read(&mp)?)?.1
+            {
+                put_compressed(files, sink, &tp, &bytes)?;
                 scripts += 1;
             }
         }
+    }
+    if scripts > 0 {
         say(&format!(
-            "night bosses at any hour: {n} rows, {scripts} scripts"
+            "{scripts} map scripts edited for the night and the gestures"
         ));
     }
     if options.all_recipes {
@@ -744,6 +776,9 @@ pub fn build(
         }
     }
     log += enemy_log.as_deref().unwrap_or("");
+    if options.random_gestures {
+        log += &gestures.log(sources);
+    }
     Ok(Built {
         slots: units.len(),
         spoiler: log,
@@ -774,6 +809,20 @@ fn put_compressed(files: &GameFiles, out: &dyn Sink, path: &str, plain: &[u8]) -
     out.put(path.trim_start_matches('/'), data)
 }
 
+/// What else of the seed goes into a map's script as it is written: the night bosses'
+/// hours and the gestures. Whether it changed anything.
+type ScriptEdit<'a> = dyn Fn(MapId, &mut fs_emevd::Emevd) -> Result<bool> + Sync + 'a;
+
+/// The tile a later version of a tile stands for ([`far::twin`]), or the map itself.
+fn tile_of(m: MapId) -> MapId {
+    let [a, b, c, d] = m.0;
+    if m.is_open_world() && d >= 10 {
+        MapId([a, b, c, d - 10])
+    } else {
+        m
+    }
+}
+
 /// What moving the enemies left for the rest of the seed.
 #[derive(Default)]
 struct Moved {
@@ -794,10 +843,10 @@ fn move_enemies(
     model: &gamedata::model::Model,
     reg: &mut fs_param::Regulation,
     out: &dyn Sink,
+    edit: &ScriptEdit<'_>,
     say: Say,
 ) -> Result<Moved> {
     let (seed, foes) = (job.seed, job.enemies);
-    let night = job.options.night_bosses_always;
     let pool = enemies::pool(sources, model)?;
     enemies::oops_body(&pool, seed, foes).map_err(format_err)?;
     let plan = enemies::shuffle(&pool, seed, foes);
@@ -815,9 +864,7 @@ fn move_enemies(
         .chain(twins.scripts.par_iter())
         .try_for_each(|(m, script)| {
             let mut script = script.clone();
-            if night {
-                night::edit_script(&mut script);
-            }
+            edit(*m, &mut script)?;
             write(format!("/event/{m}.emevd.dcx"), script.write()?)
         })?;
     let written: BTreeSet<MapId> = applied

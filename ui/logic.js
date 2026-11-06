@@ -137,6 +137,7 @@ export const defaults = () => ({
   kindlingShards: 1,
   kindlingNeeded: 1,
   dlcStart: false,
+  randomGestures: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -185,6 +186,7 @@ export function request(seed, s, stack = null) {
     oopsAll: s.oopsAll || "",
     gaolKeys: !!s.gaolKeys,
     dlcStart: !!s.dlcStart,
+    randomGestures: !!s.randomGestures,
     ...shardsOf(s.kindlingShards, s.kindlingNeeded),
     onslaught: onslaughtOf(s.onslaught),
     noMaleniaHeal: !!s.noMaleniaHeal,

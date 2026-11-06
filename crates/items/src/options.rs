@@ -191,6 +191,10 @@ pub struct Options {
     /// Chapel of Anticipation to the Gravesite Plain, and the seed is proven from there
     /// to the DLC's last boss, with the base game counted for nothing.
     pub dlc_start: bool,
+    /// Whether the gestures the event scripts give change places (spec
+    /// `random_gestures`, Nova, 2026-11-06). Written into the seed's scripts; placement
+    /// ignores it.
+    pub random_gestures: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -222,6 +226,7 @@ impl Default for Options {
             kindling_shards: 1,
             kindling_needed: 1,
             dlc_start: false,
+            random_gestures: false,
         }
     }
 }
@@ -360,6 +365,7 @@ impl fmt::Display for Options {
             on(self.gaol_keys)
         )?;
         writeln!(f, "  DLC Start: {}", on(self.dlc_start))?;
+        writeln!(f, "  gestures shuffled: {}", on(self.random_gestures))?;
         if self.kindling_shards > 1 {
             writeln!(
                 f,

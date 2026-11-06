@@ -127,6 +127,10 @@ struct Sliders {
     /// is proven from there to the DLC's last boss.
     #[arg(long)]
     dlc_start: bool,
+    /// The gestures the event scripts give change places (O Mother, which opens the
+    /// Shadow Keep's statue, stays).
+    #[arg(long)]
+    random_gestures: bool,
     /// Messmer's Kindling in shards, as NEEDED/COUNT: `--kindling-shards 3/5` puts five
     /// shards in the world, any three of which burn the Sealing Tree. 1 to 20 shards.
     #[arg(long, value_name = "NEEDED/COUNT")]
@@ -189,6 +193,7 @@ impl Sliders {
         o.no_malenia_heal = self.no_malenia_heal;
         o.gaol_keys = self.gaol_keys;
         o.dlc_start = self.dlc_start;
+        o.random_gestures = self.random_gestures;
         if let Some(spec) = &self.kindling_shards {
             let (needed, count) = rando::shards_of(spec).map_err(format_err)?;
             o.kindling_shards = count;

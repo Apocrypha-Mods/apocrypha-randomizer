@@ -178,6 +178,9 @@ struct Run {
     kindling_shards: u8,
     #[serde(default = "one")]
     kindling_needed: u8,
+    /// As `apoc-rando --random-gestures`.
+    #[serde(default)]
+    random_gestures: bool,
     /// As `apoc-rando --dlc-start`.
     #[serde(default)]
     dlc_start: bool,
@@ -385,6 +388,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.no_malenia_heal = request.no_malenia_heal;
     options.gaol_keys = request.gaol_keys;
     options.dlc_start = request.dlc_start;
+    options.random_gestures = request.random_gestures;
     if request.kindling_shards > 1 {
         let (n, c) = rando::shards_of(&format!(
             "{}/{}",

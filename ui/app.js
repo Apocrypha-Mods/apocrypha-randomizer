@@ -450,6 +450,17 @@ function groups() {
         untested(""),
       ),
       pick(
+        "Gestures",
+        "Whether the gestures found on bodies and given by events change places: the Polite Bow may be where Rapture was. O Mother stays where it is, as it opens a statue in the Shadow Keep, and gestures that people teach you in talk stay theirs.",
+        [
+          [false, "As the game"],
+          [true, "Shuffled"],
+        ],
+        !!st.randomGestures,
+        (v) => (st.randomGestures = v),
+        untested(""),
+      ),
+      pick(
         "Gargoyles' poison clouds",
         "The Valiant Gargoyles' breath leaves clouds of poison that hurt while you stand in them. Off, the clouds still show but do nothing; the breath itself still poisons.",
         [
