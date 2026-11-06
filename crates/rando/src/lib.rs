@@ -23,6 +23,7 @@ pub mod night;
 pub mod tweaks;
 pub mod whole_map;
 
+pub use enemies::Oops;
 pub use enemies::Options as EnemyOptions;
 pub use items::Options as ItemOptions;
 pub use items::options::{DEFAULT_LEYNDELL_RUNES, MAX_LEYNDELL_RUNES};
@@ -746,6 +747,7 @@ fn move_enemies(
     let (seed, foes) = (job.seed, job.enemies);
     let night = job.options.night_bosses_always;
     let pool = enemies::pool(sources, model)?;
+    enemies::oops_body(&pool, seed, foes).map_err(format_err)?;
     let plan = enemies::shuffle(&pool, seed, foes);
     let applied = enemies::apply(reg, sources, &pool, &plan, foes)?;
     let write = |path: String, plain: Vec<u8>| put_compressed(files, out, &path, &plain);

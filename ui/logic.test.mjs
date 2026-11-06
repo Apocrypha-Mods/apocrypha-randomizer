@@ -148,3 +148,10 @@ test("a hidden seed is sent as such, fits fifteen digits, and is named Hidden", 
   assert.equal(L.seedName(null), "Hidden");
   assert.equal(L.seedName(42), "42");
 });
+
+test("Oops all is off unless chosen, and sends the name chosen", () => {
+  assert.equal(L.request(1, L.defaults()).oopsAll, "");
+  assert.equal(L.request(1, { ...L.defaults(), oopsAll: "Patches" }).oopsAll, "Patches");
+  assert.deepEqual(L.OOPS.slice(0, 2).map(([k]) => k), ["", "random"]);
+  assert.equal(new Set(L.OOPS.map(([k]) => k)).size, L.OOPS.length);
+});

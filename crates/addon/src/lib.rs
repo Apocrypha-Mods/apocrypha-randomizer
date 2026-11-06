@@ -167,6 +167,9 @@ struct Run {
     /// the seed and never shows it.
     #[serde(default)]
     hidden: bool,
+    /// As `apoc-rando --oops-all`: a name, `random`, or empty for none.
+    #[serde(default)]
+    oops_all: String,
     /// As `apoc-rando --no-malenia-heal`.
     #[serde(default)]
     no_malenia_heal: bool,
@@ -370,6 +373,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     foes.set(&request.enemies).map_err(format_err)?;
     foes.dlc_separate = true;
     foes.scale = !request.no_scaling;
+    foes.oops = rando::Oops::parse(&request.oops_all);
     foes.runes_follow = request.boss_runes_follow;
     let absent: Vec<String> = first_files()
         .into_iter()

@@ -59,6 +59,30 @@ export const LEANS = [...CATEGORIES, ["gathering", "Gathering"]];
 /** How many Great Runes open Leyndell, as `--leyndell-runes`: 2 is the game's own. */
 export const LEYNDELL_RUNES = [0, 1, 2, 3, 4].map((n) => [n, String(n)]);
 
+/**
+ * Who stands on every spot for "Oops all": none, the seed's draw, or one of these, each
+ * a name the module knows (`real_oops.rs` holds the module to them).
+ */
+export const OOPS = [
+  ["", "Off"],
+  ["random", "Random"],
+  ["Margit, the Fell Omen", "Margit, the Fell Omen"],
+  ["Tree Sentinel", "Tree Sentinel"],
+  ["Soldier of Godrick", "Soldier of Godrick"],
+  ["Crucible Knight", "Crucible Knight"],
+  ["Black Knife Assassin", "Black Knife Assassin"],
+  ["Godskin Apostle", "Godskin Apostle"],
+  ["Mad Pumpkin Head", "Mad Pumpkin Head"],
+  ["Misbegotten Warrior", "Misbegotten Warrior"],
+  ["Erdtree Burial Watchdog", "Erdtree Burial Watchdog"],
+  ["Bell Bearing Hunter", "Bell Bearing Hunter"],
+  ["Patches", "Patches"],
+  ["Starscourge Radahn", "Starscourge Radahn"],
+  ["Rellana, Twin Moon Knight", "Rellana, Twin Moon Knight"],
+  ["Dancer of Ranah", "Dancer of Ranah"],
+  ["Bayle the Dread", "Bayle the Dread"],
+];
+
 /** The most models a map may gain, as `models=N`: the game's own limit is not known. */
 export const MODEL_LIMITS = [
   [20, "20"],
@@ -90,6 +114,7 @@ export const defaults = () => ({
   noMaleniaHeal: false,
   noGargoylePoison: false,
   hiddenSeed: false,
+  oopsAll: "",
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -135,6 +160,7 @@ export function request(seed, s, stack = null) {
     noRequirements: !!s.noRequirements,
     bossRunesFollow: !!s.bossRunes,
     hidden: !!s.hiddenSeed,
+    oopsAll: s.oopsAll || "",
     noMaleniaHeal: !!s.noMaleniaHeal,
     noGargoylePoison: !!s.noGargoylePoison,
   };

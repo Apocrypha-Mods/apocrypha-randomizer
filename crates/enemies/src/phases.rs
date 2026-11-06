@@ -152,6 +152,22 @@ pub fn scripts(s: &Sources, pool: &Pool, plan: &Plan) -> Result<Vec<(MapId, Emev
             .iter()
             .position(|&f| pool.spots[f].entity == Some(stage.entity))
         else {
+            // The boss stands nowhere (one body everywhere, `Oops`): whoever holds its
+            // spot must not be held by its stage event, so the event does not start.
+            let home = pool
+                .spots
+                .iter()
+                .position(|p| p.entity == Some(stage.entity));
+            if home.is_some_and(|h| plan.from[h] != h) {
+                let script = script_mut(s, &mut out, stage.home)?;
+                for e in script.events.iter_mut().filter(|e| e.id == 0) {
+                    for i in &mut e.instructions {
+                        if starts(i, stage.event) {
+                            *i = malenia::nothing();
+                        }
+                    }
+                }
+            }
             continue;
         };
         let spot = &pool.spots[here];

@@ -91,6 +91,12 @@ struct Sliders {
     /// 0 for none).
     #[arg(long, default_value = "")]
     enemies: String,
+    /// One enemy on every spot, bosses' included: a name as its health bar shows it
+    /// ("Margit, the Fell Omen", or the start of one, "margit"), or `random`. The
+    /// enemy sliders then do nothing; with `--enemy-dlc separate` only the chosen
+    /// enemy's side of the game changes.
+    #[arg(long, value_name = "NAME")]
+    oops_all: Option<String>,
     /// Leave moved enemies at their own strength, not that of where they land.
     #[arg(long)]
     no_enemy_scaling: bool,
@@ -176,6 +182,7 @@ impl Sliders {
         o.scale = !self.no_enemy_scaling;
         o.dlc_separate = self.enemy_dlc == "separate";
         o.runes_follow = self.boss_runes_follow;
+        o.oops = self.oops_all.as_deref().and_then(rando::Oops::parse);
         Ok(o)
     }
 }

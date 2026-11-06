@@ -179,7 +179,7 @@ fn spare(pool: &Pool, from: &[usize], i: usize) -> bool {
         && pool.spots[from[i]].boss.is_none()
 }
 
-fn needs<'a>(pool: &'a Pool, body: &Spot) -> &'a [Companion] {
+pub(crate) fn needs<'a>(pool: &'a Pool, body: &Spot) -> &'a [Companion] {
     body.entity
         .and_then(|e| pool.companions.get(&e))
         .map_or(&[], Vec::as_slice)

@@ -293,6 +293,26 @@ function groups() {
         },
       ),
       mixRow,
+      explained(
+        h(
+          "div.sr.pick",
+          {},
+          h("span.n", {}, "Oops all", untested("")),
+          h(
+            "select.inp",
+            {
+              "aria-label": "Oops all",
+              onchange: (e) => {
+                st.oopsAll = e.target.value;
+                saveSettings();
+              },
+            },
+            L.OOPS.map(([k, label]) => h("option", { value: k, selected: k === (st.oopsAll || "") }, label)),
+          ),
+        ),
+        "Oops all",
+        "Every enemy becomes the one chosen, bosses too: a world of Margits. Each copy has the strength of the place it stands in. The sliders above then do nothing, and the DLC keeps its own enemies unless the one chosen is from the DLC. Malenia, Godrick and bosses who bring helpers cannot be chosen.",
+      ),
       pick(
         "Scaling",
         "Whether a moved enemy takes the health and strength of the place it lands on, or keeps its own",

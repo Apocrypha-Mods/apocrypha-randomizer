@@ -83,7 +83,35 @@ pub struct Options {
     /// boss its arena's reward wherever it goes, and whoever takes an arena its own
     /// runes. Off, a spot pays what it always paid, whoever stands there.
     pub runes_follow: bool,
+    /// One body on every spot, bosses' included (spec "Oops all", Nova, 2026-11-06):
+    /// the sliders then do nothing. With the sides kept apart, only the chosen body's
+    /// side of the game.
+    pub oops: Option<Oops>,
 }
+
+/// Which body stands everywhere.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Oops {
+    /// One the seed draws from [`oops_choices`].
+    Random,
+    /// One by name, as its health bar or the spoiler log calls it: an exact name, else
+    /// the one name it starts.
+    Named(String),
+}
+
+impl Oops {
+    /// `random`, or a name.
+    pub fn parse(text: &str) -> Option<Oops> {
+        match text.trim() {
+            "" => None,
+            t if t.eq_ignore_ascii_case("random") => Some(Oops::Random),
+            t => Some(Oops::Named(t.to_string())),
+        }
+    }
+}
+
+/// Mixed into the seed for drawing a random body to stand everywhere.
+const OOPS_SALT: u64 = 0x4F4F_5053_414C_4C21;
 
 impl Default for Options {
     fn default() -> Self {
@@ -97,13 +125,14 @@ impl Default for Options {
             dlc_separate: true,
             models: 20,
             runes_follow: false,
+            oops: None,
         }
     }
 }
 
 impl Options {
     pub fn is_off(&self) -> bool {
-        self.bosses == 0 && self.ordinary == 0 && self.mix == 0
+        self.bosses == 0 && self.ordinary == 0 && self.mix == 0 && self.oops.is_none()
     }
 
     /// Apply `name=percent` settings: `--enemies bosses=100,ordinary=50,mix=10`.
@@ -656,11 +685,95 @@ fn trade(from: &mut [usize], group: &[usize], percent: u8, rng: &mut Rng) {
     }
 }
 
+/// What a body is called when one stands everywhere: what its health bar shows, else
+/// its own name.
+fn oops_name(pool: &Pool, s: &Spot) -> Option<String> {
+    pool.bar_name(s)
+        .map(|(n, _)| n)
+        .or_else(|| (!is_leftover(&s.body.name)).then(|| s.body.name.clone()))
+}
+
+/// The bodies that may stand everywhere, one spot each by name, in the pool's order:
+/// any with a name to show, but not a boss whose next stage needs its own arena's script
+/// (Malenia, Godrick) or one who brings companions, as a body in a thousand places
+/// cannot bring them to each.
+pub fn oops_choices(pool: &Pool) -> Vec<(String, usize)> {
+    let mut seen = BTreeSet::new();
+    let mut out = Vec::new();
+    for (i, s) in pool.spots.iter().enumerate() {
+        if phases::is_home(s) || !companions::needs(pool, s).is_empty() {
+            continue;
+        }
+        if let Some(name) = oops_name(pool, s)
+            && seen.insert(name.to_lowercase())
+        {
+            out.push((name, i));
+        }
+    }
+    out
+}
+
+/// The spot whose body stands everywhere, if one is to. A name that fits no choice, or
+/// starts several, is refused with what it might have meant.
+pub fn oops_body(
+    pool: &Pool,
+    seed: u64,
+    options: &Options,
+) -> std::result::Result<Option<usize>, String> {
+    let Some(oops) = &options.oops else {
+        return Ok(None);
+    };
+    let choices = oops_choices(pool);
+    match oops {
+        Oops::Random => {
+            if choices.is_empty() {
+                return Err("no enemy can stand everywhere".to_string());
+            }
+            let mut rng = Rng::new(seed ^ SALT ^ OOPS_SALT);
+            Ok(Some(choices[rng.below(choices.len())].1))
+        }
+        Oops::Named(name) => {
+            let want = name.trim().to_lowercase();
+            if let Some((_, i)) = choices.iter().find(|(n, _)| n.to_lowercase() == want) {
+                return Ok(Some(*i));
+            }
+            let starts: Vec<&(String, usize)> = choices
+                .iter()
+                .filter(|(n, _)| n.to_lowercase().starts_with(&want))
+                .collect();
+            match starts.as_slice() {
+                [(_, i)] => Ok(Some(*i)),
+                [] => Err(format!(
+                    "no enemy that can stand everywhere is called '{name}'"
+                )),
+                many => Err(format!(
+                    "'{name}' could be any of: {}",
+                    many.iter()
+                        .take(12)
+                        .map(|(n, _)| n.as_str())
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                )),
+            }
+        }
+    }
+}
+
 /// Place every body. The same pool, seed and options give the same plan.
 pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     let mut rng = Rng::new(seed ^ SALT);
     let mut from: Vec<usize> = (0..pool.spots.len()).collect();
     let side = |s: &Spot| options.dlc_separate && s.dlc;
+    if let Ok(Some(b)) = oops_body(pool, seed, options) {
+        // Everywhere on the body's side, its own spot too.
+        let theirs = side(&pool.spots[b]);
+        for (i, s) in pool.spots.iter().enumerate() {
+            if !options.dlc_separate || side(s) == theirs {
+                from[i] = b;
+            }
+        }
+        return Plan { from };
+    }
 
     let mut bosses: BTreeMap<bool, Vec<usize>> = BTreeMap::new();
     let mut ordinary: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
@@ -1217,6 +1330,24 @@ pub fn apply(
 /// The seed's options and where every boss went, for the spoiler log; ordinary
 /// enemies are counted only.
 pub fn spoiler(pool: &Pool, plan: &Plan, options: &Options) -> String {
+    let mut counts: HashMap<usize, usize> = HashMap::new();
+    for &f in &plan.from {
+        *counts.entry(f).or_default() += 1;
+    }
+    if options.oops.is_some()
+        && let Some((&b, &n)) = counts
+            .iter()
+            .max_by_key(|&(&b, &n)| (n, std::cmp::Reverse(b)))
+        && n > 1
+    {
+        let who =
+            oops_name(pool, &pool.spots[b]).unwrap_or_else(|| pool.spots[b].body.model.clone());
+        return format!(
+            "\nEnemies\n  Oops all: {who}, on {n} of {} spots  scale to the place: {}\n",
+            pool.spots.len(),
+            if options.scale { "on" } else { "off" }
+        );
+    }
     let mut out = format!(
         "\nEnemies\n  bosses {}%  ordinary {}%  mix {}%  scale to the place: {}  runes: {}\n",
         options.bosses,
