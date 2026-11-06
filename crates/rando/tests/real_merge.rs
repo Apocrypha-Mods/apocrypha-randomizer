@@ -304,39 +304,53 @@ fn keepsake_names_come_in_every_language() {
 }
 
 /// What the last seed wrote and this one did not leaves the folder, what is not
-/// ours stays, and every seed gets a profile with a save of its own.
+/// ours stays, and every seed gets a profile with a save of its own. A hidden seed
+/// takes away the spoiler log the last one left.
 #[test]
 fn a_reused_folder_keeps_nothing_of_the_last_seed() {
     let Some(game) = stock() else { return };
     let out = work("reused").join("seed");
-    let build = |foes: &str| {
+    let build = |foes: &str, hidden: bool| {
         let mut enemies = rando::EnemyOptions::default();
         enemies.set(foes).unwrap();
         rando::generate(
             &rando::Request {
                 game: game.clone(),
-                seed: 7,
+                seed: if hidden { rando::hidden_seed() } else { 7 },
                 out: out.clone(),
                 options: rando::ItemOptions::default(),
                 enemies,
                 native: None,
                 mods: vec![],
+                hidden,
             },
             &|_| {},
         )
         .unwrap()
     };
-    build("bosses=100");
+    let first = build("bosses=100", false);
+    let spoiler = out.with_extension("spoiler.txt");
+    assert_eq!(first.spoiler.as_deref(), Some(spoiler.as_path()));
+    assert!(spoiler.is_file());
     let stormveil = out.join("map/mapstudio/m10_00_00_00.msb.dcx");
     assert!(stormveil.is_file());
     std::fs::write(out.join("mine.txt"), "not the seed's").unwrap();
-    let done = build("");
+    let done = build("", true);
     assert!(!stormveil.exists());
     assert!(!out.join("map").exists(), "an empty folder stayed");
     assert!(out.join("regulation.bin").is_file());
     assert!(out.join("mine.txt").is_file());
+    assert_eq!(done.spoiler, None);
+    assert!(!spoiler.exists(), "the last seed's spoiler log stayed");
     let profile = std::fs::read_to_string(done.profile.unwrap()).unwrap();
     assert!(profile.contains("savefile = \"seed.sl2\""), "{profile}");
+}
+
+#[test]
+fn hidden_seeds_differ_and_fit_the_page() {
+    let seeds: std::collections::BTreeSet<u64> = (0..50).map(|_| rando::hidden_seed()).collect();
+    assert!(seeds.len() > 45);
+    assert!(seeds.iter().all(|&s| s < 1_000_000_000_000_000));
 }
 
 /// With keepsakes at 0 nothing of theirs moves, so their names and help line stay

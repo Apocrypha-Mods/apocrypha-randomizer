@@ -167,6 +167,7 @@ input[type="range"]:disabled { cursor: default; opacity: 0.5; }
 .seg button.on { background: var(--bg-selected); color: var(--text-primary); font-weight: 500; }
 .seedrow { display: flex; gap: 8px; }
 .seedrow .inp { flex: 1; min-width: 0; font-variant-numeric: tabular-nums; }
+.seedrow .btn.on { background: var(--bg-selected); color: var(--text-primary); font-weight: 500; }
 
 /* Menus and sheets */
 .menu { position: fixed; z-index: 20; min-width: 200px; padding: 6px; border-radius: 14px; background: var(--bg-overlay); box-shadow: 0 0 0 1px var(--border), var(--shadow); display: grid; gap: 1px; font-size: 13px; animation: fadeIn 150ms linear both; }

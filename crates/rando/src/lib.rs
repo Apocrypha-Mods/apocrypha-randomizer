@@ -133,6 +133,10 @@ pub struct Request {
     pub native: Option<PathBuf>,
     /// Other mods to build on, lowest priority first.
     pub mods: Vec<PathBuf>,
+    /// A hidden seed (Nova, 2026-11-06): no spoiler log is written, and one left by an
+    /// earlier seed in its place is removed, so nothing beside the mod tells where
+    /// anything went.
+    pub hidden: bool,
 }
 
 /// What a built seed left behind.
@@ -140,9 +144,24 @@ pub struct Request {
 pub struct Outcome {
     pub slots: usize,
     pub folder: PathBuf,
-    pub spoiler: PathBuf,
+    /// None for a hidden seed.
+    pub spoiler: Option<PathBuf>,
     /// The me3 profile that loads it all, with a save of the seed's own.
     pub profile: Option<PathBuf>,
+}
+
+/// A seed nobody chose and nobody is told, for a hidden seed: drawn from the
+/// randomness the standard library seeds its hash maps with, which differs from run to
+/// run. At most 15 digits, as the page takes.
+pub fn hidden_seed() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+    h.write_u128(
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos()),
+    );
+    h.finish() % 1_000_000_000_000_000
 }
 
 /// The `regulation.bin` version stamps the area map and the gate have been run
@@ -523,6 +542,7 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
         enemies: foes,
         native,
         mods,
+        hidden,
     } = request;
     let (game, mods) = (game.as_path(), mods.as_slice());
     not_in_game(game, out)?;
@@ -549,8 +569,16 @@ pub fn generate(request: &Request, say: Say) -> Result<Outcome> {
         say,
     )?;
     tidy(out, folder.1.into_inner().unwrap_or_default(), say)?;
-    let spoiler = out.with_extension("spoiler.txt");
-    std::fs::write(&spoiler, merged + &built.spoiler)?;
+    let path = out.with_extension("spoiler.txt");
+    let spoiler = if *hidden {
+        match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(e.into()),
+            _ => None,
+        }
+    } else {
+        std::fs::write(&path, merged + &built.spoiler)?;
+        Some(path)
+    };
     for file in &files.shadowed {
         say(&format!(
             "warning: more than one mod has {file}; the later one is used"

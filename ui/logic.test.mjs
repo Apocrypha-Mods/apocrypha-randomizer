@@ -137,3 +137,14 @@ test("the quality-of-life switches are off unless asked, and sent when on", () =
   const on = L.request(1, { ...L.defaults(), ...Object.fromEntries(keys.map((k) => [k, true])) });
   for (const k of keys) assert.equal(on[k], true, k);
 });
+
+test("a hidden seed is sent as such, fits fifteen digits, and is named Hidden", () => {
+  assert.equal(L.request(1, L.defaults()).hidden, false);
+  assert.equal(L.request(1, { ...L.defaults(), hiddenSeed: true }).hidden, true);
+  const most = L.hiddenSeed((a) => a.fill(0xffffffff));
+  assert.ok(Number.isSafeInteger(most) && most < 1e15, String(most));
+  assert.equal(L.hiddenSeed((a) => a.fill(0)), 0);
+  assert.ok(L.parseSeed(String(most)) !== null);
+  assert.equal(L.seedName(null), "Hidden");
+  assert.equal(L.seedName(42), "42");
+});

@@ -89,6 +89,7 @@ export const defaults = () => ({
   bossRunes: false,
   noMaleniaHeal: false,
   noGargoylePoison: false,
+  hiddenSeed: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -133,6 +134,7 @@ export function request(seed, s, stack = null) {
     cheapUpgrades: !!s.cheapUpgrades,
     noRequirements: !!s.noRequirements,
     bossRunesFollow: !!s.bossRunes,
+    hidden: !!s.hiddenSeed,
     noMaleniaHeal: !!s.noMaleniaHeal,
     noGargoylePoison: !!s.noGargoylePoison,
   };
@@ -166,6 +168,15 @@ export function parseSeed(text) {
 }
 
 export const newSeed = (random = Math.random) => Math.floor(random() * 1e9);
+
+/** A hidden seed's number, drawn from the browser's strong randomness and never shown: up to 15 digits, as a typed seed. */
+export function hiddenSeed(fill = (a) => crypto.getRandomValues(a)) {
+  const [hi, lo] = fill(new Uint32Array(2));
+  return ((hi % 232831) * 2 ** 32 + lo) % 1e15;
+}
+
+/** How a built seed is named on the page: its number, or "Hidden" for a hidden seed. */
+export const seedName = (seed) => (seed == null ? "Hidden" : String(seed));
 
 /** The first file of a seed's mod that an earlier one left and this one lacks. */
 export function stale(before, now) {

@@ -21,8 +21,17 @@ enum Command {
     Gen {
         /// The game folder (holding eldenring.exe and regulation.bin).
         game: PathBuf,
+        /// The seed; needed unless `--no-spoiler`, which draws one of its own.
+        #[arg(
+            long,
+            required_unless_present = "no_spoiler",
+            conflicts_with = "no_spoiler"
+        )]
+        seed: Option<u64>,
+        /// A hidden seed: one is drawn at random and never shown, and no spoiler log is
+        /// written (one left by an earlier seed beside the mod folder is removed).
         #[arg(long)]
-        seed: u64,
+        no_spoiler: bool,
         /// The mod folder to write.
         #[arg(long)]
         out: PathBuf,
@@ -188,27 +197,36 @@ fn run(cli: Cli) -> Result<()> {
         Command::Gen {
             game,
             seed,
+            no_spoiler,
             out,
             sliders,
         } => {
             let done = rando::generate(
                 &Request {
                     game,
-                    seed,
+                    seed: seed.unwrap_or_else(rando::hidden_seed),
                     out,
                     options: sliders.options()?,
                     enemies: sliders.enemy_options()?,
                     native: sliders.native,
                     mods: sliders.with_mods,
+                    hidden: no_spoiler,
                 },
                 &say,
             )?;
-            say(&format!(
-                "seed {seed}: {} slots shuffled; mod folder {}, spoiler log {}",
-                done.slots,
-                done.folder.display(),
-                done.spoiler.display()
-            ));
+            match (&done.spoiler, seed) {
+                (Some(spoiler), Some(seed)) => say(&format!(
+                    "seed {seed}: {} slots shuffled; mod folder {}, spoiler log {}",
+                    done.slots,
+                    done.folder.display(),
+                    spoiler.display()
+                )),
+                _ => say(&format!(
+                    "hidden seed: {} slots shuffled; mod folder {}, no spoiler log",
+                    done.slots,
+                    done.folder.display()
+                )),
+            }
             Ok(())
         }
         Command::Check {

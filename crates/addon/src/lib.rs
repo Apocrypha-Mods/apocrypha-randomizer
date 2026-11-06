@@ -163,6 +163,10 @@ struct Run {
     /// As `apoc-rando --boss-runes-follow`.
     #[serde(default)]
     boss_runes_follow: bool,
+    /// As `apoc-rando --no-spoiler`: the answer carries no spoiler log. The page draws
+    /// the seed and never shows it.
+    #[serde(default)]
+    hidden: bool,
     /// As `apoc-rando --no-malenia-heal`.
     #[serde(default)]
     no_malenia_heal: bool,
@@ -441,7 +445,11 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     Ok(Answer {
         json: serde_json::json!({
             "slots": built.slots,
-            "spoiler": format!("{}{}", loaded.merged, built.spoiler),
+            "spoiler": if request.hidden {
+                String::new()
+            } else {
+                format!("{}{}", loaded.merged, built.spoiler)
+            },
             "files": files,
         }),
         bytes: out.into_iter().flat_map(|(_, bytes)| bytes).collect(),

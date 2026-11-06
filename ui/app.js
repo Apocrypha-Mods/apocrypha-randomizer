@@ -72,8 +72,9 @@ function status() {
   if (S.build === "run") return "Building";
   if (S.build === "fail") return "Build failed";
   if (S.last && L.modsChanged(S.last.mods, S.stack?.mods)) return "Your mods have changed since this seed: build again";
-  if (S.build === "done") return `Seed ${S.result.seed} built`;
-  return S.last ? `Seed ${S.last.seed} built ${L.ago(S.last.at).toLowerCase()}` : "No seed built";
+  const named = (seed) => (seed == null ? "Hidden seed" : `Seed ${seed}`);
+  if (S.build === "done") return `${named(S.result.seed)} built`;
+  return S.last ? `${named(S.last.seed)} built ${L.ago(S.last.at).toLowerCase()}` : "No seed built";
 }
 
 function setStatus() {
@@ -376,6 +377,24 @@ function bb(text, primary) {
 }
 
 function seedField() {
+  // A hidden seed is drawn as the build starts and never shown, and no spoiler log is kept.
+  const hide = h(
+    "button.btn.sm" + (S.settings.hiddenSeed ? ".on" : ""),
+    {
+      "aria-pressed": String(!!S.settings.hiddenSeed),
+      title: "Draw a seed you are not told, and keep no spoiler log, so nobody knows where anything went",
+      onclick: () => {
+        S.settings.hiddenSeed = !S.settings.hiddenSeed;
+        saveSettings();
+        side();
+      },
+    },
+    "Hidden",
+  );
+  if (S.settings.hiddenSeed) {
+    const note = h("input.inp", { value: "", disabled: true, placeholder: "Drawn when you build", "aria-label": "Seed" });
+    return h("label.fld", {}, h("span", {}, "Seed"), h("div.seedrow", {}, note, hide), h("p.help", {}, "No spoiler log is kept and the seed is not shown, so nobody can look up where anything went."));
+  }
   const input = h("input.inp", {
     value: S.seedText,
     inputmode: "numeric",
@@ -397,7 +416,7 @@ function seedField() {
     },
     "New seed",
   );
-  return h("label.fld", {}, h("span", {}, "Seed"), h("div.seedrow", {}, input, another));
+  return h("label.fld", {}, h("span", {}, "Seed"), h("div.seedrow", {}, input, another, hide));
 }
 
 /** Which mods the next seed stands on: all those on now, as Apply will place them. */
@@ -417,11 +436,11 @@ function side() {
       h("div.res.risein", {}, h("span.big", {}, `${r.slots.toLocaleString()} items`), h("span.sec", {}, `Built in ${L.seconds(r.ms)}`)),
       kv([
         ["Output", OUTPUT],
-        ["Seed", String(r.seed)],
+        ["Seed", L.seedName(r.seed)],
         ...(r.mods.length ? [["Built on", h("span", { title: r.mods.join("\n") }, r.mods.length === 1 ? r.mods[0] : `${r.mods.length} mods`)]] : []),
         ["Status", h("span.accent.fadein", {}, "Apply to place")],
       ]),
-      h("button.btn.sm", { onclick: saveSpoiler }, "Save spoiler log…"),
+      r.seed == null ? null : h("button.btn.sm", { onclick: saveSpoiler }, "Save spoiler log…"),
       h("div.pair", {}, h("button.btn.sm", { onclick: () => hostAsk("apply.review") }, "Review changes"), (bar = bb("Build again"))),
     ];
     bar.btn.classList.add("sm");
@@ -511,7 +530,8 @@ async function moduleCaller() {
 
 async function build() {
   if (S.build === "run") return;
-  const seed = L.parseSeed(S.seedText);
+  const hidden = !!S.settings.hiddenSeed;
+  const seed = hidden ? L.hiddenSeed() : L.parseSeed(S.seedText);
   if (seed === null) {
     S.build = "fail";
     S.fail = { message: "A seed is a number of up to 15 digits." };
@@ -569,8 +589,10 @@ async function build() {
     // Written whole, in one request: what is placed is never half a seed.
     await request("output.write", { name: OUTPUT, files, last: true }, files.map((f) => f.bytes));
     const ms = performance.now() - t0;
-    S.result = { seed, slots: run.json.slots, ms, spoiler: run.json.spoiler, mods: S.stack.mods };
-    S.last = { at: Date.now(), ms, seed, paths, mods: S.stack.mods };
+    // A hidden seed's number is forgotten here, as the module kept no spoiler log of it.
+    const shown = hidden ? null : seed;
+    S.result = { seed: shown, slots: run.json.slots, ms, spoiler: hidden ? "" : run.json.spoiler, mods: S.stack.mods };
+    S.last = { at: Date.now(), ms, seed: shown, paths, mods: S.stack.mods };
     store.set("last", S.last);
     S.build = "done";
   } catch (e) {
