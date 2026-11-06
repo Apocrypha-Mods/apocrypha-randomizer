@@ -2470,3 +2470,12 @@ Condition **1[5]** is the time of day: a group byte, then start and end as hour,
 - **Deathbirds and Death Rite Birds: not found.** No script naming them tests the hour (their events are common 90005261, 90005211, 90005860, 90005870); m60_42_38's event 1042382340, an ambush with 20:00 to 05:00, is started by nothing. Their rows carry 17650/17651, which differ from 90000 only at +0x156 (388/389), likely the revive, not the night. Their map entries share nothing rare (the one word was the model name). The AI binder (`/script/aicommon.luabnd.dcx`) holds goal names only. Left at night; the page says so.
 - `night::edit_script` runs on the game's script, or on the enemies' copy where they changed it. Seed 3 (bosses 100%, ordinary 50%): 12 scripts written for the night, plus one the enemies wrote.
 - Whole map: its start now goes first in common event 0, which ends early when flag 2052 is on.
+
+## Deathbirds by day: lab, not settled (2026-11-06)
+
+The one lead left: effects 17650 (Deathbird) and 17651 (Death Rite Bird), on their NpcParam rows at +0x1E8, are alike but for +0x156 (SpEffect behaviour id 388/389), and no other effect has 388 or 389. That is a rule the engine keeps for these birds alone: the night, or their revive (they rise again unless killed by holy). No other row, field, map entry or script sets the night birds apart; per-map AI binders were not found under `/script/<map>.luabnd.dcx` for 400 maps, and `aicommon.luabnd` holds 169 files, none the birds'.
+
+Lab (`scratch/lab-night`): a seed with nothing moved, `test-kill` of Elleh's Deathbird 1042380800 40 s after m60_42_38 loads, `test-flag` on its flag 1042380800; run a as the game is, run b with 17650/17651 cleared (14 rows). Three launches each, 2:28 to 2:58 PM, none reached the bird:
+- warping on Elleh's grace asset (1042380950) from Stormveil, and on its warp point (1042381950, BonfireWarpParam 61423800), both ended in the Roundtable Hold: a character who has not been there is taken there first;
+- adding a warp from the Roundtable (`--from m11_10_00_00`) did not move run a; run b died on landing and came back to the Hold.
+No marker in any run, which says nothing about the birds. Next: a save that has visited the Roundtable Hold, or a look in play. Until then the birds keep to the night, and 17650/17651 are left alone, as clearing them may take their revive.
