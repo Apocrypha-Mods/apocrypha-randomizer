@@ -151,6 +151,18 @@ struct Run {
     /// As `apoc-rando --usable-start`.
     #[serde(default)]
     usable_start: bool,
+    /// As `apoc-rando --all-recipes`.
+    #[serde(default)]
+    all_recipes: bool,
+    /// As `apoc-rando --cheap-upgrades`.
+    #[serde(default)]
+    cheap_upgrades: bool,
+    /// As `apoc-rando --no-requirements`.
+    #[serde(default)]
+    no_requirements: bool,
+    /// As `apoc-rando --boss-runes-follow`.
+    #[serde(default)]
+    boss_runes_follow: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -336,6 +348,9 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.whole_map = request.whole_map;
     options.night_bosses_always = request.night_bosses_always;
     options.usable_start = request.usable_start;
+    options.all_recipes = request.all_recipes;
+    options.cheap_upgrades = request.cheap_upgrades;
+    options.no_requirements = request.no_requirements;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;
@@ -343,6 +358,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     foes.set(&request.enemies).map_err(format_err)?;
     foes.dlc_separate = true;
     foes.scale = !request.no_scaling;
+    foes.runes_follow = request.boss_runes_follow;
     let absent: Vec<String> = first_files()
         .into_iter()
         .filter(|f| !state.whole.contains_key(f))

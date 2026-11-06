@@ -122,3 +122,10 @@ test("every section has its line and every item slider its explanation", () => {
   for (const [k, label] of L.LEANS) assert.ok(L.leanHelp(k, label).length > 20, k);
   for (const [k, , about] of L.PLACES) assert.ok(about, k);
 });
+
+test("the table options and boss runes are off unless asked, and sent when on", () => {
+  const off = L.request(1, L.defaults());
+  for (const k of ["allRecipes", "cheapUpgrades", "noRequirements", "bossRunesFollow"]) assert.equal(off[k], false, k);
+  const on = L.request(1, { ...L.defaults(), allRecipes: true, cheapUpgrades: true, noRequirements: true, bossRunes: true });
+  for (const k of ["allRecipes", "cheapUpgrades", "noRequirements", "bossRunesFollow"]) assert.equal(on[k], true, k);
+});

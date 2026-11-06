@@ -203,6 +203,19 @@ pub struct Class {
 const START_MEMORY: u8 = 2;
 
 impl Class {
+    /// The class as the seed's options make it: with no stat requirements every
+    /// stat is enough.
+    fn under(self, options: &Options) -> Class {
+        if options.no_requirements {
+            Class {
+                stats: [u8::MAX; 5],
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+
     /// Whether the class can wield or cast this, from the start: its strength
     /// counts half again, as two-handing does, and a bow needs its arrows.
     pub fn wields(&self, w: &Wants) -> bool {
@@ -1162,6 +1175,10 @@ fn attempt(
             class_slots
                 .get(&units[u].row)
                 .and_then(|slots| Suits::of(units, &placed, slots, u))
+                .map(|s| Suits {
+                    class: s.class.under(options),
+                    ..s
+                })
         } else {
             None
         };
@@ -1247,7 +1264,10 @@ fn class_slots(units: &[Unit]) -> BTreeMap<i32, Vec<usize>> {
 /// each spell with a catalyst it holds, in the memory it has.
 pub fn usable_start(units: &[Unit], plan: &Plan) -> std::result::Result<(), String> {
     for (row, slots) in class_slots(units) {
-        let class = units[slots[0]].class.expect("a class's slot");
+        let class = units[slots[0]]
+            .class
+            .expect("a class's slot")
+            .under(&plan.options);
         let held: Vec<&Unit> = slots.iter().map(|&v| &units[plan.placed[v]]).collect();
         let casts = [School::Sorcery, School::Incantation]
             .map(|s| held.iter().any(|i| i.wants.casts == Some(s)));

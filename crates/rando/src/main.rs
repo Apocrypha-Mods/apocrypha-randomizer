@@ -117,6 +117,19 @@ struct Sliders {
     /// catalyst, the stats and the memory for. Without it, starting gear is random.
     #[arg(long)]
     usable_start: bool,
+    /// Know every crafting recipe from the start, cookbooks or not.
+    #[arg(long)]
+    all_recipes: bool,
+    /// Each regular upgrade costs one Smithing Stone.
+    #[arg(long)]
+    cheap_upgrades: bool,
+    /// Weapons and spells ask no stats.
+    #[arg(long)]
+    no_requirements: bool,
+    /// A moved boss pays the runes it pays at home, and whoever takes its arena pays
+    /// its own.
+    #[arg(long)]
+    boss_runes_follow: bool,
 }
 
 impl Sliders {
@@ -131,6 +144,9 @@ impl Sliders {
         o.whole_map = self.whole_map;
         o.night_bosses_always = self.night_bosses_always;
         o.usable_start = self.usable_start;
+        o.all_recipes = self.all_recipes;
+        o.cheap_upgrades = self.cheap_upgrades;
+        o.no_requirements = self.no_requirements;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();
@@ -142,6 +158,7 @@ impl Sliders {
         o.set(&self.enemies).map_err(format_err)?;
         o.scale = !self.no_enemy_scaling;
         o.dlc_separate = self.enemy_dlc == "separate";
+        o.runes_follow = self.boss_runes_follow;
         Ok(o)
     }
 }

@@ -82,6 +82,10 @@ export const defaults = () => ({
   wholeMap: false,
   nightBosses: false,
   usableStart: false,
+  allRecipes: false,
+  cheapUpgrades: false,
+  noRequirements: false,
+  bossRunes: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -122,6 +126,10 @@ export function request(seed, s, stack = null) {
     wholeMap: !!s.wholeMap,
     nightBossesAlways: !!s.nightBosses,
     usableStart: !!s.usableStart,
+    allRecipes: !!s.allRecipes,
+    cheapUpgrades: !!s.cheapUpgrades,
+    noRequirements: !!s.noRequirements,
+    bossRunesFollow: !!s.bossRunes,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

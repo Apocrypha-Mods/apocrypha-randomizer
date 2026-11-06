@@ -79,6 +79,10 @@ pub struct Options {
     /// Bosses are not counted. The game's own limit is not known: its largest
     /// map lists 50, and with no limit a seed adds up to 101 to one.
     pub models: u16,
+    /// Whether a moved body pays the runes it pays at home (Nova, 2026-11-06): a
+    /// boss its arena's reward wherever it goes, and whoever takes an arena its own
+    /// runes. Off, a spot pays what it always paid, whoever stands there.
+    pub runes_follow: bool,
 }
 
 impl Default for Options {
@@ -92,6 +96,7 @@ impl Default for Options {
             // the game's limits, which we do not have (PLAN.md §6a).
             dlc_separate: true,
             models: 20,
+            runes_follow: false,
         }
     }
 }
@@ -217,6 +222,9 @@ pub struct BossSpot {
     pub script: MapId,
     /// The flag its defeat sets, if the boss table names it.
     pub defeat_flag: Option<u32>,
+    /// The boss table's row its fight pays runes from (GameAreaParam
+    /// `rune_reward`): the row the event that waits on its death calls defeated.
+    pub area: Option<i32>,
 }
 
 /// A boss left where it is, and why.
@@ -367,6 +375,17 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     // its script, as Malenia's does, and only its own body starts that script.
     let mut rises: HashSet<u32> = HashSet::new();
     let defeat = catalogue::named("boss_defeated");
+    let area_rows: HashSet<i32> = s
+        .reg
+        .table("GameAreaParam")?
+        .rows
+        .iter()
+        .map(|r| r.id)
+        .collect();
+    // The boss table's row each death pays from: an event that waits on a death
+    // and calls a row of the table defeated. One that calls none, or several, says
+    // nothing.
+    let mut pays: HashMap<u32, BTreeSet<i32>> = HashMap::new();
     for (m, script) in &s.scripts {
         for u in catalogue::uses(script, Some(&s.common_func), bar.bank, bar.id) {
             if let (Some(b), Some(t)) = (u.word(bar.arg("boss").word), u.word(bar.arg("name").word))
@@ -375,6 +394,21 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
             }
         }
         for run in catalogue::runs(script, Some(&s.common_func)) {
+            let called: BTreeSet<i32> = run
+                .instructions
+                .iter()
+                .filter(|d| (d.bank, d.id) == (defeat.bank, defeat.id))
+                .filter_map(|d| words(d).next().map(|w| w as i32))
+                .filter(|a| area_rows.contains(a))
+                .collect();
+            if called.len() == 1 {
+                for i in &run.instructions {
+                    let w: Vec<u32> = words(i).collect();
+                    if (i.bank, i.id) == (4, 0) && w.len() >= 3 && w[2] == 1 {
+                        pays.entry(w[1]).or_default().extend(&called);
+                    }
+                }
+            }
             for i in &run.instructions {
                 if (i.bank, i.id) == (4, 0) {
                     let w: Vec<u32> = words(i).collect();
@@ -556,6 +590,10 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                         .iter()
                         .find(|b| b.entity == Some(en) && b.defeat_flag != 0)
                         .map(|b| b.defeat_flag),
+                    area: pays
+                        .get(&en)
+                        .filter(|a| a.len() == 1)
+                        .and_then(|a| a.first().copied()),
                 }));
                 sp.body.name = shown;
                 sp.body.name_text = *bar_text;
@@ -870,16 +908,23 @@ fn row_for(
     spot: &Row,
     scale: bool,
     map_tier: Option<(i64, i64)>,
+    runes: Option<i64>,
     npc: &fs_param::layout::Layout,
 ) -> Result<Vec<u8>> {
     let mut data = body.data.clone();
-    let mut names = vec!["item_lot_enemy_id", "item_lot_map_id", "runes"];
+    let mut names = vec!["item_lot_enemy_id", "item_lot_map_id"];
+    if runes.is_none() {
+        names.push("runes");
+    }
     if scale {
         names.extend(["hp", "scale_a", "scale_b"]);
     }
     for name in names {
         let f = npc.field(name);
         f.set(&mut data, 0, f.get(&spot.data, 0))?;
+    }
+    if let Some(r) = runes {
+        npc.field("runes").set(&mut data, 0, r)?;
     }
     let (a, b) = (npc.field("scale_a"), npc.field("scale_b"));
     if let Some((ta, tb)) = map_tier
@@ -891,6 +936,73 @@ fn row_for(
         b.set(&mut data, 0, tb)?;
     }
     Ok(data)
+}
+
+/// What each spot's body pays at home through its arena, for runes that follow
+/// the body ([`Options::runes_follow`]).
+struct Pay {
+    /// Each spot's share of its arena's reward, alone and with help: the reward
+    /// split among the spots its fight waits on (a duo's two halves), or nothing
+    /// for a spot outside an arena.
+    home: Vec<[i64; 2]>,
+}
+
+impl Pay {
+    fn read(reg: &Regulation, pool: &Pool) -> Result<Pay> {
+        let l =
+            for_table("GameAreaParam").ok_or_else(|| format_err("no layout for GameAreaParam"))?;
+        let f = l.field("rune_reward");
+        let rewards: HashMap<i32, [i64; 2]> = reg
+            .table("GameAreaParam")?
+            .rows
+            .iter()
+            .map(|r| (r.id, [f.get(&r.data, 0), f.get(&r.data, 1)]))
+            .collect();
+        let mut shares: HashMap<i32, i64> = HashMap::new();
+        for a in pool.spots.iter().filter_map(area_of) {
+            *shares.entry(a).or_default() += 1;
+        }
+        let home = pool
+            .spots
+            .iter()
+            .map(|s| {
+                area_of(s)
+                    .and_then(|a| Some((rewards.get(&a)?, shares[&a])))
+                    .map_or([0, 0], |(r, n)| r.map(|v| v / n))
+            })
+            .collect();
+        Ok(Pay { home })
+    }
+
+    /// Each arena with a body from elsewhere pays what its bodies paid at home:
+    /// a boss's share of its own arena's reward, an ordinary body nothing, as its
+    /// own row pays for it.
+    fn write(&self, reg: &mut Regulation, pool: &Pool, plan: &Plan) -> Result<()> {
+        let l =
+            for_table("GameAreaParam").ok_or_else(|| format_err("no layout for GameAreaParam"))?;
+        let f = l.field("rune_reward");
+        let mut sums: BTreeMap<i32, ([i64; 2], bool)> = BTreeMap::new();
+        for (i, s) in pool.spots.iter().enumerate() {
+            if let Some(a) = area_of(s) {
+                let e = sums.entry(a).or_default();
+                let h = self.home[plan.from[i]];
+                e.0 = [e.0[0] + h[0], e.0[1] + h[1]];
+                e.1 |= plan.from[i] != i;
+            }
+        }
+        let mut table = reg.table("GameAreaParam")?;
+        for row in &mut table.rows {
+            if let Some((r, true)) = sums.get(&row.id) {
+                f.set(&mut row.data, 0, r[0])?;
+                f.set(&mut row.data, 1, r[1])?;
+            }
+        }
+        reg.set_table("GameAreaParam", &table)
+    }
+}
+
+fn area_of(s: &Spot) -> Option<i32> {
+    s.boss.as_ref().and_then(|b| b.area)
 }
 
 /// Point a part at a body: NpcParam row, AI, equipment, and a model the map
@@ -1006,6 +1118,11 @@ pub fn apply(
     let mut maps: BTreeMap<usize, Msb> = BTreeMap::new();
     let mut bar_names: BTreeMap<i32, String> = BTreeMap::new();
     let mut bar_sources: BTreeMap<i32, i32> = BTreeMap::new();
+    let pay = if options.runes_follow {
+        Some(Pay::read(reg, pool)?)
+    } else {
+        None
+    };
 
     for (i, spot) in pool.spots.iter().enumerate() {
         let body = &pool.spots[plan.from[i]].body;
@@ -1016,7 +1133,18 @@ pub fn apply(
             return Err(format_err("a body's row has gone missing"));
         };
         let tier = pool.map_tier.get(&spot.map_index).copied();
-        let data = row_for(b, p, options.scale, tier, npc)?;
+        // With runes following: the body's own, and, away from any arena, the share
+        // of its arena's reward it paid at home.
+        let runes = pay.as_ref().map(|pay| {
+            let own = npc.field("runes").get(&b.data, 0);
+            let arena = if spot.boss.as_ref().is_some_and(|x| x.area.is_some()) {
+                0
+            } else {
+                pay.home[plan.from[i]][0]
+            };
+            own + arena
+        });
+        let data = row_for(b, p, options.scale, tier, runes, npc)?;
         let next = first_new
             .checked_add(made.len() as i32)
             .ok_or_else(|| format_err("NpcParam has no ids left for new rows"))?;
@@ -1067,6 +1195,9 @@ pub fn apply(
         &mut maps,
         &mut scripts,
     )?;
+    if let Some(pay) = &pay {
+        pay.write(reg, pool, plan)?;
+    }
     let new_rows_count = new_rows.len();
     table.rows.extend(new_rows);
     table.rows.sort_by_key(|r| r.id);
@@ -1087,11 +1218,16 @@ pub fn apply(
 /// enemies are counted only.
 pub fn spoiler(pool: &Pool, plan: &Plan, options: &Options) -> String {
     let mut out = format!(
-        "\nEnemies\n  bosses {}%  ordinary {}%  mix {}%  scale to the place: {}\n",
+        "\nEnemies\n  bosses {}%  ordinary {}%  mix {}%  scale to the place: {}  runes: {}\n",
         options.bosses,
         options.ordinary,
         options.mix,
-        if options.scale { "on" } else { "off" }
+        if options.scale { "on" } else { "off" },
+        if options.runes_follow {
+            "of the boss"
+        } else {
+            "of the arena"
+        }
     );
     out += "\n  Bosses: who now stands where\n";
     for (i, s) in pool.spots.iter().enumerate() {
@@ -1155,6 +1291,7 @@ mod tests {
                 bar_text: i as i32,
                 script: MapId(map),
                 defeat_flag: None,
+                area: None,
             }),
         }
     }
@@ -1404,16 +1541,24 @@ mod tests {
         let (knight, bird, plain) = (row(7000, 900), row(0, 40), row(0, 300));
         let tier = |d: &[u8]| npc.field("scale_a").get(d, 0);
         // A knight on a tierless spot takes the map's tier.
-        let d = row_for(&knight, &plain, true, Some((7050, 7050)), npc).unwrap();
+        let d = row_for(&knight, &plain, true, Some((7050, 7050)), None, npc).unwrap();
         assert_eq!(tier(&d), 7050);
         // Wildlife on a tierless spot stays without one.
-        let d = row_for(&bird, &plain, true, Some((7050, 7050)), npc).unwrap();
+        let d = row_for(&bird, &plain, true, Some((7050, 7050)), None, npc).unwrap();
         assert_eq!(tier(&d), 0);
         // Not scaling, nothing is taken.
-        let d = row_for(&knight, &plain, false, Some((7050, 7050)), npc).unwrap();
+        let d = row_for(&knight, &plain, false, Some((7050, 7050)), None, npc).unwrap();
         assert_eq!(tier(&d), 7000);
         // A spot with its own tier keeps it.
-        let d = row_for(&knight, &row(7010, 500), true, Some((7050, 7050)), npc).unwrap();
+        let d = row_for(
+            &knight,
+            &row(7010, 500),
+            true,
+            Some((7050, 7050)),
+            None,
+            npc,
+        )
+        .unwrap();
         assert_eq!(tier(&d), 7010);
     }
 }

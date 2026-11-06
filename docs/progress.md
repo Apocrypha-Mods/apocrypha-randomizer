@@ -2451,3 +2451,13 @@ Asked by Nova. `apoc-fs test-flag <game> <mod> --flag F --give G,…` (new): an 
 So in the game our count turns 182 on at what the option asks and not before. The rune's pop-up and the Great Runes tutorial showed in B and C; the rune itself is not in the inventories the module reads (key items are kept elsewhere). That the gate opens on 182 and 105 is the game's own event (m60_45_52 1045522500), not walked to. "Great Runes for Leyndell" is no longer marked untested.
 
 **The whole map: not seen.** In the lab neither G nor the main menu opens the map (the menu, at Margit's fog, lists no Map), and the pop-ups covered the screen in B. Left marked untested, for Nova to look at in play.
+
+## Four options: recipes, upgrades, requirements, boss runes (Nova, 2026-11-06)
+
+Each is off by default, so seeds without them are as before. None is seen in play yet; the page marks each untested.
+- **Every crafting recipe** (`--all-recipes`, `rando::tweaks`): ShopLineupParam_Recipe's `on_sale_flag`, the flag a cookbook turns on, is cleared on the 181 rows that have one, as the six starting recipes have none. The empty row (no material set) is left. The crafting kit is still needed.
+- **One stone per upgrade** (`--cheap-upgrades`): every EquipMtrlSetParam slot spending Smithing Stone [1] to [8] (goods 10100–10107) spends one: 309 sets, each asking 2, 4 or 6. Ancient Dragon and somber stones already cost one.
+- **No stat requirements** (`--no-requirements`): EquipParamWeapon and Magic `requirement` and `requirement_arcane` set to 0 (3,625 rows on 2.7.2). With usable starting gear on as well, a class is taken to meet every stat; arrows, catalysts and memory still count. 200 seeds with both proven.
+- **Boss runes follow the boss** (`--boss-runes-follow`, `enemies::Options::runes_follow`): a boss's runes come from its arena's GameAreaParam `rune_reward`, so the arena is read from the event that waits on its death (4[0] state 1) and calls exactly one GameAreaParam row defeated (2003[12]): 189 of 197 movable bosses (Margit: 10000850). With the option on, an arena holding a body from elsewhere pays what its bodies paid at home (a duo's reward split between its halves); an ordinary body pays its own NpcParam runes; a boss sent out of any arena carries its home share in its NpcParam runes. Seed 1, bosses 100%: 165 arenas pay differently; Margit's pays 400, the Soldier of Godrick's. The 8 bosses with no arena read keep the old behaviour for their arena's reward.
+
+`fs-tool`'s `real_talk` fails 2 of 9 (shop menus 70 against 68, husks' flags 36 against 16) on the tree before these changes as well; not looked into here.

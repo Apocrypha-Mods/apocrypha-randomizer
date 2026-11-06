@@ -160,6 +160,17 @@ pub struct Options {
     /// spells it has the catalyst, the stats and the memory for. Off, the starting
     /// gear is drawn at random.
     pub usable_start: bool,
+    /// Whether every crafting recipe is known from the start, cookbooks or not
+    /// (Nova, 2026-11-06). Written into the seed's tables; placement ignores it.
+    pub all_recipes: bool,
+    /// Whether each regular upgrade costs one Smithing Stone, not two, four or six
+    /// (Nova, 2026-11-06). Somber upgrades already cost one. Written into the seed's
+    /// tables; placement ignores it.
+    pub cheap_upgrades: bool,
+    /// Whether weapons and spells ask no strength, dexterity, intelligence, faith or
+    /// arcane (Nova, 2026-11-06). Usable starting gear then asks only for arrows,
+    /// catalysts and memory.
+    pub no_requirements: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -182,6 +193,9 @@ impl Default for Options {
             whole_map: false,
             night_bosses_always: false,
             usable_start: false,
+            all_recipes: false,
+            cheap_upgrades: false,
+            no_requirements: false,
         }
     }
 }
@@ -304,6 +318,10 @@ impl fmt::Display for Options {
                 "random"
             }
         )?;
+        let on = |b: bool| if b { "on" } else { "off" };
+        writeln!(f, "  every crafting recipe known: {}", on(self.all_recipes))?;
+        writeln!(f, "  one stone per upgrade: {}", on(self.cheap_upgrades))?;
+        writeln!(f, "  no stat requirements: {}", on(self.no_requirements))?;
         writeln!(f, "  Great Runes to open Leyndell: {}", self.leyndell_runes)
     }
 }

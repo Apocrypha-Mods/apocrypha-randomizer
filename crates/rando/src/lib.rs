@@ -20,6 +20,7 @@ pub mod bearings;
 pub mod capital;
 pub mod far;
 pub mod night;
+pub mod tweaks;
 pub mod whole_map;
 
 pub use enemies::Options as EnemyOptions;
@@ -623,6 +624,18 @@ pub fn build(
     if options.night_bosses_always {
         let n = night::apply(&mut reg)?;
         say(&format!("night bosses at any hour: {n} rows"));
+    }
+    if options.all_recipes {
+        let n = tweaks::all_recipes(&mut reg)?;
+        say(&format!("every crafting recipe known: {n} rows"));
+    }
+    if options.cheap_upgrades {
+        let n = tweaks::cheap_upgrades(&mut reg)?;
+        say(&format!("one stone per upgrade: {n} costs"));
+    }
+    if options.no_requirements {
+        let n = tweaks::no_requirements(&mut reg)?;
+        say(&format!("no stat requirements: {n} rows"));
     }
     sink.put("regulation.bin", reg.write()?)?;
     let mut log = items::spoiler(&bound, &units, &plan);

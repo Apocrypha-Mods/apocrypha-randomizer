@@ -505,6 +505,7 @@ mod tests {
                 bar_text: i as i32,
                 script: MapId([60, 40, map as u8, 0]),
                 defeat_flag: None,
+                area: None,
             }),
         }
     }

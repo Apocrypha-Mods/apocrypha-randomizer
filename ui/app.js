@@ -231,6 +231,39 @@ function groups() {
         (v) => (st.usableStart = v),
       ),
       pick(
+        "Every crafting recipe",
+        "Know every crafting recipe from the start, so you can make arrows, pots and the rest without hunting the cookbooks first. You still need the crafting kit.",
+        [
+          [false, "From cookbooks"],
+          [true, "All known"],
+        ],
+        !!st.allRecipes,
+        (v) => (st.allRecipes = v),
+        untested(""),
+      ),
+      pick(
+        "One stone per upgrade",
+        "Each regular upgrade costs one Smithing Stone instead of two, four or six, so a weapon found late can catch up. Somber upgrades already cost one.",
+        [
+          [false, "As the game"],
+          [true, "One stone"],
+        ],
+        !!st.cheapUpgrades,
+        (v) => (st.cheapUpgrades = v),
+        untested(""),
+      ),
+      pick(
+        "No stat requirements",
+        "Any weapon or spell can be used at any stats: no strength, dexterity, intelligence, faith or arcane asked. Spells still need their staff or seal and the memory slots.",
+        [
+          [false, "As the game"],
+          [true, "None"],
+        ],
+        !!st.noRequirements,
+        (v) => (st.noRequirements = v),
+        untested(""),
+      ),
+      pick(
         "Auto-upgrade",
         "Weapons arrive at the highest level you have raised one of their path to. Loads our own module into the game.",
         [
@@ -268,6 +301,17 @@ function groups() {
         ],
         st.scale !== false,
         (v) => (st.scale = v),
+      ),
+      pick(
+        "Boss runes",
+        "Whether a moved boss pays the runes of the arena it lands in, or its own. Of the boss: a Godskin Apostle in Margit's arena pays a Godskin Apostle's runes, and a crab there pays a crab's.",
+        [
+          [false, "Of the arena"],
+          [true, "Of the boss"],
+        ],
+        !!st.bossRunes,
+        (v) => (st.bossRunes = v),
+        untested(""),
       ),
       pick(
         "Night bosses at any hour",

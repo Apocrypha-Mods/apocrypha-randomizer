@@ -640,3 +640,90 @@ fn no_health_bar_is_written_blank_or_with_a_leftover() {
     );
     assert!(by_model > 0 && own + by_model + kept > 100);
 }
+
+/// With runes following, a moved boss pays its home arena's reward: Margit's arena
+/// (row 10000850, 12,000 alone) is found from the event that waits on his death,
+/// most bosses' arenas are, and every arena that took a body from elsewhere pays
+/// the shares its bodies paid at home, the total over all arenas kept or lowered
+/// only by bosses gone out into the world.
+#[test]
+fn boss_runes_follow_the_boss() {
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let bosses: Vec<_> = p.bosses().collect();
+    let with_area = bosses
+        .iter()
+        .filter(|b| b.boss.as_ref().unwrap().area.is_some())
+        .count();
+    eprintln!(
+        "{with_area} of {} bosses pay through an arena",
+        bosses.len()
+    );
+    assert!(
+        with_area * 10 >= bosses.len() * 8,
+        "{with_area} of {}",
+        bosses.len()
+    );
+    let margit = bosses
+        .iter()
+        .find(|b| b.body.name.contains("Margit"))
+        .expect("Margit is in the pool");
+    assert_eq!(margit.boss.as_ref().unwrap().area, Some(10_000_850));
+
+    let area = for_table("GameAreaParam").unwrap().field("rune_reward");
+    let rewards = |reg: &fs_param::Regulation| -> std::collections::BTreeMap<i32, i64> {
+        reg.table("GameAreaParam")
+            .unwrap()
+            .rows
+            .iter()
+            .map(|r| (r.id, area.get(&r.data, 0)))
+            .collect()
+    };
+    let before = rewards(&s.reg);
+    let options = Options {
+        bosses: 100,
+        runes_follow: true,
+        ..Default::default()
+    };
+    let plan = shuffle(&p, 1, &options);
+    let mut reg = s.reg.clone();
+    apply(&mut reg, &s, &p, &plan, &options).unwrap();
+    let after = rewards(&reg);
+    let i = p
+        .spots
+        .iter()
+        .position(|x| std::ptr::eq(x, *margit))
+        .unwrap();
+    let j = plan.from[i];
+    assert_ne!(i, j, "seed 1 moves Margit's arena");
+    let came = p.spots[j].boss.as_ref().and_then(|b| b.area);
+    let shares = |a: i32| {
+        p.spots
+            .iter()
+            .filter(|x| x.boss.as_ref().and_then(|b| b.area) == Some(a))
+            .count() as i64
+    };
+    let expected = came.map_or(0, |a| before[&a] / shares(a));
+    assert_eq!(
+        after[&10_000_850], expected,
+        "Margit's arena holds {}'s",
+        p.spots[j].body.name
+    );
+    assert!(after.values().sum::<i64>() <= before.values().sum::<i64>());
+    let changed = before.iter().filter(|(k, v)| after[k] != **v).count();
+    eprintln!(
+        "seed 1: {changed} arenas pay differently; Margit's pays {expected}, from {}",
+        p.spots[j].body.name
+    );
+    assert!(changed > 20, "{changed}");
+
+    // Off, nothing in the table moves.
+    let off = Options {
+        bosses: 100,
+        ..Default::default()
+    };
+    let mut reg = s.reg.clone();
+    apply(&mut reg, &s, &p, &shuffle(&p, 1, &off), &off).unwrap();
+    assert_eq!(rewards(&reg), before);
+}
