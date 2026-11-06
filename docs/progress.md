@@ -2479,3 +2479,4 @@ Lab (`scratch/lab-night`): a seed with nothing moved, `test-kill` of Elleh's Dea
 - warping on Elleh's grace asset (1042380950) from Stormveil, and on its warp point (1042381950, BonfireWarpParam 61423800), both ended in the Roundtable Hold: a character who has not been there is taken there first;
 - adding a warp from the Roundtable (`--from m11_10_00_00`) did not move run a; run b died on landing and came back to the Hold.
 No marker in any run, which says nothing about the birds. Next: a save that has visited the Roundtable Hold, or a look in play. Until then the birds keep to the night, and 17650/17651 are left alone, as clearing them may take their revive.
+**Nova's choice (2026-11-06): Deathbirds and Death Rite Birds stay to the night.** Night bosses at any hour covers Night's Cavalry and the four shacks' Bell Bearing Hunters; 17650/17651 are not touched.
