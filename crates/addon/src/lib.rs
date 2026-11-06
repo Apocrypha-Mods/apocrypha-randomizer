@@ -218,6 +218,9 @@ struct Run {
     /// As `apoc-rando --enemy-colours`.
     #[serde(default)]
     enemy_colours: bool,
+    /// As `apoc-rando --fog-gates`.
+    #[serde(default)]
+    fog_gates: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -435,6 +438,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.boss_music = request.boss_music;
     options.area_music = request.area_music;
     options.enemy_colours = request.enemy_colours;
+    options.fog_gates = request.fog_gates;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;

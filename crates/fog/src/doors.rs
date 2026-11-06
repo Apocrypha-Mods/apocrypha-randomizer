@@ -82,6 +82,9 @@ fn words(b: &[u8]) -> Vec<u32> {
 
 /// The position and facing of the map's part or point whose entity id is `entity`.
 pub fn locate(msb: &Msb, entity: u32) -> Option<([f32; 3], f32)> {
+    if entity == 0 {
+        return None;
+    }
     for (table, pos, rot) in [
         ("PARTS_PARAM_ST", "position", "rotation"),
         ("POINT_PARAM_ST", "position", "rotation"),
@@ -133,6 +136,9 @@ pub fn boss_fogs(sources: &Sources) -> Vec<Door> {
                     continue;
                 }
                 let (defeat_flag, fog, region) = (w[2], w[3], w[4]);
+                if fog == 0 || region == 0 {
+                    continue;
+                }
                 let (Some((wall, _)), Some((arena, _))) = (locate(msb, fog), locate(msb, region))
                 else {
                     continue;
@@ -175,7 +181,23 @@ pub fn boss_fogs(sources: &Sources) -> Vec<Door> {
     out
 }
 
-/// Every dungeon's mouth: its return point outside, its grace inside.
+/// The map's own boss fog asset (AEG099_001 to _003), to copy for a mouth's wall.
+pub fn any_fog(msb: &Msb) -> Option<u32> {
+    let ent = field("PARTS_PARAM_ST", "entity_id");
+    msb.table("PARTS_PARAM_ST").entries.iter().find_map(|e| {
+        let name = fs_msb::layout::entry_name(e)?;
+        ["AEG099_001", "AEG099_002", "AEG099_003"]
+            .iter()
+            .any(|m| name.starts_with(m))
+            .then(|| ent.get(e, 0))
+            .flatten()
+            .filter(|&v| v > 0)
+            .map(|v| v as u32)
+    })
+}
+
+/// Every dungeon's mouth: its return point outside, its grace inside, and a fog asset
+/// of the map's own to copy for its wall.
 pub fn mouths(sources: &Sources) -> Vec<Door> {
     let ty = field("POINT_PARAM_ST", "type");
     let mut out = BTreeMap::new();
@@ -195,6 +217,9 @@ pub fn mouths(sources: &Sources) -> Vec<Door> {
         let Some((grace, _)) = locate(msb, base + GRACE).filter(|_| is_return) else {
             continue;
         };
+        if any_fog(msb).is_none() {
+            continue;
+        }
         let inward = facing(entrance, grace);
         let wall = [
             entrance[0] + (grace[0] - entrance[0]) * 0.25,

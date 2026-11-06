@@ -25,6 +25,7 @@ export const PLACES = [
 
 /** The line under each section's heading. */
 export const SECTIONS = {
+  "Fog gates": "Where fog walls and dungeon entrances lead. Apart from the item shuffle, and works with it.",
   Start: "Where a new character begins.",
   Items: "How much of each kind of item moves to a new place.",
   "Lean towards late": "Push what moves deeper into the game. At 0% it can land anywhere.",
@@ -141,6 +142,7 @@ export const defaults = () => ({
   bossMusic: false,
   areaMusic: false,
   enemyColours: false,
+  fogGates: false,
   hiddenSeed: false,
   oopsAll: "",
   onslaught: 1,
@@ -215,6 +217,7 @@ export function request(seed, s, stack = null) {
     bossMusic: !!s.bossMusic,
     areaMusic: !!s.areaMusic,
     enemyColours: !!s.enemyColours,
+    fogGates: !!s.fogGates,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

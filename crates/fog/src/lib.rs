@@ -4,3 +4,4 @@
 
 pub mod doors;
 pub mod rooms;
+pub mod write;

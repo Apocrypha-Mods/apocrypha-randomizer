@@ -191,6 +191,10 @@ pub struct Options {
     /// Whether each kind of ordinary enemy is drawn in a colour of the seed's (Nova,
     /// 2026-11-06). All four are written into the seed's files; placement ignores them.
     pub enemy_colours: bool,
+    /// The fog gate randomizer (Nova, 2026-11-06; `docs/fog-gates.md`): boss fogs and
+    /// dungeon mouths lead elsewhere, and the seed is proven through them. Separate from
+    /// the item sliders: with every slider at 0 only the doors move.
+    pub fog_gates: bool,
     /// Whether Lamenter's Gaol's two keys move with the rest (spec `gaol_keys`, Nova,
     /// 2026-11-06). Off, they stay where the game has them; on, the area map asks for
     /// both to enter the gaol.
@@ -249,6 +253,7 @@ impl Default for Options {
             boss_music: false,
             area_music: false,
             enemy_colours: false,
+            fog_gates: false,
             gaol_keys: false,
             kindling_shards: 1,
             kindling_needed: 1,
@@ -400,6 +405,7 @@ impl fmt::Display for Options {
         writeln!(f, "  boss music shuffled: {}", on(self.boss_music))?;
         writeln!(f, "  area music shuffled: {}", on(self.area_music))?;
         writeln!(f, "  enemy colours: {}", on(self.enemy_colours))?;
+        writeln!(f, "  fog gates: {}", on(self.fog_gates))?;
         writeln!(
             f,
             "  Lamenter's Gaol's keys shuffled: {}",

@@ -339,6 +339,7 @@ dependencies = [
  "fs-msb",
  "gamedata",
  "items",
+ "logic",
 ]
 
 [[package]]
@@ -810,6 +811,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "enemies",
+ "fog",
  "fs-bnd4",
  "fs-bytes",
  "fs-dcx",

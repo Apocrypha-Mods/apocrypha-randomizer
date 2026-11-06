@@ -206,6 +206,11 @@ struct Sliders {
     /// Each kind of ordinary enemy is drawn in a colour of the seed's.
     #[arg(long)]
     enemy_colours: bool,
+    /// Fog gates: boss fogs and dungeon entrances lead somewhere else, and the seed is
+    /// proven finishable through them. Works with the item sliders, or alone with
+    /// `--shuffle all=0`.
+    #[arg(long)]
+    fog_gates: bool,
 }
 
 impl Sliders {
@@ -242,6 +247,7 @@ impl Sliders {
         o.boss_music = self.boss_music;
         o.area_music = self.area_music;
         o.enemy_colours = self.enemy_colours;
+        o.fog_gates = self.fog_gates;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

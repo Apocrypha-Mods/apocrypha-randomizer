@@ -631,7 +631,20 @@ pub fn build(
         options,
         enemies: foes,
     } = job;
-    let graph = graph_for(options)?;
+    let mut graph = graph_for(options)?;
+    let doors = if options.fog_gates {
+        let p = fog_plan(sources, model, &graph, seed)?;
+        graph = p.graph.clone();
+        say(&format!(
+            "fog gates: {} doors, found in {} draws",
+            p.doors.len(),
+            p.tries
+        ));
+        Some(p)
+    } else {
+        None
+    };
+    let door_ids = doors.as_ref().map(|p| fog::write::ids(&p.doors));
     let bound = logic::Bound::new(&graph, model);
     if !bound.problems.is_empty() {
         return Err(format_err(format!(
@@ -717,8 +730,18 @@ pub fn build(
             changed |= night::edit_script(script);
         }
         changed |= gestures.edit(tile_of(m), script)?;
+        if let (Some(p), Some(ids)) = (&doors, &door_ids) {
+            changed |= fog::write::edit_script(p, ids, m, script)?;
+        }
         Ok(changed)
     };
+    let edit_map = |m: MapId, msb: &mut fs_msb::Msb| -> Result<bool> {
+        match (&doors, &door_ids) {
+            (Some(p), Some(ids)) => fog::write::edit_map(p, ids, m, msb),
+            _ => Ok(false),
+        }
+    };
+    let fog_maps = doors.as_ref().map(fog::write::maps).unwrap_or_default();
     // Before the enemies move, so the rows they copy carry the colour along.
     if options.enemy_colours {
         let rows = colours::rows_to_colour(model);
@@ -728,7 +751,9 @@ pub fn build(
     let moved = if foes.is_off() {
         Moved::default()
     } else {
-        move_enemies(files, job, sources, model, &mut reg, sink, &edit, say)?
+        move_enemies(
+            files, job, sources, model, &mut reg, sink, &edit, &edit_map, say,
+        )?
     };
     item_text(
         files,
@@ -751,7 +776,7 @@ pub fn build(
     let gesture_maps = gestures.maps();
     let mut scripts = 0;
     for (m, script) in &sources.scripts {
-        if written.contains(m) || !(night || gesture_maps.contains_key(m)) {
+        if written.contains(m) || !(night || gesture_maps.contains_key(m) || fog_maps.contains(m)) {
             continue;
         }
         let mut edited = script.clone();
@@ -780,8 +805,28 @@ pub fn build(
     }
     if scripts > 0 {
         say(&format!(
-            "{scripts} map scripts edited for the night and the gestures"
+            "{scripts} map scripts edited for the night, the gestures and the fog gates"
         ));
+    }
+    if let Some(p) = &doors {
+        for (m, msb) in &sources.maps {
+            if moved.maps_written.contains(m) || !fog_maps.contains(m) {
+                continue;
+            }
+            let mut edited = msb.clone();
+            if edit_map(*m, &mut edited)? {
+                put_compressed(
+                    files,
+                    sink,
+                    &format!("/map/mapstudio/{m}.msb.dcx"),
+                    &edited.write()?,
+                )?;
+            }
+        }
+        let func = fog::write::common_func(&sources.common_func)?;
+        put_compressed(files, sink, "/event/common_func.emevd.dcx", &func.write()?)?;
+        say(&format!("fog gates: {} maps written", fog_maps.len()));
+        let _ = p;
     }
     if options.all_recipes {
         let n = tweaks::all_recipes(&mut reg)?;
@@ -840,10 +885,59 @@ pub fn build(
     if options.random_gestures {
         log += &gestures.log(sources);
     }
+    if let Some(p) = &doors {
+        log += "\nFog gates: each door, the area before it, and where it now leads\n";
+        for line in fog::write::log(p) {
+            log += &format!("  {line}\n");
+        }
+    }
     Ok(Built {
         slots: units.len(),
         spoiler: log,
     })
+}
+
+/// [`check`] with fog gates: each seed's doors, then its items placed and proven
+/// through them.
+fn check_fog(
+    sources: &Sources,
+    model: &gamedata::model::Model,
+    graph: &logic::Graph,
+    from: u64,
+    seeds: u64,
+    options: &items::Options,
+    say: Say,
+) -> Result<Vec<String>> {
+    let t = Instant::now();
+    let done = AtomicUsize::new(0);
+    let failures: Vec<String> = (from..from + seeds)
+        .into_par_iter()
+        .filter_map(|seed| {
+            let r = (|| -> std::result::Result<(), String> {
+                let p = fog_plan(sources, model, graph, seed).map_err(|e| e.to_string())?;
+                let bound = logic::Bound::new(&p.graph, model);
+                let mut units =
+                    items::units(model, &bound, &sources.reg).map_err(|e| e.to_string())?;
+                items::kindling::split(model, &mut units, options.kindling_shards)?;
+                items::shuffle(&bound, &units, seed, options)?;
+                Ok(())
+            })()
+            .err()
+            .map(|e| format!("seed {seed}: {e}"));
+            let n = done.fetch_add(1, Ordering::Relaxed) + 1;
+            if n.is_multiple_of(100) {
+                say(&format!("  {n} seeds"));
+            }
+            r
+        })
+        .collect();
+    say(&format!(
+        "{} seeds with fog gates placed and proven in {:.1}s; {} failed",
+        seeds,
+        t.elapsed().as_secs_f64(),
+        failures.len()
+    ));
+    Ok(failures)
 }
 
 /// The area map as this seed's options set it.
@@ -873,6 +967,23 @@ fn put_compressed(files: &GameFiles, out: &dyn Sink, path: &str, plain: &[u8]) -
 /// What else of the seed goes into a map's script as it is written: the night bosses'
 /// hours and the gestures. Whether it changed anything.
 type ScriptEdit<'a> = dyn Fn(MapId, &mut fs_emevd::Emevd) -> Result<bool> + Sync + 'a;
+type MapEdit<'a> = dyn Fn(MapId, &mut fs_msb::Msb) -> Result<bool> + Sync + 'a;
+
+/// A seed's fog gates: the doors read from the game, those on tiles with later versions
+/// left out (their copies would need the same edits), drawn until the game can be
+/// finished through them.
+pub fn fog_plan(
+    sources: &Sources,
+    model: &gamedata::model::Model,
+    graph: &logic::Graph,
+    seed: u64,
+) -> Result<fog::rooms::Plan> {
+    let mut doors = fog::doors::boss_fogs(sources);
+    doors.extend(fog::doors::mouths(sources));
+    doors.retain(|d| far::twin(d.map).is_none());
+    let doors = fog::rooms::eligible(doors, graph, model);
+    fog::rooms::plan(graph, model, doors, seed).map_err(format_err)
+}
 
 /// The tile a later version of a tile stands for ([`far::twin`]), or the map itself.
 fn tile_of(m: MapId) -> MapId {
@@ -890,6 +1001,8 @@ struct Moved {
     log: String,
     /// The maps whose scripts were written.
     written: BTreeSet<MapId>,
+    /// The maps written.
+    maps_written: BTreeSet<MapId>,
     /// Health bar text for [`item_text`].
     bar_names: BTreeMap<i32, String>,
     bar_sources: BTreeMap<i32, i32>,
@@ -906,6 +1019,7 @@ fn move_enemies(
     reg: &mut fs_param::Regulation,
     out: &dyn Sink,
     edit: &ScriptEdit<'_>,
+    edit_map: &MapEdit<'_>,
     say: Say,
 ) -> Result<Moved> {
     let (seed, foes) = (job.seed, job.enemies);
@@ -919,7 +1033,17 @@ fn move_enemies(
         .maps
         .par_iter()
         .chain(twins.maps.par_iter())
-        .try_for_each(|(m, msb)| write(format!("/map/mapstudio/{m}.msb.dcx"), msb.write()?))?;
+        .try_for_each(|(m, msb)| {
+            let mut msb = msb.clone();
+            edit_map(*m, &mut msb)?;
+            write(format!("/map/mapstudio/{m}.msb.dcx"), msb.write()?)
+        })?;
+    let maps_written: BTreeSet<MapId> = applied
+        .maps
+        .iter()
+        .chain(twins.maps.iter())
+        .map(|(m, _)| *m)
+        .collect();
     applied
         .scripts
         .par_iter()
@@ -957,6 +1081,7 @@ fn move_enemies(
     Ok(Moved {
         log: enemies::spoiler(&pool, &plan, foes),
         written,
+        maps_written,
         bar_names: applied.bar_names,
         bar_sources: applied.bar_sources,
     })
@@ -1220,6 +1345,9 @@ pub fn check(
     merge_mods(game, &mut sources, mods, say)?;
     let model = extract_model(game, &sources, mods)?;
     let graph = graph_for(options)?;
+    if options.fog_gates {
+        return check_fog(&sources, &model, &graph, from, seeds, options, say);
+    }
     let bound = logic::Bound::new(&graph, &model);
     let mut units = items::units(&model, &bound, &sources.reg)?;
     items::kindling::split(&model, &mut units, options.kindling_shards).map_err(format_err)?;

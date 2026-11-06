@@ -107,6 +107,8 @@ test("whetblades and map fragments move unless kept in place", () => {
 test("night bosses keep to the night unless asked", () => {
   assert.equal(L.request(1, L.defaults()).nightBossesAlways, false);
   assert.equal(L.request(1, L.defaults()).usableStart, false);
+  assert.equal(L.request(1, L.defaults()).fogGates, false);
+  assert.equal(L.request(1, { ...L.defaults(), fogGates: true }).fogGates, true);
   assert.equal(L.request(1, { ...L.defaults(), dlcStartShop: true }).dlcStartShop, false);
   assert.equal(L.request(1, { ...L.defaults(), dlcStart: true, dlcStartShop: true }).dlcStartShop, true);
   assert.equal(L.request(1, { ...L.defaults(), dlcStart: true, dlcStartLevel: 500 }).dlcStartLevel, 0);

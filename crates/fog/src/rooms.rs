@@ -11,7 +11,9 @@
 //!   its `from` is the outside, and the edge now leaves from the arena, so what lies
 //!   past a boss is reached through its arena. A boss on no edge has the area of its
 //!   wall outside, or the dungeon's room when the wall is in a dungeon.
-//! - Each door's outside joins, both ways, the inside of the door the seed sends it to.
+//! - Each door's outside joins the inside of the door the seed sends it to: both ways
+//!   into a dungeon, whose wall is ours; one way into an arena, as whether its fog still
+//!   leads back once the boss is dead is for the lab to see.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -182,7 +184,11 @@ pub fn graph(
     }
     for (d, &t) in to.iter().enumerate() {
         let target = doors.get(t).ok_or("a door sent nowhere")?;
-        g.edges.push(way(&outside[d], &room_id(target)));
+        // Back through a boss's fog, once the boss is dead, is for the lab to see:
+        // until then the proof counts only the way in.
+        let mut e = way(&outside[d], &room_id(target));
+        e.oneway = target.kind != Kind::Mouth;
+        g.edges.push(e);
     }
     Ok((g, outside))
 }

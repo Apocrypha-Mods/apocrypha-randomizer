@@ -163,6 +163,20 @@ function groups() {
     "div.groups",
     {},
     section(
+      "Fog gates",
+      pick(
+        "Fog gate randomizer",
+        "Boss fogs and the entrances of caves, catacombs, tunnels and hero's graves lead somewhere else: walk into Margit's fog and you may stand before a catacomb's boss, or go down into Stormfoot Catacombs and come out in a cave in Caelid. A dungeon's entrance leads back the way you came; a boss fog may not once the boss is dead. The seed is made so the game can be finished through them, with the item shuffle below or, with every item slider at 0, on its own. Legacy dungeons' gates that need something (Leyndell's, the Haligtree's), waygates, the start and the end stay as they are.",
+        [
+          [false, "Off"],
+          [true, "On"],
+        ],
+        !!st.fogGates,
+        (v) => (st.fogGates = v),
+        untested(""),
+      ),
+    ),
+    section(
       "Start",
       pick(
         "DLC Start",
