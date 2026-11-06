@@ -108,8 +108,8 @@ struct Sliders {
     /// were held. Graces still show only once touched.
     #[arg(long)]
     whole_map: bool,
-    /// Night-only bosses at any hour: Night's Cavalry and their horses, for now.
-    /// Not yet seen in the game.
+    /// Night-only bosses at any hour: Night's Cavalry and the four shacks' Bell
+    /// Bearing Hunters. Deathbirds keep to the night. Not yet seen in the game.
     #[arg(long)]
     night_bosses_always: bool,
     /// Give each class starting gear it can use: weapons its stats can wield

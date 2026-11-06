@@ -153,7 +153,8 @@ pub struct Options {
     /// Written into the seed's script; placement ignores it.
     pub whole_map: bool,
     /// Whether night-only bosses are out at any hour (Nova, 2026-11-05): Night's
-    /// Cavalry for now. Written into the seed's tables; placement ignores it.
+    /// Cavalry and the shacks' Bell Bearing Hunters. Written into the seed's tables
+    /// and scripts; placement ignores it.
     pub night_bosses_always: bool,
     /// Whether each class starts with gear it can use (Nova, 2026-11-05): weapons
     /// its stats can wield, two-handed if need be, a bow only with its arrows, and

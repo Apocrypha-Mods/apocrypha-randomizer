@@ -315,7 +315,7 @@ function groups() {
       ),
       pick(
         "Night bosses at any hour",
-        "Night's Cavalry ride by day as well as by night. Deathbirds and Bell Bearing Hunters still keep to the night for now.",
+        "Night's Cavalry ride by day as well as by night, and Bell Bearing Hunters wait at their shacks at any hour. While a hunter is there, its shack's merchant stays away, as at night, until the hunter is beaten. Deathbirds and Death Rite Birds still keep to the night.",
         [
           [false, "No"],
           [true, "Yes"],

@@ -38,9 +38,11 @@ fn every_piece_is_drawn_from_the_start_and_nothing_else_changes() {
     assert_eq!(out.events.len(), s.common.events.len() + 1);
     for (before, after) in s.common.events.iter().zip(&out.events) {
         if before.id == 0 {
+            // Ours first, as event 0 can end early on flag 2052.
+            assert_eq!(after.instructions[1..], before.instructions[..]);
             assert_eq!(
-                after.instructions[..before.instructions.len()],
-                before.instructions[..]
+                (after.instructions[0].bank, after.instructions[0].id),
+                (2000, 0)
             );
             assert_eq!(after.instructions.len(), before.instructions.len() + 1);
         } else {

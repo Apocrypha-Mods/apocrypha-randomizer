@@ -73,7 +73,8 @@ pub fn apply(common: &Emevd, reg: &Regulation) -> Result<Emevd> {
         .find(|e| e.id == 0)
         .ok_or_else(|| format_err("the whole map: common.emevd has no event 0"))?
         .instructions
-        .push(start(EVENT));
+        // First, as event 0 can end early on flag 2052.
+        .insert(0, start(EVENT));
     out.events.push(event(rest, &flags));
     Ok(out)
 }

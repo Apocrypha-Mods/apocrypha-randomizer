@@ -13,7 +13,7 @@ use fs_param::merge;
 pub use fs_param::merge::Contribution;
 use gamedata::model::{Item, ItemKind};
 use gamedata::sources::{Text, text_of};
-use gamedata::{GameFiles, Sources, elden_ring};
+use gamedata::{GameFiles, MapId, Sources, elden_ring};
 use rayon::prelude::*;
 
 pub mod bearings;
@@ -614,16 +614,35 @@ pub fn build(
         common = whole_map::apply(&common, &sources.reg)?;
     }
     put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
-    let enemy_log = if foes.is_off() {
-        None
+    let night = options.night_bosses_always;
+    let (enemy_log, written) = if foes.is_off() {
+        (None, BTreeSet::new())
     } else {
-        Some(move_enemies(
-            files, job, sources, model, &mut reg, sink, say,
-        )?)
+        let (log, written) = move_enemies(files, job, sources, model, &mut reg, sink, say)?;
+        (Some(log), written)
     };
-    if options.night_bosses_always {
+    if night {
         let n = night::apply(&mut reg)?;
-        say(&format!("night bosses at any hour: {n} rows"));
+        // The scripts the enemies left alone; those they changed were edited as written.
+        let mut scripts = 0;
+        for (m, script) in &sources.scripts {
+            if written.contains(m) {
+                continue;
+            }
+            let mut script = script.clone();
+            if night::edit_script(&mut script) {
+                put_compressed(
+                    files,
+                    sink,
+                    &format!("/event/{m}.emevd.dcx"),
+                    &script.write()?,
+                )?;
+                scripts += 1;
+            }
+        }
+        say(&format!(
+            "night bosses at any hour: {n} rows, {scripts} scripts"
+        ));
     }
     if options.all_recipes {
         let n = tweaks::all_recipes(&mut reg)?;
@@ -684,8 +703,9 @@ fn move_enemies(
     reg: &mut fs_param::Regulation,
     out: &dyn Sink,
     say: Say,
-) -> Result<String> {
+) -> Result<(String, BTreeSet<MapId>)> {
     let (seed, foes) = (job.seed, job.enemies);
+    let night = job.options.night_bosses_always;
     let pool = enemies::pool(sources, model)?;
     let plan = enemies::shuffle(&pool, seed, foes);
     let applied = enemies::apply(reg, sources, &pool, &plan, foes)?;
@@ -700,7 +720,19 @@ fn move_enemies(
         .scripts
         .par_iter()
         .chain(twins.scripts.par_iter())
-        .try_for_each(|(m, script)| write(format!("/event/{m}.emevd.dcx"), script.write()?))?;
+        .try_for_each(|(m, script)| {
+            let mut script = script.clone();
+            if night {
+                night::edit_script(&mut script);
+            }
+            write(format!("/event/{m}.emevd.dcx"), script.write()?)
+        })?;
+    let written: BTreeSet<MapId> = applied
+        .scripts
+        .iter()
+        .chain(twins.scripts.iter())
+        .map(|(m, _)| *m)
+        .collect();
     say(&format!(
         "enemies: {} later versions of tiles follow, {} scripts; {} differ from their tile, {} changed enemies unmatched there",
         twins.maps.len(),
@@ -715,7 +747,7 @@ fn move_enemies(
         applied.scripts.len(),
         applied.new_rows
     ));
-    Ok(enemies::spoiler(&pool, &plan, foes))
+    Ok((enemies::spoiler(&pool, &plan, foes), written))
 }
 
 /// The languages the game ships text in; each is written where the game holds it.
