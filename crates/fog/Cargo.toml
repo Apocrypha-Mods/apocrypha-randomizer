@@ -1,0 +1,19 @@
+[package]
+name = "fog"
+description = "Fog gate randomizer: fog walls and dungeon doors lead elsewhere, both ways, from a seed"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+authors.workspace = true
+
+[dependencies]
+fs-bytes.workspace = true
+fs-emevd.workspace = true
+fs-msb.workspace = true
+gamedata.workspace = true
+items.workspace = true
+
+[dev-dependencies]
+fs-dcx = { workspace = true, features = ["kraken"] }

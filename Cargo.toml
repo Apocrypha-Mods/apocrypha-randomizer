@@ -26,6 +26,7 @@ gamedata = { path = "crates/gamedata" }
 logic = { path = "crates/logic" }
 items = { path = "crates/items" }
 enemies = { path = "crates/enemies" }
+fog = { path = "crates/fog" }
 rando = { path = "crates/rando" }
 
 aes = "0.8"

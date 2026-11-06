@@ -330,6 +330,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fog"
+version = "0.1.0"
+dependencies = [
+ "fs-bytes",
+ "fs-dcx",
+ "fs-emevd",
+ "fs-msb",
+ "gamedata",
+ "items",
+]
+
+[[package]]
 name = "fs-bnd4"
 version = "0.1.0"
 dependencies = [
