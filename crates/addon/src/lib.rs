@@ -163,6 +163,12 @@ struct Run {
     /// As `apoc-rando --boss-runes-follow`.
     #[serde(default)]
     boss_runes_follow: bool,
+    /// As `apoc-rando --no-malenia-heal`.
+    #[serde(default)]
+    no_malenia_heal: bool,
+    /// As `apoc-rando --no-gargoyle-poison`.
+    #[serde(default)]
+    no_gargoyle_poison: bool,
     #[serde(default)]
     stack: Stack,
 }
@@ -351,6 +357,8 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.all_recipes = request.all_recipes;
     options.cheap_upgrades = request.cheap_upgrades;
     options.no_requirements = request.no_requirements;
+    options.no_malenia_heal = request.no_malenia_heal;
+    options.no_gargoyle_poison = request.no_gargoyle_poison;
     options
         .set_leyndell_runes(request.leyndell_runes)
         .map_err(format_err)?;

@@ -656,6 +656,17 @@ pub fn build(
         let n = tweaks::no_requirements(&mut reg)?;
         say(&format!("no stat requirements: {n} rows"));
     }
+    if options.no_malenia_heal {
+        let n = tweaks::no_malenia_heal(&mut reg)?;
+        say(&format!("Malenia heals on no hit: {} effects", n.len()));
+    }
+    if options.no_gargoyle_poison {
+        let n = tweaks::no_gargoyle_poison(&mut reg)?;
+        say(&format!(
+            "the gargoyles' clouds hurt no one: {} bullets",
+            n.len()
+        ));
+    }
     sink.put("regulation.bin", reg.write()?)?;
     let mut log = items::spoiler(&bound, &units, &plan);
     log += "\nNPC equipment\n";

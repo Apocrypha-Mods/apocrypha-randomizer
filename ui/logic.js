@@ -29,6 +29,7 @@ export const SECTIONS = {
   "Lean towards late": "Push what moves deeper into the game. At 0% it can land anywhere.",
   "Other places": "Which kinds of places join the shuffle, beside chests, bodies and bosses.",
   Enemies: "Who stands where. Rewards always stay with the place.",
+  "Quality of life": "Small changes to the game itself, whatever moves.",
 };
 
 /** What each item slider moves, opened by its ⓘ. */
@@ -86,6 +87,8 @@ export const defaults = () => ({
   cheapUpgrades: false,
   noRequirements: false,
   bossRunes: false,
+  noMaleniaHeal: false,
+  noGargoylePoison: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -130,6 +133,8 @@ export function request(seed, s, stack = null) {
     cheapUpgrades: !!s.cheapUpgrades,
     noRequirements: !!s.noRequirements,
     bossRunesFollow: !!s.bossRunes,
+    noMaleniaHeal: !!s.noMaleniaHeal,
+    noGargoylePoison: !!s.noGargoylePoison,
   };
   if (stack && (stack.files.length || stack.regulations.length)) r.stack = stack;
   return r;

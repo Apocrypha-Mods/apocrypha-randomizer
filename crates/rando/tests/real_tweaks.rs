@@ -75,3 +75,42 @@ fn nothing_asks_for_stats() {
     changed.sort();
     assert_eq!(changed, ["EquipParamWeapon", "Magic"]);
 }
+
+#[test]
+fn malenia_heals_on_no_hit() {
+    let Some(reg) = regulation() else { return };
+    let l = for_table("SpEffectParam").unwrap();
+    let rate = l.field("hp_change_rate");
+    let mut out = reg.clone();
+    // Her attacks name 18410, 18412 to 18415 and 18417; their block runs to 18419.
+    let changed = tweaks::no_malenia_heal(&mut out).unwrap();
+    assert_eq!(changed, (18410..=18419).collect::<Vec<_>>());
+    let before = reg.table("SpEffectParam").unwrap().rows;
+    for r in out.table("SpEffectParam").unwrap().rows {
+        let was = before.iter().find(|b| b.id == r.id).unwrap();
+        if changed.contains(&r.id) {
+            assert!(rate.get_f32(&was.data, 0) < 0.0, "{} healed", r.id);
+            assert_eq!(rate.get_f32(&r.data, 0), 0.0);
+        } else {
+            assert_eq!(was.data, r.data, "{} untouched", r.id);
+        }
+    }
+    assert_eq!(changed_tables(&reg, &out), ["SpEffectParam"]);
+}
+
+#[test]
+fn the_gargoyles_clouds_hurt_no_one() {
+    let Some(reg) = regulation() else { return };
+    let l = for_table("Bullet").unwrap();
+    let mut out = reg.clone();
+    // The clouds the breath leaves: made by 4770450, 4770861 and 4770865.
+    let changed = tweaks::no_gargoyle_poison(&mut out).unwrap();
+    assert_eq!(changed, [4770451, 4770862, 4770866]);
+    for r in out.table("Bullet").unwrap().rows {
+        if changed.contains(&r.id) {
+            assert_eq!(l.field("atk_id").get(&r.data, 0), 0);
+            assert_eq!(l.field("sp_effect").get(&r.data, 0), 0);
+        }
+    }
+    assert_eq!(changed_tables(&reg, &out), ["Bullet"]);
+}

@@ -84,3 +84,95 @@ pub fn no_requirements(reg: &mut Regulation) -> Result<usize> {
     }
     Ok(n)
 }
+
+/// Malenia's attacks (AtkParam_Npc 2120000 to 2129999), whose rows' first digits are her
+/// model's, c2120.
+const MALENIA_ATTACKS: std::ops::Range<i32> = 2_120_000..2_130_000;
+
+/// Malenia no longer heals when she hits (spec `nerf_malenia_heal`). Her attacks set off
+/// effects that take back a share of her health, 18410 to 18419 on 2.7.2: each heal
+/// that only her attacks name, and the rest of its block of ten, gives nothing. Their
+/// other work, if any, stays. Which rows changed.
+pub fn no_malenia_heal(reg: &mut Regulation) -> Result<Vec<i32>> {
+    let (atk, sp) = (layout("AtkParam_Npc")?, layout("SpEffectParam")?);
+    let on_hit = atk.field("sp_effect");
+    let (rate, point) = (sp.field("hp_change_rate"), sp.field("hp_change_point"));
+    let mut hers = std::collections::BTreeSet::new();
+    let mut others = std::collections::BTreeSet::new();
+    for table in ["AtkParam_Npc", "AtkParam_Pc"] {
+        for row in reg.table(table)?.rows {
+            for k in 0..on_hit.count {
+                let e = on_hit.get(&row.data, k);
+                if e > 0 {
+                    if table == "AtkParam_Npc" && MALENIA_ATTACKS.contains(&row.id) {
+                        hers.insert(e);
+                    } else {
+                        others.insert(e);
+                    }
+                }
+            }
+        }
+    }
+    let mut effects = reg.table("SpEffectParam")?;
+    let heals = |data: &[u8]| rate.get_f32(data, 0) < 0.0 || point.get(data, 0) < 0;
+    let blocks: std::collections::BTreeSet<i64> = effects
+        .rows
+        .iter()
+        .filter(|r| {
+            let id = i64::from(r.id);
+            hers.contains(&id) && !others.contains(&id) && heals(&r.data)
+        })
+        .map(|r| i64::from(r.id) / 10)
+        .collect();
+    let mut changed = Vec::new();
+    for row in &mut effects.rows {
+        let id = i64::from(row.id);
+        if blocks.contains(&(id / 10)) && !others.contains(&id) && heals(&row.data) {
+            rate.set(&mut row.data, 0, 0)?;
+            point.set(&mut row.data, 0, 0)?;
+            changed.push(row.id);
+        }
+    }
+    reg.set_table("SpEffectParam", &effects)?;
+    Ok(changed)
+}
+
+/// The Valiant Gargoyles' bullets (Bullet 4770000 to 4779999), from their model, c4770.
+const GARGOYLE_BULLETS: std::ops::Range<i32> = 4_770_000..4_780_000;
+/// Poison, as a hit sets it (SpEffectParam 20003: 0.07% and 7 health a second).
+const POISON: i64 = 20003;
+
+/// The poison clouds the Valiant Gargoyles' breath leaves behind no longer hurt (spec
+/// `nerf_gargoyle_poison`): of their bullets, those another makes as it ends that last
+/// five seconds or more and poison what they touch hit with nothing and set nothing. The
+/// breath itself is as it was. Which rows changed.
+pub fn no_gargoyle_poison(reg: &mut Regulation) -> Result<Vec<i32>> {
+    let l = layout("Bullet")?;
+    let (atk, life, child, effect) = (
+        l.field("atk_id"),
+        l.field("life"),
+        l.field("child"),
+        l.field("sp_effect"),
+    );
+    let mut table = reg.table("Bullet")?;
+    let made: std::collections::BTreeSet<i64> = table
+        .rows
+        .iter()
+        .filter(|r| GARGOYLE_BULLETS.contains(&r.id))
+        .map(|r| child.get(&r.data, 0))
+        .collect();
+    let mut changed = Vec::new();
+    for row in &mut table.rows {
+        if GARGOYLE_BULLETS.contains(&row.id)
+            && made.contains(&i64::from(row.id))
+            && effect.get(&row.data, 0) == POISON
+            && life.get_f32(&row.data, 0) >= 5.0
+        {
+            atk.set(&mut row.data, 0, 0)?;
+            effect.set(&mut row.data, 0, 0)?;
+            changed.push(row.id);
+        }
+    }
+    reg.set_table("Bullet", &table)?;
+    Ok(changed)
+}

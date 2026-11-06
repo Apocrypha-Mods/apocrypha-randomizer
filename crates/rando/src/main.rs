@@ -130,6 +130,12 @@ struct Sliders {
     /// its own.
     #[arg(long)]
     boss_runes_follow: bool,
+    /// Malenia no longer heals when she hits.
+    #[arg(long)]
+    no_malenia_heal: bool,
+    /// The poison clouds the Valiant Gargoyles' breath leaves behind no longer hurt.
+    #[arg(long)]
+    no_gargoyle_poison: bool,
 }
 
 impl Sliders {
@@ -147,6 +153,8 @@ impl Sliders {
         o.all_recipes = self.all_recipes;
         o.cheap_upgrades = self.cheap_upgrades;
         o.no_requirements = self.no_requirements;
+        o.no_malenia_heal = self.no_malenia_heal;
+        o.no_gargoyle_poison = self.no_gargoyle_poison;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;
         o.enemies_move = !self.enemy_options()?.is_off();

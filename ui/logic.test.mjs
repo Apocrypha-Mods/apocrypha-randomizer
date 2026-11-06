@@ -117,7 +117,7 @@ test("the whole map is off unless asked", () => {
 });
 
 test("every section has its line and every item slider its explanation", () => {
-  for (const s of ["Items", "Lean towards late", "Other places", "Enemies"]) assert.ok(L.SECTIONS[s], s);
+  for (const s of ["Items", "Lean towards late", "Other places", "Enemies", "Quality of life"]) assert.ok(L.SECTIONS[s], s);
   for (const [k] of L.CATEGORIES) assert.ok(L.SHUFFLE_HELP[k], k);
   for (const [k, label] of L.LEANS) assert.ok(L.leanHelp(k, label).length > 20, k);
   for (const [k, , about] of L.PLACES) assert.ok(about, k);
@@ -128,4 +128,12 @@ test("the table options and boss runes are off unless asked, and sent when on", 
   for (const k of ["allRecipes", "cheapUpgrades", "noRequirements", "bossRunesFollow"]) assert.equal(off[k], false, k);
   const on = L.request(1, { ...L.defaults(), allRecipes: true, cheapUpgrades: true, noRequirements: true, bossRunes: true });
   for (const k of ["allRecipes", "cheapUpgrades", "noRequirements", "bossRunesFollow"]) assert.equal(on[k], true, k);
+});
+
+test("the quality-of-life switches are off unless asked, and sent when on", () => {
+  const keys = ["noMaleniaHeal", "noGargoylePoison"];
+  const off = L.request(1, L.defaults());
+  for (const k of keys) assert.equal(off[k], false, k);
+  const on = L.request(1, { ...L.defaults(), ...Object.fromEntries(keys.map((k) => [k, true])) });
+  for (const k of keys) assert.equal(on[k], true, k);
 });

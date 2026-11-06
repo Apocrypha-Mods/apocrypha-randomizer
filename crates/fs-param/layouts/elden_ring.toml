@@ -728,6 +728,33 @@ confidence = "probable"
 evidence = "Seconds: 30, 60, 120 and 180 on the timed foods (Boiled Crab 60, Gold-Pickled Fowl Foot 180); 0 or -1 on lasting effects."
 
 [[layout.field]]
+name = "hp_change_rate"
+offset = 0x9C
+kind = "f32"
+confidence = "probable"
+evidence = """
+Percent of maximum health taken each `interval` (0x0C), a heal when negative. Poison's
+effect 20003 has 0.07 with hp_change_point 7, every 1 s for 180 s: the 0.07% and 7 a
+second known from play. Malenia's hit effects 18410 to 18419, set off only by her own
+attacks, run -0.4 to -16.4: her heal on a hit."""
+
+[[layout.field]]
+name = "hp_change_point"
+offset = 0xA0
+kind = "i32"
+confidence = "probable"
+evidence = """
+Health taken each `interval`, a heal when negative. Blessed Dew Talisman ("Slowly
+restores HP") runs effect 350200: -2 every 1 s, lasting (-1). Poison's 20003: 7."""
+
+[[layout.field]]
+name = "interval"
+offset = 0x0C
+kind = "f32"
+confidence = "probable"
+evidence = "Seconds between ticks: 1.0 on Blessed Dew's 350200 and on poison's 20003."
+
+[[layout.field]]
 name = "health_rate"
 offset = 0x10
 kind = "f32"
@@ -928,3 +955,65 @@ fragments' goods rows name none of these flags and no script tests a fragment he
 the game turns the flag on itself when a fragment is picked up. Deeproot Depths' piece,
 62002, is the one a script sets (m12_05 event 12052500, on entering), so the flag alone
 draws its piece. Not yet seen in play."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "BULLET_PARAM_ST"
+row_size = 272
+tables = ["Bullet"]
+
+[[layout.field]]
+name = "atk_id"
+offset = 0x00
+kind = "i32"
+confidence = "probable"
+evidence = """
+An AtkParam row: of the Valiant Gargoyles' 79 bullets (4770000 to 4779999) every one
+names a row of AtkParam_Npc or 0, and the bullets a cloud's parent makes name the
+parent's (4770862 and 4770866 name 4770860). 1,063 of 15,475 rows have 0."""
+
+[[layout.field]]
+name = "life"
+offset = 0x10
+kind = "f32"
+confidence = "probable"
+evidence = """
+Seconds: the Valiant Gargoyles' breath bullets 2 (4770860, 4770865), the clouds it
+leaves 6 to 7 (4770451, 4770862, 4770866), as the clouds linger in play."""
+
+[[layout.field]]
+name = "child"
+offset = 0x68
+kind = "i32"
+confidence = "probable"
+evidence = """
+A Bullet row made when this one ends: 4770450 names 4770451, 4770861 names 4770862,
+4770865 names 4770866, each a cloud left where the breath lands."""
+
+[[layout.field]]
+name = "sp_effect"
+offset = 0x6C
+kind = "i32"
+confidence = "probable"
+evidence = """
+A SpEffectParam row set on what is hit: the gargoyles' clouds give 20003, poison (see
+hp_change_rate), and 13,633 rows give 0."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "ATK_PARAM_ST"
+row_size = 456
+tables = ["AtkParam_Npc", "AtkParam_Pc"]
+
+[[layout.field]]
+name = "sp_effect"
+offset = 0x18
+kind = "i32"
+count = 5
+stride = 4
+confidence = "probable"
+evidence = """
+SpEffectParam rows set off by a hit, -1 for none: of AtkParam_Npc's 12,855 rows, 2,132
+name one in the first, 270 in the second, 10 in the third, and every row has -1 in the
+last two. Malenia's attacks (2120xxx) name her heal 18410 to 18417 (see SP_EFFECT_PARAM_ST
+hp_change_rate) in the first."""

@@ -172,6 +172,12 @@ pub struct Options {
     /// arcane (Nova, 2026-11-06). Usable starting gear then asks only for arrows,
     /// catalysts and memory.
     pub no_requirements: bool,
+    /// Whether Malenia no longer heals when she hits (Nova, 2026-11-06). Written into
+    /// the seed's tables; placement ignores it.
+    pub no_malenia_heal: bool,
+    /// Whether the poison clouds the Valiant Gargoyles' breath leaves behind no longer
+    /// hurt (Nova, 2026-11-06). Written into the seed's tables; placement ignores it.
+    pub no_gargoyle_poison: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -197,6 +203,8 @@ impl Default for Options {
             all_recipes: false,
             cheap_upgrades: false,
             no_requirements: false,
+            no_malenia_heal: false,
+            no_gargoyle_poison: false,
         }
     }
 }
@@ -323,6 +331,12 @@ impl fmt::Display for Options {
         writeln!(f, "  every crafting recipe known: {}", on(self.all_recipes))?;
         writeln!(f, "  one stone per upgrade: {}", on(self.cheap_upgrades))?;
         writeln!(f, "  no stat requirements: {}", on(self.no_requirements))?;
+        writeln!(f, "  Malenia heals on a hit: {}", on(!self.no_malenia_heal))?;
+        writeln!(
+            f,
+            "  gargoyles' poison clouds hurt: {}",
+            on(!self.no_gargoyle_poison)
+        )?;
         writeln!(f, "  Great Runes to open Leyndell: {}", self.leyndell_runes)
     }
 }

@@ -332,6 +332,31 @@ function groups() {
         (v) => (st.models = v),
       ),
     ),
+    section(
+      "Quality of life",
+      pick(
+        "Malenia's heal",
+        "Whether Malenia takes back health each time she hits you, as in the game. Off, her hits heal her nothing; the rest of her fight is the same.",
+        [
+          [false, "As the game"],
+          [true, "Off"],
+        ],
+        !!st.noMaleniaHeal,
+        (v) => (st.noMaleniaHeal = v),
+        untested(""),
+      ),
+      pick(
+        "Gargoyles' poison clouds",
+        "The Valiant Gargoyles' breath leaves clouds of poison that hurt while you stand in them. Off, the clouds still show but do nothing; the breath itself still poisons.",
+        [
+          [false, "As the game"],
+          [true, "Off"],
+        ],
+        !!st.noGargoylePoison,
+        (v) => (st.noGargoylePoison = v),
+        untested(""),
+      ),
+    ),
   );
 }
 

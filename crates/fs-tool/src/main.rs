@@ -138,6 +138,13 @@ enum Command {
         #[arg(long, value_delimiter = ',')]
         texts: Vec<String>,
     },
+    /// Every text table of one message binder, as `<table>.tsv` (id, tab, text),
+    /// e.g. `/msg/engus/menu_dlc02.msgbnd.dcx`.
+    MsgDump {
+        game: PathBuf,
+        path: String,
+        out: PathBuf,
+    },
     /// Statistics for every instruction in the event scripts.
     Instructions {
         game: PathBuf,
@@ -563,6 +570,7 @@ fn main() {
         Command::BossPhases { game } => enemies::boss_phases(game),
         Command::InstructionUses { game, bank, id } => enemies::instruction_uses(game, bank, id),
         Command::Flags { game } => flags::run(game),
+        Command::MsgDump { game, path, out } => msg_dump(game, &path, out),
         Command::ParamRows {
             game,
             out,
@@ -744,6 +752,29 @@ fn param_diff(old: PathBuf, new: PathBuf) -> fs_bytes::Result<()> {
     let gone = old.table_names().filter(|n| !names.iter().any(|m| m == n));
     for name in gone {
         println!("{name}: table removed");
+    }
+    Ok(())
+}
+
+fn msg_dump(game: PathBuf, path: &str, out: PathBuf) -> fs_bytes::Result<()> {
+    std::fs::create_dir_all(&out)?;
+    let dvd = fs_dvdbnd::Dvd::open_elden_ring(&game)?;
+    let (_, plain) = fs_dcx::decompress(&dvd.read_path(path)?)?;
+    for f in &fs_bnd4::Bnd4::read(&plain)?.files {
+        let Some(stem) = f.short_name().and_then(|s| s.strip_suffix(".fmg")) else {
+            continue;
+        };
+        let fmg = fs_fmg::Fmg::read(&f.data)?;
+        let body: String = fmg
+            .entries
+            .iter()
+            .filter_map(|(id, t)| {
+                t.as_ref()
+                    .map(|t| format!("{id}\t{}\n", t.replace(['\n', '\t'], " ")))
+            })
+            .collect();
+        std::fs::write(out.join(format!("{stem}.tsv")), body)?;
+        println!("{stem}: {} entries", fmg.entries.len());
     }
     Ok(())
 }
