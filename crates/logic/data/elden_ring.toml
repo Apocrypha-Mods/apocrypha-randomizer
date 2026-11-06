@@ -64,6 +64,11 @@ fixed = [
     "Flask of Wondrous Physick",
     "Spectral Steed Whistle",
     "Crafting Kit",
+    # Lamenter's Gaol's two keys open its doors (ObjActParam 449008 and 1449008), which
+    # no script and no edge sees, so they stay put unless the seed shuffles them
+    # (`Graph::set_gaol_keys`; spec `gaol_keys`, off by default).
+    "Gaol Upper Level Key",
+    "Gaol Lower Level Key",
 ]
 
 # Where the Twin Maiden Husks take bell bearings; the rows of a merchant given one
@@ -497,7 +502,16 @@ graces = ["Scaduview"]
 id = "charos_hidden_grave"
 name = "Charo's Hidden Grave"
 graces = ["Charo's Hidden Grave"]
-maps = ["m41_02"] # Lamenter's Gaol
+
+[[area]]
+id = "lamenters_gaol"
+name = "Lamenter's Gaol"
+maps = ["m41_02"]
+note = """
+Its doors by their map names: the first floor down (地下1階) opens to the Gaol Upper Level
+Key (ObjActParam 449008), the second floor down (地下2階) and a treasure room (宝部屋) to the
+Lower (1449008). The whole gaol is asked of both when the keys move: stricter, so it only
+narrows where keys go."""
 
 [[area]]
 id = "stone_coffin_fissure"
@@ -838,6 +852,11 @@ from = "gravesite_plain"
 to = "charos_hidden_grave"
 bosses = ["Ancient Dragon-Man"]
 note = "Past the Dragon's Pit, across the stone dragon by Torrent. It may open sooner; this asks the most."
+
+[[edge]]
+from = "charos_hidden_grave"
+to = "lamenters_gaol"
+note = "Its doors' keys are asked only when they move (`Graph::set_gaol_keys`); unmoved, they lie in the gaol where the game has them."
 
 [[edge]]
 from = "charos_hidden_grave"

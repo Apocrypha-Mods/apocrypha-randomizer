@@ -269,6 +269,30 @@ impl Graph {
     }
 }
 
+/// Lamenter's Gaol's keys, as the data file holds them fixed.
+pub const GAOL_KEYS: [&str; 2] = ["Gaol Upper Level Key", "Gaol Lower Level Key"];
+
+impl Graph {
+    /// Whether Lamenter's Gaol's keys join the shuffle (spec `gaol_keys`, Nova,
+    /// 2026-11-06). The data file keeps them where the game has them; shuffled, they
+    /// leave the fixed items and the way into the gaol asks for both.
+    pub fn set_gaol_keys(&mut self, shuffled: bool) -> Result<(), String> {
+        if !shuffled {
+            return Ok(());
+        }
+        self.fixed.retain(|f| !GAOL_KEYS.contains(&f.as_str()));
+        let edge = self
+            .edges
+            .iter_mut()
+            .find(|e| e.from == "charos_hidden_grave" && e.to == "lamenters_gaol")
+            .ok_or("the area map has no way into Lamenter's Gaol")?;
+        edge.need
+            .items
+            .extend(GAOL_KEYS.iter().map(|k| k.to_string()));
+        Ok(())
+    }
+}
+
 /// What getting a location asks besides reaching it: all of it.
 #[derive(Debug, Clone, Default)]
 pub struct Terms<'a> {
@@ -1001,6 +1025,35 @@ pub struct Walk {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gaol_keys_stay_unless_shuffled_and_then_open_the_gaol() {
+        let g = elden_ring();
+        for k in GAOL_KEYS {
+            assert!(g.fixed.iter().any(|f| f == k), "{k} fixed by default");
+        }
+        let way = |g: &Graph| {
+            g.edges
+                .iter()
+                .find(|e| e.from == "charos_hidden_grave" && e.to == "lamenters_gaol")
+                .unwrap()
+                .need
+                .items
+                .clone()
+        };
+        assert!(way(&g).is_empty());
+        let mut same = g.clone();
+        same.set_gaol_keys(false).unwrap();
+        assert_eq!(same.fixed, g.fixed);
+        let mut moved = g.clone();
+        moved.set_gaol_keys(true).unwrap();
+        assert!(
+            GAOL_KEYS
+                .iter()
+                .all(|k| !moved.fixed.iter().any(|f| f == k))
+        );
+        assert_eq!(way(&moved), GAOL_KEYS);
+    }
     use gamedata::model::{Boss, Grace, Item, ItemKind};
 
     fn item(name: &str) -> Item {

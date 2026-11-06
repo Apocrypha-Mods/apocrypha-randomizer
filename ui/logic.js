@@ -122,6 +122,7 @@ export const defaults = () => ({
   hiddenSeed: false,
   oopsAll: "",
   onslaught: 1,
+  gaolKeys: false,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -168,6 +169,7 @@ export function request(seed, s, stack = null) {
     bossRunesFollow: !!s.bossRunes,
     hidden: !!s.hiddenSeed,
     oopsAll: s.oopsAll || "",
+    gaolKeys: !!s.gaolKeys,
     onslaught: onslaughtOf(s.onslaught),
     noMaleniaHeal: !!s.noMaleniaHeal,
     noGargoylePoison: !!s.noGargoylePoison,

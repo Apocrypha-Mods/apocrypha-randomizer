@@ -173,6 +173,9 @@ struct Run {
     /// As `apoc-rando --onslaught`: 1 for none.
     #[serde(default = "one")]
     onslaught: u8,
+    /// As `apoc-rando --gaol-keys`.
+    #[serde(default)]
+    gaol_keys: bool,
     /// As `apoc-rando --no-malenia-heal`.
     #[serde(default)]
     no_malenia_heal: bool,
@@ -372,6 +375,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.cheap_upgrades = request.cheap_upgrades;
     options.no_requirements = request.no_requirements;
     options.no_malenia_heal = request.no_malenia_heal;
+    options.gaol_keys = request.gaol_keys;
     options.no_gargoyle_poison = request.no_gargoyle_poison;
     options
         .set_leyndell_runes(request.leyndell_runes)

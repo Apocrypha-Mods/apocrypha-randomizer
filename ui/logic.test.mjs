@@ -162,3 +162,8 @@ test("onslaught is a whole number 1 to 10, else as the game", () => {
   for (const bad of [0, 11, 2.5, "x", null, -3]) assert.equal(L.onslaughtOf(bad), 1, String(bad));
   assert.equal(L.onslaughtOf("4"), 4);
 });
+
+test("Lamenter's Gaol's keys stay unless asked", () => {
+  assert.equal(L.request(1, L.defaults()).gaolKeys, false);
+  assert.equal(L.request(1, { ...L.defaults(), gaolKeys: true }).gaolKeys, true);
+});

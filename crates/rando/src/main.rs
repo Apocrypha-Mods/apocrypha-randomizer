@@ -118,6 +118,10 @@ struct Sliders {
     /// the Roundtable Hold having been entered, as the game's does.
     #[arg(long, default_value_t = 2, value_parser = clap::value_parser!(u8).range(0..=4))]
     leyndell_runes: u8,
+    /// Lamenter's Gaol's two keys move with the rest, and the gaol asks for both. Without
+    /// it they stay where the game has them.
+    #[arg(long)]
+    gaol_keys: bool,
     /// Leave the Whetstone Knife and the whetblades where the game has them.
     #[arg(long)]
     keep_whetblades: bool,
@@ -174,6 +178,7 @@ impl Sliders {
         o.cheap_upgrades = self.cheap_upgrades;
         o.no_requirements = self.no_requirements;
         o.no_malenia_heal = self.no_malenia_heal;
+        o.gaol_keys = self.gaol_keys;
         o.no_gargoyle_poison = self.no_gargoyle_poison;
         o.set_leyndell_runes(self.leyndell_runes)
             .map_err(format_err)?;

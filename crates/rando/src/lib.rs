@@ -724,6 +724,7 @@ pub fn graph_for(options: &items::Options) -> Result<logic::Graph> {
     graph
         .set_leyndell_runes(usize::from(options.leyndell_runes))
         .map_err(format_err)?;
+    graph.set_gaol_keys(options.gaol_keys).map_err(format_err)?;
     Ok(graph)
 }
 

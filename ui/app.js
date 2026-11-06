@@ -196,6 +196,17 @@ function groups() {
         (v) => (st.keepMaps = v),
       ),
       pick(
+        "Lamenter's Gaol keys in the shuffle",
+        "Whether the Gaol Upper and Lower Level Keys, which open Lamenter's Gaol's locked doors in the DLC, move with the rest. If they move, anything else may be found in the gaol, and the seed makes sure you can find both keys before you need what is behind those doors.",
+        [
+          [false, "No"],
+          [true, "Yes"],
+        ],
+        !!st.gaolKeys,
+        (v) => (st.gaolKeys = v),
+        untested(""),
+      ),
+      pick(
         "Start with the whole map",
         "Every part of the world map is drawn from the start, landmarks included, as if you held every map fragment. Sites of grace still appear only once you touch them.",
         [

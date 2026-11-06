@@ -178,6 +178,10 @@ pub struct Options {
     /// Whether the poison clouds the Valiant Gargoyles' breath leaves behind no longer
     /// hurt (Nova, 2026-11-06). Written into the seed's tables; placement ignores it.
     pub no_gargoyle_poison: bool,
+    /// Whether Lamenter's Gaol's two keys move with the rest (spec `gaol_keys`, Nova,
+    /// 2026-11-06). Off, they stay where the game has them; on, the area map asks for
+    /// both to enter the gaol.
+    pub gaol_keys: bool,
 }
 
 /// The most Great Runes Leyndell's gate may ask for: the fifth, Malenia's, lies behind it.
@@ -205,6 +209,7 @@ impl Default for Options {
             no_requirements: false,
             no_malenia_heal: false,
             no_gargoyle_poison: false,
+            gaol_keys: false,
         }
     }
 }
@@ -336,6 +341,11 @@ impl fmt::Display for Options {
             f,
             "  gargoyles' poison clouds hurt: {}",
             on(!self.no_gargoyle_poison)
+        )?;
+        writeln!(
+            f,
+            "  Lamenter's Gaol's keys shuffled: {}",
+            on(self.gaol_keys)
         )?;
         writeln!(f, "  Great Runes to open Leyndell: {}", self.leyndell_runes)
     }
