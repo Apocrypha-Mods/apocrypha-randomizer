@@ -170,6 +170,9 @@ struct Run {
     /// As `apoc-rando --oops-all`: a name, `random`, or empty for none.
     #[serde(default)]
     oops_all: String,
+    /// As `apoc-rando --onslaught`: 1 for none.
+    #[serde(default = "one")]
+    onslaught: u8,
     /// As `apoc-rando --no-malenia-heal`.
     #[serde(default)]
     no_malenia_heal: bool,
@@ -178,6 +181,10 @@ struct Run {
     no_gargoyle_poison: bool,
     #[serde(default)]
     stack: Stack,
+}
+
+fn one() -> u8 {
+    1
 }
 
 /// What Leyndell's gate asks in the game itself.
@@ -374,6 +381,10 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     foes.dlc_separate = true;
     foes.scale = !request.no_scaling;
     foes.oops = rando::Oops::parse(&request.oops_all);
+    if !(1..=10).contains(&request.onslaught) {
+        return Err(format_err("onslaught is 1 to 10 of each enemy"));
+    }
+    foes.onslaught = request.onslaught;
     foes.runes_follow = request.boss_runes_follow;
     let absent: Vec<String> = first_files()
         .into_iter()

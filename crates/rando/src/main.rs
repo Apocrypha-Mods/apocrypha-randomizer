@@ -97,6 +97,11 @@ struct Sliders {
     /// enemy's side of the game changes.
     #[arg(long, value_name = "NAME")]
     oops_all: Option<String>,
+    /// Onslaught: how many of each ordinary enemy stand at its spot, 2 to 10 (1, the
+    /// default, as the game has it). Only enemies no script names are copied; bosses
+    /// stay one. Past 3 the game may slow or crash.
+    #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u8).range(1..=10))]
+    onslaught: u8,
     /// Leave moved enemies at their own strength, not that of where they land.
     #[arg(long)]
     no_enemy_scaling: bool,
@@ -183,6 +188,7 @@ impl Sliders {
         o.dlc_separate = self.enemy_dlc == "separate";
         o.runes_follow = self.boss_runes_follow;
         o.oops = self.oops_all.as_deref().and_then(rando::Oops::parse);
+        o.onslaught = self.onslaught;
         Ok(o)
     }
 }

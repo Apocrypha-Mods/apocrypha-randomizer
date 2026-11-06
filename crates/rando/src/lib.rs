@@ -788,6 +788,12 @@ fn move_enemies(
         applied.scripts.len(),
         applied.new_rows
     ));
+    if foes.onslaught > 1 {
+        say(&format!(
+            "onslaught: {} copies in {} maps",
+            applied.onslaught.copies, applied.onslaught.maps
+        ));
+    }
     Ok((enemies::spoiler(&pool, &plan, foes), written))
 }
 

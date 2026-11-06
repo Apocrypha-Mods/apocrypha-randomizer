@@ -155,3 +155,10 @@ test("Oops all is off unless chosen, and sends the name chosen", () => {
   assert.deepEqual(L.OOPS.slice(0, 2).map(([k]) => k), ["", "random"]);
   assert.equal(new Set(L.OOPS.map(([k]) => k)).size, L.OOPS.length);
 });
+
+test("onslaught is a whole number 1 to 10, else as the game", () => {
+  assert.equal(L.request(1, L.defaults()).onslaught, 1);
+  assert.equal(L.request(1, { ...L.defaults(), onslaught: 3 }).onslaught, 3);
+  for (const bad of [0, 11, 2.5, "x", null, -3]) assert.equal(L.onslaughtOf(bad), 1, String(bad));
+  assert.equal(L.onslaughtOf("4"), 4);
+});

@@ -135,9 +135,14 @@ fn carry(old: &Msb, new: &Msb, mut theirs: Msb) -> Result<(Msb, usize)> {
             continue;
         }
         let Some(was) = was else {
-            unmatched += 1;
+            // A part the seed added (onslaught's copies): only the tile has it.
             continue;
         };
+        // A changed enemy keeps its name; another name here is a part moved along by
+        // those added after the enemies, unchanged but for its place.
+        if entry_name(was) != entry_name(now) {
+            continue;
+        }
         let entity = field(PARTS, "entity_id").get(was, 0).unwrap_or(0);
         let model = model_name(old, was);
         let parts = &theirs.table(PARTS).entries;

@@ -12,6 +12,7 @@
 
 pub mod companions;
 pub mod malenia;
+pub mod onslaught;
 pub mod phases;
 pub mod placidusax;
 
@@ -87,6 +88,9 @@ pub struct Options {
     /// the sliders then do nothing. With the sides kept apart, only the chosen body's
     /// side of the game.
     pub oops: Option<Oops>,
+    /// How many of each ordinary enemy with no entity id stand at its spot, 1 for as
+    /// the game has it (spec onslaught, Nova, 2026-11-06): see [`onslaught`].
+    pub onslaught: u8,
 }
 
 /// Which body stands everywhere.
@@ -126,13 +130,18 @@ impl Default for Options {
             models: 20,
             runes_follow: false,
             oops: None,
+            onslaught: 1,
         }
     }
 }
 
 impl Options {
     pub fn is_off(&self) -> bool {
-        self.bosses == 0 && self.ordinary == 0 && self.mix == 0 && self.oops.is_none()
+        self.bosses == 0
+            && self.ordinary == 0
+            && self.mix == 0
+            && self.oops.is_none()
+            && self.onslaught <= 1
     }
 
     /// Apply `name=percent` settings: `--enemies bosses=100,ordinary=50,mix=10`.
@@ -1010,6 +1019,8 @@ pub struct Applied {
     /// For each of those, the text id its name comes from, for other languages.
     pub bar_sources: BTreeMap<i32, i32>,
     pub new_rows: usize,
+    /// What onslaught added.
+    pub onslaught: onslaught::Added,
 }
 
 /// A copy of `body`'s row that keeps what belongs to `spot`: its drops and
@@ -1311,6 +1322,8 @@ pub fn apply(
     if let Some(pay) = &pay {
         pay.write(reg, pool, plan)?;
     }
+    // Last, as it adds parts after the enemies.
+    let added = onslaught::apply(&s.maps, pool, options.onslaught, &mut maps)?;
     let new_rows_count = new_rows.len();
     table.rows.extend(new_rows);
     table.rows.sort_by_key(|r| r.id);
@@ -1324,6 +1337,7 @@ pub fn apply(
         bar_names,
         bar_sources,
         new_rows: new_rows_count,
+        onslaught: added,
     })
 }
 
@@ -1343,9 +1357,10 @@ pub fn spoiler(pool: &Pool, plan: &Plan, options: &Options) -> String {
         let who =
             oops_name(pool, &pool.spots[b]).unwrap_or_else(|| pool.spots[b].body.model.clone());
         return format!(
-            "\nEnemies\n  Oops all: {who}, on {n} of {} spots  scale to the place: {}\n",
+            "\nEnemies\n  Oops all: {who}, on {n} of {} spots  scale to the place: {}  onslaught: {}\n",
             pool.spots.len(),
-            if options.scale { "on" } else { "off" }
+            if options.scale { "on" } else { "off" },
+            options.onslaught
         );
     }
     let mut out = format!(
@@ -1367,6 +1382,12 @@ pub fn spoiler(pool: &Pool, plan: &Plan, options: &Options) -> String {
             let who = if b.name.is_empty() { &b.model } else { &b.name };
             out += &format!("  {} ({}): {who}\n", s.body.name, s.map);
         }
+    }
+    if options.onslaught > 1 {
+        out += &format!(
+            "\n  Onslaught: {} of each ordinary enemy no script names\n",
+            options.onslaught
+        );
     }
     let moved = (0..pool.spots.len()).filter(|&i| plan.from[i] != i).count();
     out += &format!(

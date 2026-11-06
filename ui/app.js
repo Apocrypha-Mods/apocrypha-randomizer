@@ -313,6 +313,28 @@ function groups() {
         "Oops all",
         "Every enemy becomes the one chosen, bosses too: a world of Margits. Each copy has the strength of the place it stands in. The sliders above then do nothing, and the DLC keeps its own enemies unless the one chosen is from the DLC. Malenia, Godrick and bosses who bring helpers cannot be chosen.",
       ),
+      explained(
+        h(
+          "div.sr.pick",
+          {},
+          h("span.n", {}, "Onslaught", untested("")),
+          h("input.inp.num", {
+            type: "number",
+            min: "1",
+            max: "10",
+            step: "1",
+            value: String(L.onslaughtOf(st.onslaught)),
+            "aria-label": "Onslaught: how many of each enemy",
+            onchange: (e) => {
+              st.onslaught = L.onslaughtOf(e.target.value);
+              e.target.value = String(st.onslaught);
+              saveSettings();
+            },
+          }),
+        ),
+        "Onslaught",
+        "How many of each ordinary enemy stand where one stood: 1 is the game as it is, 3 is three soldiers at every soldier's post. Only enemies no script names are copied, so bosses and ambushes stay as they are. Above 3 the game may slow down or crash.",
+      ),
       pick(
         "Scaling",
         "Whether a moved enemy takes the health and strength of the place it lands on, or keeps its own",

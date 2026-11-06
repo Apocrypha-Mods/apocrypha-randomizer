@@ -83,6 +83,12 @@ export const OOPS = [
   ["Bayle the Dread", "Bayle the Dread"],
 ];
 
+/** Onslaught as typed: a whole number 1 to 10, anything else as the game (1). */
+export function onslaughtOf(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= 10 ? n : 1;
+}
+
 /** The most models a map may gain, as `models=N`: the game's own limit is not known. */
 export const MODEL_LIMITS = [
   [20, "20"],
@@ -115,6 +121,7 @@ export const defaults = () => ({
   noGargoylePoison: false,
   hiddenSeed: false,
   oopsAll: "",
+  onslaught: 1,
 });
 
 /** Settings kept from an earlier visit over the defaults, sliders added since included. */
@@ -161,6 +168,7 @@ export function request(seed, s, stack = null) {
     bossRunesFollow: !!s.bossRunes,
     hidden: !!s.hiddenSeed,
     oopsAll: s.oopsAll || "",
+    onslaught: onslaughtOf(s.onslaught),
     noMaleniaHeal: !!s.noMaleniaHeal,
     noGargoylePoison: !!s.noGargoylePoison,
   };
