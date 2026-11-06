@@ -836,6 +836,7 @@ struct Moved {
 
 /// Move the enemies and write what changed: maps and scripts. Health bar names are
 /// left for [`item_text`].
+#[allow(clippy::too_many_arguments)]
 fn move_enemies(
     files: &GameFiles,
     job: Job,
