@@ -151,6 +151,9 @@ struct Run {
     /// As `apoc-rando --usable-start`.
     #[serde(default)]
     usable_start: bool,
+    /// As `apoc-rando --light-start`.
+    #[serde(default)]
+    light_start: bool,
     /// As `apoc-rando --all-recipes`.
     #[serde(default)]
     all_recipes: bool,
@@ -382,6 +385,7 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.whole_map = request.whole_map;
     options.night_bosses_always = request.night_bosses_always;
     options.usable_start = request.usable_start;
+    options.light_start = request.usable_start && request.light_start;
     options.all_recipes = request.all_recipes;
     options.cheap_upgrades = request.cheap_upgrades;
     options.no_requirements = request.no_requirements;

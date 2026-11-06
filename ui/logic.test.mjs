@@ -108,6 +108,8 @@ test("night bosses keep to the night unless asked", () => {
   assert.equal(L.request(1, L.defaults()).nightBossesAlways, false);
   assert.equal(L.request(1, L.defaults()).usableStart, false);
   assert.equal(L.request(1, { ...L.defaults(), usableStart: true }).usableStart, true);
+  assert.equal(L.request(1, { ...L.defaults(), lightStart: true }).lightStart, false);
+  assert.equal(L.request(1, { ...L.defaults(), usableStart: true, lightStart: true }).lightStart, true);
   assert.equal(L.request(1, { ...L.defaults(), nightBosses: true }).nightBossesAlways, true);
 });
 

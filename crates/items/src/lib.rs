@@ -189,6 +189,8 @@ pub struct Wants {
     /// Whether it is a weapon to fight with: not a shield, a staff, a seal or a
     /// torch.
     pub strikes: bool,
+    /// For a weapon, armour piece or talisman: its weight, in tenths.
+    pub weight: u16,
 }
 
 /// A starting class, as its gear must suit it.
@@ -198,7 +200,29 @@ pub struct Class {
     pub stats: [u8; 5],
     /// The ammunition it starts with, by kind: bit n for ids starting 50 + n.
     pub ammo: u8,
+    /// The most its gear may weigh for a medium roll, in tenths: 70% of the equip
+    /// load its endurance gives.
+    pub load: u16,
 }
+
+/// The equip load an endurance gives, in tenths, as the game's own curve is
+/// generally known: 45 at 8, 72 at 25, 120 at 60 and 160 at 99.
+pub fn equip_load(endurance: u8) -> u16 {
+    let e = f64::from(endurance.max(1));
+    let load = if e <= 8.0 {
+        25.0 + 20.0 * (e - 1.0) / 7.0
+    } else if e <= 25.0 {
+        45.0 + 27.0 * (e - 8.0) / 17.0
+    } else if e <= 60.0 {
+        72.0 + 48.0 * (1.0 - (1.0 - (e - 25.0) / 35.0).powf(1.2))
+    } else {
+        120.0 + 40.0 * ((e.min(99.0) - 60.0) / 39.0)
+    };
+    (load * 10.0).floor() as u16
+}
+
+/// The share of the equip load a medium roll allows, in percent.
+const MEDIUM_LOAD: u32 = 70;
 
 /// The memory slots a new character has: every class's starting spells fit them.
 const START_MEMORY: u8 = 2;
@@ -236,12 +260,24 @@ struct Suits {
     /// The schools the class holds a catalyst for, and its memory left.
     casts: [bool; 2],
     memory: u8,
+    /// With light starting gear: the weight the slot's item may have, in tenths.
+    load: Option<u16>,
 }
+
+/// The weight kept back, in tenths, for each of a class's weapon, armour and
+/// talisman slots still to fill, so the last of them find something light enough.
+const LOAD_RESERVE: u16 = 20;
 
 impl Suits {
     /// What slot `u` may take, given what its class already holds; `None` for a
     /// slot that is no class's.
-    fn of(units: &[Unit], placed: &[Option<usize>], slots: &[usize], u: usize) -> Option<Suits> {
+    fn of(
+        units: &[Unit],
+        placed: &[Option<usize>],
+        slots: &[usize],
+        u: usize,
+        light: bool,
+    ) -> Option<Suits> {
         let class = units[u].class?;
         let held: Vec<&Wants> = slots
             .iter()
@@ -281,11 +317,30 @@ impl Suits {
                 need = Some((schools, !armed));
             }
         }
+        let load = light.then(|| {
+            let carried: u16 = held.iter().map(|w| w.weight).sum();
+            let to_come = slots
+                .iter()
+                .filter(|&&v| {
+                    v != u
+                        && placed[v].is_none()
+                        && matches!(
+                            units[v].place,
+                            Place::Start("weapon" | "protector" | "accessory")
+                        )
+                })
+                .count() as u16;
+            class
+                .load
+                .saturating_sub(carried)
+                .saturating_sub(to_come * LOAD_RESERVE)
+        });
         Some(Suits {
             class,
             need,
             casts,
             memory: START_MEMORY.saturating_sub(used),
+            load,
         })
     }
 
@@ -297,6 +352,7 @@ impl Suits {
             })
             && w.spell
                 .is_none_or(|(s, m)| self.casts[s as usize] && m <= self.memory)
+            && self.load.is_none_or(|l| w.weight <= l)
     }
 }
 
@@ -319,6 +375,15 @@ fn read_wants(reg: &Regulation, units: &mut [Unit]) -> Result<()> {
         layout("CharaInitParam")?,
     );
     let (weapons, magic) = (rows("EquipParamWeapon")?, rows("Magic")?);
+    let (armour, talismans) = (
+        rows("EquipParamProtector")?,
+        rows("EquipParamAccessory")?,
+    );
+    let (a, t) = (
+        layout("EquipParamProtector")?,
+        layout("EquipParamAccessory")?,
+    );
+    let tenths = |x: f32| (f64::from(x.max(0.0)) * 10.0).round() as u16;
     let mut classes = HashMap::new();
     for r in reg.table("CharaInitParam")?.rows {
         if !CLASSES.contains(&r.id) {
@@ -329,7 +394,9 @@ fn read_wants(reg: &Regulation, units: &mut [Unit]) -> Result<()> {
             .map(|i| c.field("ammo").get(&r.data, i) / 1_000_000)
             .filter(|k| (50..=53).contains(k))
             .fold(0u8, |bits, k| bits | 1 << (k - 50));
-        classes.insert(r.id, Class { stats, ammo });
+        let endurance = c.field("attributes").get(&r.data, 2) as u8;
+        let load = (u32::from(equip_load(endurance)) * MEDIUM_LOAD / 100) as u16;
+        classes.insert(r.id, Class { stats, ammo, load });
     }
     for u in units {
         if matches!(u.place, Place::Start(_)) {
@@ -368,8 +435,23 @@ fn read_wants(reg: &Regulation, units: &mut [Unit]) -> Result<()> {
                         _ => None,
                     },
                     strikes: !matches!(id / 1_000_000, 24 | 30..=34),
+                    weight: tenths(w.field("weight").get_f32(d, 0)),
                 }
             }
+            ItemKind::Protector => match armour.get(&id) {
+                Some(d) => Wants {
+                    weight: tenths(a.field("weight").get_f32(d, 0)),
+                    ..Wants::default()
+                },
+                None => continue,
+            },
+            ItemKind::Accessory => match talismans.get(&id) {
+                Some(d) => Wants {
+                    weight: tenths(t.field("weight").get_f32(d, 0)),
+                    ..Wants::default()
+                },
+                None => continue,
+            },
             ItemKind::Goods => {
                 let Some(d) = magic.get(&id) else {
                     continue;
@@ -1180,7 +1262,7 @@ fn attempt(
         let suits = if options.usable_start {
             class_slots
                 .get(&units[u].row)
-                .and_then(|slots| Suits::of(units, &placed, slots, u))
+                .and_then(|slots| Suits::of(units, &placed, slots, u, options.light_start))
                 .map(|s| Suits {
                     class: s.class.under(options),
                     ..s
@@ -1295,6 +1377,25 @@ pub fn usable_start(units: &[Unit], plan: &Plan) -> std::result::Result<(), Stri
         }
         if memory > u16::from(START_MEMORY) {
             return Err(format!("class {row}'s spells take {memory} memory slots"));
+        }
+        if plan.options.light_start {
+            let carried: u16 = slots
+                .iter()
+                .filter(|&&v| {
+                    matches!(
+                        units[v].place,
+                        Place::Start("weapon" | "protector" | "accessory")
+                    )
+                })
+                .map(|&v| units[plan.placed[v]].wants.weight)
+                .sum();
+            if carried > class.load {
+                return Err(format!(
+                    "class {row} carries {:.1} of the {:.1} a medium roll allows",
+                    f64::from(carried) / 10.0,
+                    f64::from(class.load) / 10.0
+                ));
+            }
         }
     }
     Ok(())

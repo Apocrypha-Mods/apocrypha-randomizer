@@ -2504,3 +2504,10 @@ Asked by Nova: Messmer's Kindling in shards, Lamenter's Gaol's keys, Oops all, o
 - **Enemy colours** and **Mountaintops shortcuts**: the first needs tint effects not read; the second is new ground to lay, which needs play.
 
 **Lab, 2026-11-06, 5:25 to 5:33 PM: no launch reached the title screen.** Onslaught ×3 (seed 11), Oops all Margit (seed 9) and a mod folder that ran at 2:58 PM all closed before the title: Steam had restarted about 4:47 PM and was not signed in (`-steamid=0`), and the game does not start without it. Nothing about the seeds was learned.
+
+## Starting gear light enough to roll (Nova, 2026-11-06)
+
+`--light-start` (with `--usable-start`; "Starting gear weight" on the page, Any weight / Medium roll), off by default. Each class's weapons, armour and talismans weigh at most 70% of the equip load its endurance gives, a medium roll; arrows do not count. While a class's slots are filled, 2.0 is kept back for each weapon, armour and talisman slot still to come.
+- **Read from the tables:** CharaInitParam `attributes` +0xC2 (vigor, mind, endurance: Vagabond 15 10 11, Astrologer 9 15 9); weights as f32 at EquipParamWeapon +0x10 (Longsword 3.5, Dagger 1.5), EquipParamProtector +0x24 (the Vagabond's set 4.0, 10.6, 3.5, 5.7) and EquipParamAccessory +0x0C (probable: the Crimson Amber Medallions 0.3). The equip load from endurance is the curve as generally known (45 at 8, 72 at 25, 120 at 60, 160 at 99), not read from the game.
+- **The game's own classes:** all but the Vagabond start at a medium roll (from 7%, the Wretch, to 58%, the Confessor); the Vagabond carries 38.8 of 49.8, 77%, a heavy roll, so with the option on the Vagabond's gear changes too.
+- **Proven:** `light_starting_gear_keeps_a_medium_roll` (20 seeds pass; without the option more than 5 of 20 start too heavy); `apoc-rando check --usable-start --light-start`, seeds 0 to 299, none failing, in 65 s. Not seen in the game.

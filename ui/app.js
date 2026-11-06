@@ -293,6 +293,16 @@ function groups() {
         (v) => (st.usableStart = v),
       ),
       pick(
+        "Starting gear weight",
+        "With usable starting gear: whether each class's weapons, armour and talismans are also light enough for a medium roll, at most 70% of the equip load its endurance gives, so no class starts fat-rolling or heavy-rolling. The game's own Vagabond starts at a heavy roll. Does nothing with fully random gear.",
+        [
+          [false, "Any weight"],
+          [true, "Medium roll"],
+        ],
+        !!st.lightStart,
+        (v) => (st.lightStart = v),
+      ),
+      pick(
         "Every crafting recipe",
         "Know every crafting recipe from the start, so you can make arrows, pots and the rest without hunting the cookbooks first. You still need the crafting kit.",
         [

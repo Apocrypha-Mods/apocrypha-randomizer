@@ -154,6 +154,10 @@ struct Sliders {
     /// catalyst, the stats and the memory for. Without it, starting gear is random.
     #[arg(long)]
     usable_start: bool,
+    /// With usable starting gear: each class's weapons, armour and talismans also
+    /// weigh no more than a medium roll allows (70% of its equip load).
+    #[arg(long, requires = "usable_start")]
+    light_start: bool,
     /// Know every crafting recipe from the start, cookbooks or not.
     #[arg(long)]
     all_recipes: bool,
@@ -187,6 +191,7 @@ impl Sliders {
         o.whole_map = self.whole_map;
         o.night_bosses_always = self.night_bosses_always;
         o.usable_start = self.usable_start;
+        o.light_start = self.light_start;
         o.all_recipes = self.all_recipes;
         o.cheap_upgrades = self.cheap_upgrades;
         o.no_requirements = self.no_requirements;

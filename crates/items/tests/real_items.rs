@@ -579,3 +579,49 @@ fn usable_starting_gear_suits_each_class() {
         "only {unusable} of 20 random seeds had unusable gear"
     );
 }
+
+/// The game's own classes start at a medium roll but for the Vagabond (38.8 of 49.8,
+/// a heavy roll); with light starting gear every class does after the shuffle, and
+/// without it, some do not.
+#[test]
+fn light_starting_gear_keeps_a_medium_roll() {
+    let (s, m) = or_skip!();
+    let b = Bound::new(graph(), m);
+    let units = items::units(m, &b, &s.reg).unwrap();
+    // The Vagabond's armour weighs as the menus say, and the Longsword 3.5.
+    let armour = units
+        .iter()
+        .find(|u| u.class.is_some() && u.item.id == 660_100)
+        .unwrap();
+    assert_eq!(armour.wants.weight, 106);
+    let sword = units
+        .iter()
+        .find(|u| u.class.is_some() && u.item.id == 2_000_000)
+        .unwrap();
+    assert_eq!(sword.wants.weight, 35);
+    // The Vagabond's endurance of 11 gives 49.7 equip load, 34.8 of it for a medium roll.
+    assert_eq!(items::equip_load(11), 497);
+    let mut vanilla = items::Plan {
+        seed: 0,
+        options: items::Options::default(),
+        placed: (0..units.len()).collect(),
+    };
+    vanilla.options.light_start = true;
+    let err = items::usable_start(&units, &vanilla).unwrap_err();
+    assert!(err.starts_with("class 3000 carries 38.8"), "{err}");
+
+    let mut on = items::Options::default();
+    on.usable_start = true;
+    on.light_start = true;
+    let mut usable = on.clone();
+    usable.light_start = false;
+    let mut heavy = 0;
+    for seed in 0..20 {
+        let plan = items::shuffle(&b, &units, seed, &on).unwrap();
+        items::usable_start(&units, &plan).unwrap();
+        let mut loose = items::shuffle(&b, &units, seed, &usable).unwrap();
+        loose.options.light_start = true;
+        heavy += usize::from(items::usable_start(&units, &loose).is_err());
+    }
+    assert!(heavy > 5, "only {heavy} of 20 seeds started heavy");
+}

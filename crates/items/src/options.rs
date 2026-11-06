@@ -161,6 +161,10 @@ pub struct Options {
     /// spells it has the catalyst, the stats and the memory for. Off, the starting
     /// gear is drawn at random.
     pub usable_start: bool,
+    /// With usable starting gear: whether each class's gear is also light enough for
+    /// a medium roll, at most 70% of the equip load its endurance gives (Nova,
+    /// 2026-11-06). Weapons, armour and talismans count; arrows do not.
+    pub light_start: bool,
     /// Whether every crafting recipe is known from the start, cookbooks or not
     /// (Nova, 2026-11-06). Written into the seed's tables; placement ignores it.
     pub all_recipes: bool,
@@ -217,6 +221,7 @@ impl Default for Options {
             whole_map: false,
             night_bosses_always: false,
             usable_start: false,
+            light_start: false,
             all_recipes: false,
             cheap_upgrades: false,
             no_requirements: false,
@@ -343,7 +348,9 @@ impl fmt::Display for Options {
         writeln!(
             f,
             "  starting gear: {}",
-            if self.usable_start {
+            if self.usable_start && self.light_start {
+                "usable by its class, at medium load"
+            } else if self.usable_start {
                 "usable by its class"
             } else {
                 "random"

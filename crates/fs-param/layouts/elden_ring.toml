@@ -346,6 +346,18 @@ row_size = 320
 tables = ["CharaInitParam"]
 
 [[layout.field]]
+name = "attributes"
+offset = 0xC2
+kind = "u8"
+count = 3
+stride = 1
+confidence = "confirmed"
+evidence = """
+Vigor, mind and endurance, just before `stats`: the ten class rows read as the
+character-creation screen shows them, Vagabond 15 10 11, Astrologer 9 15 9,
+Wretch 10 10 10."""
+
+[[layout.field]]
 name = "weapon"
 offset = 0x10
 kind = "i32"
@@ -491,6 +503,13 @@ values = { "0" = "other: multiplayer items, consumables, pots, flasks", "1" = "c
 type = "EQUIP_PARAM_WEAPON_ST"
 row_size = 664
 tables = ["EquipParamWeapon"]
+
+[[layout.field]]
+name = "weight"
+offset = 0x10
+kind = "f32"
+confidence = "confirmed"
+evidence = "Its weight as the menus show it: Longsword 3.5, Dagger 1.5."
 
 [[layout.field]]
 name = "reinforce_type"
@@ -927,6 +946,15 @@ row_size = 96
 tables = ["EquipParamAccessory"]
 
 [[layout.field]]
+name = "weight"
+offset = 0x0C
+kind = "f32"
+confidence = "probable"
+evidence = """
+Its weight: the Crimson Amber Medallions read 0.3, and every row holds a tenth
+of a unit from 0.3 up, as talismans weigh in the menus."""
+
+[[layout.field]]
 name = "sp_effect"
 offset = 0x04
 kind = "i32"
@@ -1017,3 +1045,18 @@ SpEffectParam rows set off by a hit, -1 for none: of AtkParam_Npc's 12,855 rows,
 name one in the first, 270 in the second, 10 in the third, and every row has -1 in the
 last two. Malenia's attacks (2120xxx) name her heal 18410 to 18417 (see SP_EFFECT_PARAM_ST
 hp_change_rate) in the first."""
+
+# ---------------------------------------------------------------------------
+[[layout]]
+type = "EQUIP_PARAM_PROTECTOR_ST"
+row_size = 416
+tables = ["EquipParamProtector"]
+
+[[layout.field]]
+name = "weight"
+offset = 0x24
+kind = "f32"
+confidence = "confirmed"
+evidence = """
+Its weight as the menus show it: the Vagabond's set reads Vagabond Knight Helm 4.0,
+Armor 10.6, Gauntlets 3.5, Greaves 5.7."""
