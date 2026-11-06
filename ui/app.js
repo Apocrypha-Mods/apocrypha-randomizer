@@ -484,7 +484,7 @@ function groups() {
       ),
       pick(
         "Night bosses at any hour",
-        "Night's Cavalry ride by day as well as by night, and Bell Bearing Hunters wait at their shacks at any hour. While a hunter is there, its shack's merchant stays away, as at night, until the hunter is beaten. Deathbirds and Death Rite Birds still keep to the night.",
+        "Night's Cavalry ride by day as well as by night, and Bell Bearing Hunters wait at their shacks at any hour. While a hunter is there, its shack's merchant stays away, as at night, until the hunter is beaten. Deathbirds and Death Rite Birds come out by day too. That part is a best guess not yet seen in play: it may instead stop them rising again after they fall.",
         [
           [false, "No"],
           [true, "Yes"],

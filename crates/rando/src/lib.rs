@@ -733,7 +733,10 @@ pub fn build(
     let enemy_log = (!foes.is_off()).then_some(moved.log);
     if night {
         let n = night::apply(&mut reg)?;
-        say(&format!("night bosses at any hour: {n} rows"));
+        let b = night::birds(&mut reg)?;
+        say(&format!(
+            "night bosses at any hour: {n} rows, {b} birds' effects"
+        ));
     }
     // The scripts the enemies left alone; those they changed were edited as written. A
     // later version of a tile whose script is the tile's copy takes the same edits.

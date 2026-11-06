@@ -11,8 +11,12 @@
 //! 90005760) waits on a flag that the shack's own event turns on only between 20:00
 //! and 05:30 (condition 1[5]), so that event's hours become the whole day.
 //!
-//! Deathbirds and Death Rite Birds are kept to the night some other way, not yet
-//! found: no script that names them tests the hour. They are left as they are.
+//! Deathbirds and Death Rite Birds: no script that names them tests the hour, and the
+//! one thing that sets them apart is their own effect, 17650 and 17651 (NpcParam
+//! +0x1E8), which match the blank effect 90000 but for a behaviour number the engine
+//! keeps for them alone (SpEffectParam `behaviour`, 388 and 389). Taken to be what
+//! keeps them to the night (Nova, 2026-11-06: by day too, with the option), it is
+//! cleared. It may instead be their revival; not yet seen in the game.
 
 use fs_bytes::{Result, format_err};
 use fs_emevd::{Emevd, Instruction};
@@ -80,6 +84,33 @@ pub fn edit_script(script: &mut Emevd) -> bool {
 
 /// The effect that keeps Night's Cavalry to the night.
 pub const NIGHT_EFFECT: i64 = 11800;
+
+/// The Deathbird's and the Death Rite Bird's own effects, and their behaviour numbers.
+pub const BIRDS: [(i32, i64); 2] = [(17650, 388), (17651, 389)];
+
+/// Clear the birds' behaviour numbers from their effects; how many.
+pub fn birds(reg: &mut Regulation) -> Result<usize> {
+    let f = for_table("SpEffectParam")
+        .ok_or_else(|| format_err("no layout for SpEffectParam"))?
+        .field("behaviour");
+    let mut table = reg.table("SpEffectParam")?;
+    let mut n = 0;
+    for row in &mut table.rows {
+        if let Some(&(_, b)) = BIRDS.iter().find(|(id, _)| *id == row.id) {
+            if f.get(&row.data, 0) != b {
+                return Err(format_err(format!(
+                    "effect {} has behaviour {}, not {b}",
+                    row.id,
+                    f.get(&row.data, 0)
+                )));
+            }
+            f.set(&mut row.data, 0, 0)?;
+            n += 1;
+        }
+    }
+    reg.set_table("SpEffectParam", &table)?;
+    Ok(n)
+}
 
 /// Clear [`NIGHT_EFFECT`] from every NpcParam row that carries it; how many rows.
 pub fn apply(reg: &mut Regulation) -> Result<usize> {

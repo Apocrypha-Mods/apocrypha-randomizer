@@ -121,3 +121,34 @@ fn the_shacks_and_the_bridge_keep_no_hours() {
         ]
     );
 }
+
+/// The birds: 388 and 389 are on 17650 and 17651 alone, and only those two effects
+/// change.
+#[test]
+fn only_the_birds_effects_lose_their_behaviour() {
+    let Some(dir) = std::env::var_os("APOC_ER_STOCK").map(PathBuf::from) else {
+        return;
+    };
+    let s = Sources::open(&dir).unwrap();
+    let f = for_table("SpEffectParam").unwrap().field("behaviour");
+    let table = s.reg.table("SpEffectParam").unwrap();
+    for (id, b) in night::BIRDS {
+        let holding: Vec<i32> = table
+            .rows
+            .iter()
+            .filter(|r| f.get(&r.data, 0) == b)
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(holding, [id]);
+    }
+    let mut reg = s.reg.clone();
+    assert_eq!(night::birds(&mut reg).unwrap(), 2);
+    let after = reg.table("SpEffectParam").unwrap();
+    for (b, a) in table.rows.iter().zip(&after.rows) {
+        if night::BIRDS.iter().any(|(id, _)| *id == b.id) {
+            assert_eq!(f.get(&a.data, 0), 0);
+        } else {
+            assert_eq!(a.data, b.data, "effect {}", b.id);
+        }
+    }
+}

@@ -740,6 +740,16 @@ row_size = 912
 tables = ["SpEffectParam"]
 
 [[layout.field]]
+name = "behaviour"
+offset = 0x156
+kind = "u16"
+confidence = "probable"
+evidence = """
+A number the engine acts on: 6,914 of the rows hold 0, many share one (357 on 1,045,
+260 on 276), and 388 and 389 are each on one row only, the Deathbird's 17650 and the
+Death Rite Bird's 17651, which otherwise match the blank effect 90000 byte for byte."""
+
+[[layout.field]]
 name = "duration"
 offset = 0x08
 kind = "f32"
