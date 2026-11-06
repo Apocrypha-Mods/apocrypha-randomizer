@@ -71,3 +71,37 @@ graph, as the item checker does now; a fog seed with items unshuffled is proven 
 3. Writing the points, assets and events; a seed builds.
 4. Options: `--fog-gates` on the command line, a section of its own on the page.
 5. The lab gates above, then the room map refined in play.
+
+## Open-world borders as doors (Nova's idea, 2026-11-06; research, not built)
+
+Nova: the borders the game sets for online play in the open world could be doors too.
+What the files say (`scratch/region-research/`):
+- **The regions are a texture, not points.** Each 1 km tile (`m6X_XX_YY_02`) has
+  `/other/mapinfotex/…mapinfotexbnd.dcx`: a 256×256 BMP, 4 m a pixel, whose red byte is a
+  row of `MapPieceTexParam` (`_m61` in the DLC); that row's word at 0x0C is the
+  PlayRegionParam id. World X = XX·1024 − 128 + col·4, Z = YY·1024 − 128 + row·4, rows
+  bottom-up (58 of 61 of PlayRegionParam's own safe positions fall in their own region this
+  way). The DLC's rows can split by height (an i16 at 0x14, a region below and one above).
+  Point type 43 (418 in the open world) overrides it locally; legacy dungeons set it on
+  collisions (type data +0x20).
+- **PlayRegionParam** (593 rows): 0x04 the multiplayer group (1000 Limgrave, 1200 Weeping,
+  2000 Liurnia, 3000 Altus, 3200 Gelmir, 4000 Caelid, 5000 Mountaintops…, 8000 Gravesite
+  Plain on in the DLC), 0x14 parent, 0x54/0x58 a safe spot, 0xEC a grace flag.
+- **No script can read the region**: no condition tests it. A border door needs trigger
+  boxes of ours along the border line, tested with `3[2]`.
+- **Borders worth a door** (the roads, not the cliffs): the Bridge of Sacrifice
+  (Limgrave–Weeping, m60_44_34), by Gael Tunnel and the Smoldering Church (Limgrave–Caelid,
+  m60_46_39/40), the top of the Dectus lift (Liurnia–Altus, m60_38_50), Altus–Gelmir
+  (m60_36_52, m60_38_53), Altus–Capital Outskirts (m60_42_52, m60_43_53), Outskirts–
+  Mountaintops (m60_46_51), the Ensis Greatbridge (Gravesite–Ensis front, m61_46_43).
+- **Plan:** for each chosen crossing, two strips of tall thin boxes either side of the
+  line; entering the near strip then the far one warps (`2003[14]`) to a landing 40 m inside
+  the paired border's far region (PlayRegionParam's safe spots and graces give the ground
+  height); a cooldown flag stops a warp straight back. In the room map each crossing is an
+  edge between two open-world areas, rewired by the seed as the other doors are; the
+  medallion lifts keep their items.
+- **Hazards:** cliffs (Limgrave–Liurnia, Liurnia–Altus are mostly cliff: no doors there),
+  Torrent's jumps and spiritsprings arcing over a strip, the DLC's stacked regions, the
+  type-43 overrides near lifts.
+- **Lab first:** whether `3[2]` catches a rider at speed in a tall rotated box; whether a
+  warp mid-ride or mid-air lands well; whether a tile takes many new points.
