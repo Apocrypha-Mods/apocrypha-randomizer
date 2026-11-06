@@ -94,6 +94,12 @@ export function shardsOf(count, needed) {
   return { kindlingShards: c, kindlingNeeded: whole(needed, 1, c, c) };
 }
 
+/** DLC Start's level as typed: a whole number 0 to 200, anything else none (0). */
+export function levelOf(v) {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 0 && n <= 200 ? n : 0;
+}
+
 /** Onslaught as typed: a whole number 1 to 10, anything else as the game (1). */
 export function onslaughtOf(v) {
   const n = Number(v);
@@ -138,6 +144,10 @@ export const defaults = () => ({
   kindlingShards: 1,
   kindlingNeeded: 1,
   dlcStart: false,
+  dlcStartLevel: 0,
+  dlcStartFlasks: false,
+  dlcStartSmithing: false,
+  dlcStartShop: false,
   randomGestures: false,
 });
 
@@ -188,6 +198,10 @@ export function request(seed, s, stack = null) {
     oopsAll: s.oopsAll || "",
     gaolKeys: !!s.gaolKeys,
     dlcStart: !!s.dlcStart,
+    dlcStartLevel: s.dlcStart ? levelOf(s.dlcStartLevel) : 0,
+    dlcStartFlasks: !!s.dlcStart && !!s.dlcStartFlasks,
+    dlcStartSmithing: !!s.dlcStart && !!s.dlcStartSmithing,
+    dlcStartShop: !!s.dlcStart && !!s.dlcStartShop,
     randomGestures: !!s.randomGestures,
     ...shardsOf(s.kindlingShards, s.kindlingNeeded),
     onslaught: onslaughtOf(s.onslaught),

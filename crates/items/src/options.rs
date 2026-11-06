@@ -195,6 +195,15 @@ pub struct Options {
     /// Chapel of Anticipation to the Gravesite Plain, and the seed is proven from there
     /// to the DLC's last boss, with the base game counted for nothing.
     pub dlc_start: bool,
+    /// DLC Start's extras (Nova, 2026-11-06), each nothing by default: runes enough
+    /// for a level 1 character to reach this level (0 or 1 for none); every flask
+    /// upgrade, talisman pouch and memory stone; every smithing bell bearing and
+    /// whetblade; and the base game's equipment for nothing at any grace. Written into
+    /// the seed's files; placement ignores them.
+    pub dlc_start_level: u8,
+    pub dlc_start_flasks: bool,
+    pub dlc_start_smithing: bool,
+    pub dlc_start_shop: bool,
     /// Whether the gestures the event scripts give change places (spec
     /// `random_gestures`, Nova, 2026-11-06). Written into the seed's scripts; placement
     /// ignores it.
@@ -231,6 +240,10 @@ impl Default for Options {
             kindling_shards: 1,
             kindling_needed: 1,
             dlc_start: false,
+            dlc_start_level: 0,
+            dlc_start_flasks: false,
+            dlc_start_smithing: false,
+            dlc_start_shop: false,
             random_gestures: false,
         }
     }
@@ -372,6 +385,26 @@ impl fmt::Display for Options {
             on(self.gaol_keys)
         )?;
         writeln!(f, "  DLC Start: {}", on(self.dlc_start))?;
+        if self.dlc_start {
+            if self.dlc_start_level > 1 {
+                writeln!(f, "    runes to reach level {}", self.dlc_start_level)?;
+            }
+            writeln!(
+                f,
+                "    flasks, pouches and memory stones: {}",
+                on(self.dlc_start_flasks)
+            )?;
+            writeln!(
+                f,
+                "    smithing bell bearings and whetblades: {}",
+                on(self.dlc_start_smithing)
+            )?;
+            writeln!(
+                f,
+                "    base-game equipment at graces: {}",
+                on(self.dlc_start_shop)
+            )?;
+        }
         writeln!(f, "  gestures shuffled: {}", on(self.random_gestures))?;
         if self.kindling_shards > 1 {
             writeln!(

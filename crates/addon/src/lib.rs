@@ -187,6 +187,16 @@ struct Run {
     /// As `apoc-rando --dlc-start`.
     #[serde(default)]
     dlc_start: bool,
+    /// As `apoc-rando --dlc-start-level`, `--dlc-start-flasks`, `--dlc-start-smithing`
+    /// and `--dlc-start-shop`.
+    #[serde(default)]
+    dlc_start_level: u8,
+    #[serde(default)]
+    dlc_start_flasks: bool,
+    #[serde(default)]
+    dlc_start_smithing: bool,
+    #[serde(default)]
+    dlc_start_shop: bool,
     /// As `apoc-rando --gaol-keys`.
     #[serde(default)]
     gaol_keys: bool,
@@ -392,6 +402,12 @@ fn run(state: &mut State, request: &Run) -> Result<Answer> {
     options.no_malenia_heal = request.no_malenia_heal;
     options.gaol_keys = request.gaol_keys;
     options.dlc_start = request.dlc_start;
+    if request.dlc_start {
+        options.dlc_start_level = request.dlc_start_level.min(rando::dlc_start::MAX_LEVEL);
+        options.dlc_start_flasks = request.dlc_start_flasks;
+        options.dlc_start_smithing = request.dlc_start_smithing;
+        options.dlc_start_shop = request.dlc_start_shop;
+    }
     options.random_gestures = request.random_gestures;
     if request.kindling_shards > 1 {
         let (n, c) = rando::shards_of(&format!(

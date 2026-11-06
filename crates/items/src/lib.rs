@@ -375,10 +375,7 @@ fn read_wants(reg: &Regulation, units: &mut [Unit]) -> Result<()> {
         layout("CharaInitParam")?,
     );
     let (weapons, magic) = (rows("EquipParamWeapon")?, rows("Magic")?);
-    let (armour, talismans) = (
-        rows("EquipParamProtector")?,
-        rows("EquipParamAccessory")?,
-    );
+    let (armour, talismans) = (rows("EquipParamProtector")?, rows("EquipParamAccessory")?);
     let (a, t) = (
         layout("EquipParamProtector")?,
         layout("EquipParamAccessory")?,

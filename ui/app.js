@@ -166,13 +166,68 @@ function groups() {
       "Start",
       pick(
         "DLC Start",
-        "Skip the base game: a new character is taken from the Chapel of Anticipation straight to the Gravesite Plain in the Land of Shadow, with Torrent's whistle and the Spirit Calling Bell, and the seed is made so the DLC can be finished from there, its last boss the goal. The base game is still there to walk to, but nothing you need is put in it. You arrive at level 1.",
+        "Skip the base game: a new character is taken from the Chapel of Anticipation straight to the Gravesite Plain in the Land of Shadow, with Torrent's whistle and the Spirit Calling Bell, and the seed is made so the DLC can be finished from there, its last boss the goal. The base game is still there to walk to, but nothing you need is put in it. You arrive at the class's own level, and can level up at any grace. The four choices below only work with DLC Start on.",
         [
           [false, "Off"],
           [true, "On"],
         ],
         !!st.dlcStart,
         (v) => (st.dlcStart = v),
+        untested(""),
+      ),
+      explained(
+        h(
+          "div.sr.pick",
+          {},
+          h("span.n", {}, "DLC Start: runes for level", untested("")),
+          h("input.inp.num", {
+            type: "number",
+            min: "0",
+            max: "200",
+            step: "1",
+            value: String(L.levelOf(st.dlcStartLevel)),
+            "aria-label": "DLC Start: runes for level",
+            onchange: (e) => {
+              st.dlcStartLevel = L.levelOf(e.target.value);
+              e.target.value = String(st.dlcStartLevel);
+              saveSettings();
+            },
+          }),
+        ),
+        "DLC Start: runes for level",
+        "Lord's Runes enough to take a level 1 character to this level, 0 to 200, to spend at a grace. 0 gives none. 100 is 40 Lord's Runes, 150 is 143.",
+      ),
+      pick(
+        "DLC Start: flasks",
+        "Start with all 30 Golden Seeds and 12 Sacred Tears, to raise your flasks at a grace, the three talisman pouches, the eight memory stones and the Flask of Wondrous Physick.",
+        [
+          [false, "No"],
+          [true, "Yes"],
+        ],
+        !!st.dlcStartFlasks,
+        (v) => (st.dlcStartFlasks = v),
+        untested(""),
+      ),
+      pick(
+        "DLC Start: smithing",
+        "Start with every Smithing-Stone and Somberstone Miner's Bell Bearing, to give the Twin Maiden Husks so they sell every stone, and the Whetstone Knife with every whetblade.",
+        [
+          [false, "No"],
+          [true, "Yes"],
+        ],
+        !!st.dlcStartSmithing,
+        (v) => (st.dlcStartSmithing = v),
+        untested(""),
+      ),
+      pick(
+        "DLC Start: base-game equipment",
+        "Every Site of Grace's menu gets \"Base-game equipment\": a shop selling, for nothing, every weapon, armour piece, talisman, spell, Ash of War and spirit ash the base game has, so a DLC-only run can still use them. The entry's name is in English in every language.",
+        [
+          [false, "No"],
+          [true, "Yes"],
+        ],
+        !!st.dlcStartShop,
+        (v) => (st.dlcStartShop = v),
         untested(""),
       ),
     ),

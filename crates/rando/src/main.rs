@@ -127,6 +127,23 @@ struct Sliders {
     /// is proven from there to the DLC's last boss.
     #[arg(long)]
     dlc_start: bool,
+    /// With DLC Start: Lord's Runes enough to take a level 1 character to this level,
+    /// 2 to 200 (0, the default, for none).
+    #[arg(long, value_name = "LEVEL", default_value_t = 0, requires = "dlc_start",
+          value_parser = clap::value_parser!(u8).range(0..=200))]
+    dlc_start_level: u8,
+    /// With DLC Start: every Golden Seed and Sacred Tear, the three talisman pouches,
+    /// the eight memory stones and the Flask of Wondrous Physick.
+    #[arg(long, requires = "dlc_start")]
+    dlc_start_flasks: bool,
+    /// With DLC Start: every smithing bell bearing, the Whetstone Knife and every
+    /// whetblade.
+    #[arg(long, requires = "dlc_start")]
+    dlc_start_smithing: bool,
+    /// With DLC Start: every weapon, armour piece, talisman, spell, Ash of War and
+    /// spirit ash of the base game, for nothing, from any Site of Grace's menu.
+    #[arg(long, requires = "dlc_start")]
+    dlc_start_shop: bool,
     /// The gestures the event scripts give change places (O Mother, which opens the
     /// Shadow Keep's statue, stays).
     #[arg(long)]
@@ -198,6 +215,10 @@ impl Sliders {
         o.no_malenia_heal = self.no_malenia_heal;
         o.gaol_keys = self.gaol_keys;
         o.dlc_start = self.dlc_start;
+        o.dlc_start_level = self.dlc_start_level;
+        o.dlc_start_flasks = self.dlc_start_flasks;
+        o.dlc_start_smithing = self.dlc_start_smithing;
+        o.dlc_start_shop = self.dlc_start_shop;
         o.random_gestures = self.random_gestures;
         if let Some(spec) = &self.kindling_shards {
             let (needed, count) = rando::shards_of(spec).map_err(format_err)?;

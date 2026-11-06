@@ -389,6 +389,93 @@ pub fn add_gift(esd: &mut Esd, group: usize, gift: &Gift) -> Result<i32> {
     Ok(choice)
 }
 
+/// A new entry that opens a shop.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShopEntry {
+    /// Its text, an EventTextForTalk id.
+    pub text: i32,
+    /// The ShopLineupParam rows it opens, first and last.
+    pub range: (i32, i32),
+    /// The entry is offered while this flag is on.
+    pub shown_by: u32,
+}
+
+/// Function 59 with 5: whether the shop is still open, as the merchants' scripts
+/// wait on it after opening one (`((f59(5, 0) == 1) && (f58(0) == 0)) == 0`).
+const SHOP_OPEN: (i32, i32) = (59, 5);
+const MENU_BUSY: i32 = 58;
+
+/// Add `entry` to the menu of machine `group`: any machine whose menu is emptied,
+/// shown and read in one state each (the Site of Grace's, `t000001000` machine
+/// 0x7fffffe0, as well as the merchants'). The entry goes before "Leave" when the
+/// machine adds that, else just before the menu is shown. Chosen, a state opens the
+/// shop and the next waits for it to close, as Kalé's does, then the menu is built
+/// again. Returns the entry's choice number.
+pub fn add_shop(esd: &mut Esd, group: usize, entry: &ShopEntry) -> Result<i32> {
+    let (clear, show, choose) = menu_states(esd, &esd.groups[group])
+        .ok_or_else(|| format_err(format!("machine {group} has no menu read in one state")))?;
+    let used = choices_used(esd);
+    let choice = (FIRST_FREE..LEAVE)
+        .find(|v| !used.contains(v))
+        .ok_or_else(|| format_err("no free choice number"))?;
+    let g = &esd.groups[group];
+    let id = esd.states_of(g).iter().map(|s| s.id).max().unwrap_or(0) + 1;
+    let leave = entries(esd, g)
+        .into_iter()
+        .find(|(_, _, v, _)| *v == LEAVE)
+        .map(|(pos, si, _, _)| (si, pos));
+    let show_pos = esd
+        .commands_in(esd.states[show].on_enter)
+        .iter()
+        .position(|c| [SHOW_MENU, SHOW_MENU_COUNTED].contains(&(c.bank, c.id)))
+        .unwrap_or(0);
+    let (entry_state, entry_pos) = leave.unwrap_or((show, show_pos));
+
+    // Open the shop, then wait for it to close and build the menu again.
+    let open = esd.add_state(group, id)?;
+    let wait = esd.add_state(group, id + 1)?;
+    esd.insert_command(
+        open,
+        0,
+        OPEN_SHOP.0,
+        OPEN_SHOP.1,
+        &[number(entry.range.0), number(entry.range.1)],
+    )?;
+    esd.insert_condition(open, 0, Some(wait), &number(1))?;
+    let mut closed = all(&[
+        call_is(Place::Condition, SHOP_OPEN.0, &[SHOP_OPEN.1, 0], 1),
+        call_is(Place::Condition, MENU_BUSY, &[0], 0),
+    ]);
+    closed.pop();
+    closed.extend(expr::int(0));
+    closed.extend([EQ_BYTE, END]);
+    esd.insert_condition(wait, 0, Some(clear), &closed)?;
+
+    let flag = i32::try_from(entry.shown_by).map_err(|_| format_err("a flag past i32"))?;
+    esd.insert_command(
+        entry_state,
+        entry_pos,
+        WHEN_BANK,
+        MENU_ENTRY.1,
+        &[
+            all(&[call_is(Place::Argument, FLAG, &[flag], 1)]),
+            number(choice),
+            number(entry.text),
+            number(-1),
+        ],
+    )?;
+    esd.insert_condition(
+        choose,
+        0,
+        Some(open),
+        &all(&[call_is(Place::Condition, CHOICE, &[], choice)]),
+    )?;
+    Ok(choice)
+}
+
+/// The "equals" operator of the scripts' expressions.
+const EQ_BYTE: u8 = 0x95;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -538,6 +625,57 @@ mod tests {
         // A second gift takes the next number.
         let mut esd = esd;
         assert_eq!(add_gift(&mut esd, 0, &gift).unwrap(), FIRST_FREE + 1);
+    }
+
+    #[test]
+    fn a_shop_entry_opens_its_rows_waits_and_goes_back_to_the_menu() {
+        let mut esd = merchant();
+        let entry = ShopEntry {
+            text: 26_009_830,
+            range: (9_100_000, 9_101_999),
+            shown_by: 590,
+        };
+        let choice = add_shop(&mut esd, 0, &entry).unwrap();
+        assert_eq!(choice, FIRST_FREE);
+        let esd = Esd::read(&esd.write().unwrap()).unwrap();
+        let (open, wait) = (7, 8);
+        let cmds = esd.commands_in(state(&esd, open).on_enter);
+        assert_eq!((cmds[0].bank, cmds[0].id), OPEN_SHOP);
+        let args = esd.command_args(&cmds[0]);
+        assert_eq!(
+            (
+                args[0].and_then(expr::constant),
+                args[1].and_then(expr::constant)
+            ),
+            (Some(9_100_000), Some(9_101_999))
+        );
+        let next = esd.conditions_in(state(&esd, open).conditions);
+        assert_eq!(esd.state_at(next[0].next_state).map(|(i, _)| i), Some(wait));
+        let back = esd.conditions_in(state(&esd, wait).conditions);
+        assert_eq!(esd.state_at(back[0].next_state).map(|(i, _)| i), Some(1));
+        // As Kalé's script waits: ((f59(5, 0) == 1) && (f58(0) == 0)) == 0.
+        assert_eq!(
+            esd.expression(back[0].evaluator),
+            Some(
+                &[
+                    0x7B, 0x45, 0x40, 0x86, 0xA6, 0x41, 0x95, 0xA6, 0x7A, 0x40, 0x85, 0xA6, 0x40,
+                    0x95, 0x98, 0x40, 0x95, 0xA1
+                ][..]
+            )
+        );
+        // The entry, before "Leave", offered while the flag is on.
+        let menu = esd.commands_in(esd.states[2].on_enter);
+        assert_eq!(menu.len(), 3);
+        assert_eq!((menu[1].bank, menu[1].id), (WHEN_BANK, MENU_ENTRY.1));
+        let a = esd.command_args(&menu[1]);
+        assert_eq!(a[1].and_then(expr::constant), Some(choice));
+        assert_eq!(a[2].and_then(expr::constant), Some(26_009_830));
+        // Its choice is tested first.
+        let tests = esd.conditions_in(state(&esd, 4).conditions);
+        assert_eq!(
+            esd.state_at(tests[0].next_state).map(|(i, _)| i),
+            Some(open)
+        );
     }
 
     #[test]

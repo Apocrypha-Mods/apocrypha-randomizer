@@ -646,16 +646,51 @@ pub fn build(
     let mut reg = sources.reg.clone();
     items::apply(&mut reg, &units, &plan)?;
     let dressed = items::dress_npcs(&mut reg, model, seed, options)?;
-    let given = bearings::apply(sources, &graph, model, &mut reg)?;
+    let mut given = bearings::apply(sources, &graph, model, &mut reg)?;
+    let extras = dlc_start::Extras {
+        level: options.dlc_start_level,
+        flasks: options.dlc_start_flasks,
+        smithing: options.dlc_start_smithing,
+        shop: options.dlc_start_shop,
+    };
+    let shop = options.dlc_start && extras.shop;
+    if shop {
+        let stock = dlc_start::base_equipment(model, &units, &sources.reg)?;
+        let last = dlc_start::shop_rows(&mut reg, &stock)?;
+        let (map, _, grace) = sources
+            .talk
+            .iter()
+            .find(|(_, name, _)| name == dlc_start::GRACE_SCRIPT)
+            .ok_or_else(|| format_err("the Site of Grace's talk script is missing"))?;
+        let scripts = given
+            .binders
+            .entry(format!("/script/talk/{map}.talkesdbnd.dcx"))
+            .or_default();
+        let current = scripts
+            .get(dlc_start::GRACE_SCRIPT)
+            .unwrap_or(grace)
+            .clone();
+        scripts.insert(
+            dlc_start::GRACE_SCRIPT.to_string(),
+            dlc_start::grace_script(&current, last)?,
+        );
+        say(&format!(
+            "base-game equipment at graces: {} rows ({:?})",
+            stock.len(),
+            dlc_start::stock_counts(&stock)
+        ));
+    }
     for (path, data) in bearings::binders(files, &given)? {
         sink.put(&path, data)?;
     }
-    let talk: &[(i32, Words)] = if given.log.is_empty() {
-        &[]
-    } else {
-        &[(bearings::TEXT, bearings::words)]
-    };
-    menu_text(files, sink, &items::keepsake_items(&units, &plan), talk)?;
+    let mut talk: Vec<(i32, Words)> = Vec::new();
+    if !given.log.is_empty() {
+        talk.push((bearings::TEXT, bearings::words));
+    }
+    if shop {
+        talk.push((dlc_start::SHOP_TEXT, dlc_start::shop_words));
+    }
+    menu_text(files, sink, &items::keepsake_items(&units, &plan), &talk)?;
     // Always, so the game's gate asks what the proof asked (`capital`).
     let mut common = capital::apply(&sources.common, options.leyndell_runes)?;
     if options.whole_map {
@@ -664,8 +699,8 @@ pub fn build(
     common = kindling::apply(&common, options.kindling_shards, options.kindling_needed)?;
     kindling::goods(&mut reg, options.kindling_shards)?;
     if options.dlc_start {
-        common = dlc_start::apply(&common)?;
-        dlc_start::lots(&mut reg)?;
+        common = dlc_start::apply(&common, &extras)?;
+        dlc_start::lots(&mut reg, &extras)?;
     }
     put_compressed(files, sink, "/event/common.emevd.dcx", &common.write()?)?;
     let night = options.night_bosses_always;
