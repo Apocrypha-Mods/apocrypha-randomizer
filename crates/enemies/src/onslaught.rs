@@ -108,17 +108,9 @@ pub fn apply(
                 let mut bytes = e.write();
                 bytes[NUMBER_AT..NUMBER_AT + 4].copy_from_slice(&next.to_le_bytes());
                 field(PARTS, "entity_id").set(&mut bytes, 0, 0)?;
-                let turn = std::f32::consts::TAU * f32::from(k - 1) / f32::from(n - 1);
-                pos.set(
-                    &mut bytes,
-                    0,
-                    i64::from((at[0] + RING * turn.cos()).to_bits()),
-                )?;
-                pos.set(
-                    &mut bytes,
-                    2,
-                    i64::from((at[2] + RING * turn.sin()).to_bits()),
-                )?;
+                let [x, z] = ring(at, k, n);
+                pos.set(&mut bytes, 0, i64::from(x.to_bits()))?;
+                pos.set(&mut bytes, 2, i64::from(z.to_bits()))?;
                 let place = msb.place_for(PARTS, ENEMY as i32);
                 msb.insert(PARTS, place, bytes)?;
                 added.copies += 1;
@@ -127,6 +119,16 @@ pub fn apply(
         added.maps += 1;
     }
     Ok(added)
+}
+
+/// Where copy `k` of `n` stands, x and z, on a ring about the original at `at`. The
+/// sine and cosine are `libm`'s, not the system's, so the bits are the same everywhere.
+fn ring(at: [f32; 3], k: u8, n: u8) -> [f32; 2] {
+    let turn = std::f32::consts::TAU * f32::from(k - 1) / f32::from(n - 1);
+    [
+        at[0] + RING * libm::cosf(turn),
+        at[2] + RING * libm::sinf(turn),
+    ]
 }
 
 #[cfg(test)]
@@ -138,5 +140,26 @@ mod tests {
         assert_eq!(number("c4300_9012"), Some(9012));
         assert_eq!(stem("c4300_9012"), "c4300");
         assert_eq!(number("dummy"), None);
+    }
+
+    /// Written from Linux and held on every system CI runs: copies placed differently
+    /// anywhere would change every onslaught seed's maps there.
+    #[test]
+    fn copies_stand_in_the_same_place_on_every_system() {
+        let mut hash = 0xcbf2_9ce4_8422_2325u64;
+        for n in 2..=10u8 {
+            for k in 1..n {
+                for at in [
+                    [0.0, 0.0, 0.0],
+                    [-123.456, 7.5, 9876.125],
+                    [1.0e-3, 0.0, -0.5],
+                ] {
+                    for v in ring(at, k, n) {
+                        hash = (hash ^ u64::from(v.to_bits())).wrapping_mul(0x100_0000_01b3);
+                    }
+                }
+            }
+        }
+        assert_eq!(hash, 11933695255927406178);
     }
 }

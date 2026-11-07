@@ -9,6 +9,7 @@ publish.workspace = true
 authors.workspace = true
 
 [dependencies]
+libm.workspace = true
 fs-bytes.workspace = true
 fs-emevd.workspace = true
 fs-msb.workspace = true

@@ -15,6 +15,7 @@ Every dependency, its licence and why it is here.
 | zstd 0.13 (zstd: BSD-3-Clause) | MIT; BSD-3-Clause | fs-dcx | zstd read and write |
 | flate2 1 (miniz_oxide) | MIT OR Apache-2.0 | fs-dcx | deflate read and write |
 | serde 1, toml 1 | MIT OR Apache-2.0 | fs-param, fs-emevd, fs-msb, gamedata, logic, fs-tool | reading our own layouts and catalogue; the model's TOML dump |
+| libm 0.2 | MIT | enemies, items, logic, fog | sine, cosine, arc tangent, powers and `hypot` in pure Rust, so a seed's positions, facings and loads have the same bits on every system (the system's maths library differs between glibc, Windows and macOS) |
 | clap 4 | MIT OR Apache-2.0 | fs-tool | the `apoc-fs` command line |
 | tempfile 3 (dev only) | MIT OR Apache-2.0 | fs-dvdbnd tests | synthetic archives on disk |
 | oozextract 0.5.7 | MIT label, disputed (port of GPL-3.0-or-later ooz); either way compatible, as this project is GPL-3.0-or-later | fs-kraken only | Kraken decode. Reached only through `fs-dcx`'s `kraken` feature, which is off by default; `fs-tool` (a developer tool, never shipped) turns it on. The add-on ships it. |

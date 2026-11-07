@@ -214,7 +214,7 @@ pub fn equip_load(endurance: u8) -> u16 {
     } else if e <= 25.0 {
         45.0 + 27.0 * (e - 8.0) / 17.0
     } else if e <= 60.0 {
-        72.0 + 48.0 * (1.0 - (1.0 - (e - 25.0) / 35.0).powf(1.2))
+        72.0 + 48.0 * (1.0 - libm::pow(1.0 - (e - 25.0) / 35.0, 1.2))
     } else {
         120.0 + 40.0 * ((e.min(99.0) - 60.0) / 39.0)
     };
@@ -1936,6 +1936,30 @@ mod tests {
         }
         // It moves around the field, not just to one slot.
         assert!(west_slots.len() > 3, "{west_slots:?}");
+    }
+
+    /// Written from Linux and held on every system CI runs, none of which has the game:
+    /// a placement or an equip load worked out differently anywhere would change every
+    /// seed there.
+    #[test]
+    fn placement_and_loads_are_the_same_on_every_system() {
+        let fnv = |bits: &mut dyn Iterator<Item = u64>| {
+            bits.fold(0xcbf2_9ce4_8422_2325u64, |h, b| {
+                (h ^ b).wrapping_mul(0x100_0000_01b3)
+            })
+        };
+        let (g, m) = (graph(), model());
+        let b = Bound::new(&g, &m);
+        let us = units(&m);
+        let placed = fnv(&mut (0..64).flat_map(|seed| {
+            let plan = shuffle(&b, &us, seed, &Options::default()).unwrap();
+            plan.placed.into_iter().map(|p| p as u64)
+        }));
+        assert_eq!(placed, 5661499801828701949);
+        assert_eq!(
+            fnv(&mut (0..=255).map(|e| u64::from(equip_load(e)))),
+            13674692282311713651
+        );
     }
 
     #[test]

@@ -510,7 +510,7 @@ fn split_at_map(spec: &str) -> (&str, Option<&str>) {
 }
 
 fn distance(a: [f32; 2], b: [f32; 2]) -> f32 {
-    (a[0] - b[0]).hypot(a[1] - b[1])
+    libm::hypotf(a[0] - b[0], a[1] - b[1])
 }
 
 impl<'a> Bound<'a> {
@@ -1184,6 +1184,26 @@ pub struct Walk {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fnv(bits: impl IntoIterator<Item = u64>) -> u64 {
+        bits.into_iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+            (h ^ b).wrapping_mul(0x100_0000_01b3)
+        })
+    }
+
+    /// Written from Linux and held on every system CI runs: a distance computed
+    /// differently anywhere could put a place in another area there.
+    #[test]
+    fn distances_are_the_same_on_every_system() {
+        let mut bits = Vec::new();
+        for i in -20..=20 {
+            for j in -20..=20 {
+                let b = [i as f32 * 13.7 + 0.3, j as f32 * 101.9 - 0.7];
+                bits.push(u64::from(distance([1.25, -3.5], b).to_bits()));
+            }
+        }
+        assert_eq!(fnv(bits), 402236233925898552);
+    }
 
     #[test]
     fn gaol_keys_stay_unless_shuffled_and_then_open_the_gaol() {

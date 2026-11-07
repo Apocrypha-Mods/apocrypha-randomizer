@@ -103,7 +103,7 @@ pub fn locate(msb: &Msb, entity: u32) -> Option<([f32; 3], f32)> {
 
 /// The facing, in degrees about the vertical, of a step from `a` to `b`.
 pub fn facing(a: [f32; 3], b: [f32; 3]) -> f32 {
-    (b[0] - a[0]).atan2(b[2] - a[2]).to_degrees()
+    libm::atan2f(b[0] - a[0], b[2] - a[2]).to_degrees()
 }
 
 /// `a` moved `d` metres along the level direction from `from` to `to`.
@@ -268,6 +268,26 @@ pub fn mouths(sources: &Sources) -> Vec<Door> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fnv(bits: impl IntoIterator<Item = u64>) -> u64 {
+        bits.into_iter().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+            (h ^ b).wrapping_mul(0x100_0000_01b3)
+        })
+    }
+
+    /// Written from Linux and held on every system CI runs: a facing computed
+    /// differently anywhere would turn every fog seed's walls and regions there.
+    #[test]
+    fn facings_are_the_same_on_every_system() {
+        let mut bits = Vec::new();
+        for i in -20..=20 {
+            for j in -20..=20 {
+                let b = [i as f32 * 0.37, 1.0, j as f32 * 1.13 + 0.01];
+                bits.push(u64::from(facing([0.5, 0.0, -0.25], b).to_bits()));
+            }
+        }
+        assert_eq!(fnv(bits), 12887414974042521745);
+    }
 
     #[test]
     fn steps_and_facings() {

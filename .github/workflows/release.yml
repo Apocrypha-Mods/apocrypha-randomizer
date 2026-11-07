@@ -1,0 +1,48 @@
+# A draft: builds apoc-rando for the three systems on a version tag and keeps each as an
+# artifact of the run. It makes no GitHub release and uploads nowhere else; that step,
+# and signing, wait for Nova. The add-on is released by tools/publish.sh, not here.
+name: Release build
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+            exe: apoc-rando
+          - os: windows-latest
+            name: windows-x86_64
+            exe: apoc-rando.exe
+          # macos-latest is Apple silicon, so this build is arm64 only.
+          - os: macos-latest
+            name: macos-arm64
+            exe: apoc-rando
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # The same tests CI runs, the pinned cross-system hashes among them.
+      - run: cargo test --release --workspace --exclude native
+      - run: cargo build --release --locked -p rando
+      - name: Gather
+        shell: bash
+        run: |
+          mkdir -p out
+          cp "target/release/${{ matrix.exe }}" LICENSE README.md out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apoc-rando-${{ github.ref_name }}-${{ matrix.name }}
+          path: out/
+          if-no-files-found: error

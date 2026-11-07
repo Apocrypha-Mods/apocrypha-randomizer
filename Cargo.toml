@@ -33,6 +33,9 @@ aes = "0.8"
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 flate2 = "1"
+# Sines, powers and the like computed by our own code, not the system's maths library,
+# so a seed gives the same bits on every system (PLAN.md §5, phase 7).
+libm = "0.2"
 num-bigint = "0.4"
 oozextract = { version = "0.5.7", default-features = false }
 rayon = "1"
