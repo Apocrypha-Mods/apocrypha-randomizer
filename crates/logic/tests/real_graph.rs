@@ -216,6 +216,19 @@ fn shop_rows_on_flags_events_and_talk_set() {
         .filter(|t| t.unexplained.is_some())
         .count();
     assert!(never <= 15, "{never} shop rows never counted");
+    // Renna's two rows the Husks sell (1042369416) open on a grace of Liurnia.
+    let renna: Vec<usize> = (0..m.locations.len())
+        .filter(|&i| m.locations[i].terms.as_ref().and_then(|t| t.on_sale) == Some(1042369416))
+        .collect();
+    assert_eq!(renna.len(), 2);
+    for i in renna {
+        let ways = b.location_terms[i].ways.as_ref().unwrap();
+        assert!(
+            ways.iter()
+                .any(|w| !w.iter().any(|r| matches!(r, logic::Req::Never(_)))),
+            "{ways:?}"
+        );
+    }
 }
 
 #[test]
@@ -338,6 +351,75 @@ fn gifts_read_one_at_a_time() {
     }
     // Nor does the gift that starts it: events can turn on a flag it needs off.
     assert!(m.locations[by_lot(106600)].missable);
+}
+
+/// Gifts opened on 2026-11-07: Jolán's exchanges again (paths that meet keep more
+/// ways), Seluvis's on a grace of Liurnia, the invasions' on the player near the
+/// invader, and Enia's Talisman Pouch on the capital's gate. All stay missable.
+#[test]
+fn gifts_opened_on_graces_invasions_and_the_gate() {
+    use gamedata::model::{Cond, Kind};
+    let m = model_or_skip!();
+    let b = Bound::new(graph(), m);
+    let w = b.walk(&b.vanilla());
+    let by_lot = |id: i32| {
+        (0..m.locations.len())
+            .find(|&i| {
+                m.locations[i].kind == Kind::Gift
+                    && m.locations[i]
+                        .lot
+                        .as_ref()
+                        .is_some_and(|l| l.ids.first() == Some(&id))
+            })
+            .unwrap()
+    };
+    let open = |i: usize| {
+        b.location_terms[i].ways.as_ref().is_some_and(|ways| {
+            ways.iter()
+                .any(|w| !w.iter().any(|r| matches!(r, logic::Req::Never(_))))
+        })
+    };
+    // Jolán's first exchange, Seluvis's four, the invasions' three, the Pouch. Ranni's
+    // Carian Inverted Statue (103910) opens on a grace too, but a place entry speaks for it.
+    for lot in [
+        107600, 101400, 101410, 101430, 101450, 100340, 101000, 107000, 101100,
+    ] {
+        let l = by_lot(lot);
+        assert!(open(l), "lot {lot}: {:?}", m.locations[l].given_if);
+        assert!(m.locations[l].missable, "lot {lot}");
+    }
+    for lot in [101400, 103910] {
+        let asks = format!("{:?}", m.locations[by_lot(lot)].given_if);
+        assert!(asks.contains("Grace(762"), "{asks}");
+    }
+    let pouch = &b.location_terms[by_lot(101100)];
+    assert!(
+        pouch
+            .ways
+            .iter()
+            .flatten()
+            .flatten()
+            .any(|r| matches!(r, logic::Req::Need(_))),
+        "{:?}",
+        pouch.ways
+    );
+    assert!(w.taken[by_lot(101100)], "the Talisman Pouch is got");
+    // No gift newly shut; the Boluses, Sellen's three summons' and two counters' stay.
+    let shut = m
+        .locations
+        .iter()
+        .enumerate()
+        .filter(|(i, l)| l.kind == Kind::Gift && b.location_terms[*i].ways.is_some() && !open(*i))
+        .count();
+    assert!(shut <= 6, "{shut} gifts shut");
+    assert!(
+        m.locations
+            .iter()
+            .filter_map(|l| l.given_if.as_ref())
+            .flatten()
+            .flatten()
+            .any(|c| matches!(c, Cond::Grace(_)))
+    );
 }
 
 /// The capital's gate asks for two Great Runes held (Nova, from play, 2026-11-03): they

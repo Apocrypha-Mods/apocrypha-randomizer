@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | done 2026-11-03 | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Our own name list names 120,287 of the 120,408 entries; the 121 left are files the randomizer never reads, and Nova closed the gate on that (2026-11-03). |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies, and else for what events and talk ask before turning their flag on; 18 rows are never counted (2026-11-03: 15 behind 4 flags nothing sets that was read, 3 waiting on such flags further back), down from 58. Gifts wait for what their talk asks, and for the quest stages the events set: 29 of the 86 that waited on stages are counted, and 57 still wait on a condition not yet read. 87 quest gifts may be missed and take no key item. Open: the claims settled from scripts and guides but not yet seen in play (`docs/area-map-review.md`), and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies, and else for what events and talk ask before turning their flag on; 16 rows are never counted (2026-11-07: 15 behind 4 flags nothing sets that was read, 1 waiting on such a flag further back), down from 58. Gifts wait for what their talk asks, and for the quest stages, graces and invasions the events set: 6 of 112 are never counted (2026-11-07), down from 57. 96 quest gifts may be missed and take no key item. Open: the claims settled from scripts and guides but not yet seen in play (`docs/area-map-review.md`), and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
 | 6. Output and merging | done 2026-10-31 | A seed on Nightreign Movement and ELDEN VINS together ran in the lab: the seed's files served over both, the world loaded, and a moved boss fought under its own name (below). |
@@ -2579,3 +2579,54 @@ No game or lab run.
 **Not settled.** macOS has never built a seed; only CI can, without the game, so its proof is the pinned hashes. Wine's CRT is not Microsoft's, so a seed built on real Windows has not been compared either. `--with-mod` profiles hold the mods' canonical paths, which on Windows start `\\?\`; whether me3 takes those was not checked.
 
 **Proven.** With `APOC_ER_STOCK` on 2.7.2, `cargo test --release --workspace --exclude native`: 389 passed, 2 failed, both in `fs-tool`'s `real_talk.rs` and outside this change (shop menus 70 where 68 is pinned, the husks' ranges 36 where 16 is), seemingly since DLC Start's shop. Clippy and fmt clean.
+
+## Gifts shut by conditions not read: 44 down to 6 (2026-11-07)
+
+No game or lab run: read from the files and from `eldenring.exe` 2.7.2.
+
+**Measured first.** On dev (0d4e385) `apoc-fs gift-shut` gave 44 of 112 shut, not the 16 of 2026-11-03. The cause is 2bde0f2: paths that meet go on as one,
+but the union was cut to `MAX_WAYS` (16) at each meeting and in `both`, where each path had kept 16 of its own before. The 16 asking fewest flags on could all
+die on a later test, so 28 gifts shut again: Jolán's 22 exchanges (107600 to 107900), the Somber Smithing Stone [2] (101500), Millicent's Unalloyed Gold Needle
+(103100), the Arsenal Charm and an Ancient Dragon Smithing Stone of t334001000 (104200, 104220), the Golden Lion Shield (106000), Igon's Furled Finger (107100).
+
+**What changed, in order, and what each opened** (shut count after it):
+- **Paths keep 64 ways** (`flow::PATH_WAYS`; what is reported stays 16). The model is the one the pre-merge reader gave but for the order of equal ways (30 lines
+  of `apoc-fs model --dump` differ, all `given_if` or `ways`), and `gift-shut` takes 7 s against the old reader's 54 s. 16.
+- **Ways kept differ** (`elden_ring::keep`): the same conditions in another order, or a way asking all another asks and more, no longer take one of a gift's
+  8 places. **Flags followed 16 steps back**, up from 8. Opens Hyetta's lot 100810 (a cut item, `[ERROR]Rya's Necklace`). 15.
+- **Graces.** A grace's flag is now `Cond::Grace`, which the logic reads as the area that grace is in; ranges are read flag by flag up to 128 (`MAX_RANGE`, was 64).
+  Common event 3062 turns 3062 on once any grace of 76200 to 76299 (Liurnia's) is on. Opens Seluvis's Potion, Magic Scorpion Charm, Seluvis's Introduction and
+  Amber Draught (101400, 101410, 101430, 101450) and Ranni's Carian Inverted Statue (103910, for which a `place` entry already speaks), and the Husks' Spirit
+  Calling Bell and Lone Wolf Ashes rows (1042369416). The coarse-tile problem of 2026-11-03 does not arise: the grace's own area is used, not its map. 10.
+- **Comparisons, read from the exe.** Bank 1000's handler (+0x5761D0; ids by the byte table at +0x57696C and jump table +0x576924): `1000[5]`, `[109]` skip
+  byte 0 lines, `[105]` (and 110) go to label byte 0, `[6]`, `[111]` end, when word 1 compares with word 2 by byte 1 (0 `==`, 1 `!=`, 2 `>`, 3 `<`, 4 `>=`,
+  5 `<=`, else never), signed (+0x5758F0); `[10]`, `[108]`, `[11]` the same unsigned (+0x575970). In a run with its call's arguments copied in these compare two
+  numbers it holds, so `flow` takes the one way; where a placeholder was left as written (`Run::unfilled`) the path ends, as before. `1000[6]` was catalogued
+  as `uses_item_lot`; it is `end_if_compare`. One use skips past its event's end (m20_01 20010733), which ends it. This opened the NPC invasions (90005740,
+  90005741), whose paths had all ended at `1000[105]` and `[108]`. 10, until:
+- **The player near a part of the event's own map** (`if_distance`, one end 10000, the other a part placed in that map): read as reaching the map, which the
+  way already asks, within or beyond alike (byte 1 says which, and is not read). A way asking both of one pair stays shut. Opens Varré's Bloody Finger (100340),
+  Sellen's Primal Glintstone (101000) and the Ancient Dragon's Blessing (107000). 7.
+- **Leyndell's gate flag** (`logic::LEYNDELL_GATE`, 182): every seed rewrites it to ask what the `altus` to `leyndell` edge asks (`rando::capital`), so the
+  logic reads `Flag(182)` as that edge's need (`Req::Need`). Opens Enia's Talisman Pouch (101100). 6.
+
+All 38 were and stay missable, and 96 of 112 gifts are missable as before, so no slot newly takes a key item; seeds still change, as missable slots take other items.
+
+**What still holds the 6.** The Boluses' 10009335 (nothing sets it). Flags 7607, 7608, 7609 under Smithing Stone [5] (101610), an Ancient Dragon Smithing Stone
+(104000) and the Glintstone Kris (101010): NPC summon-sign flags, passed first to 90005795, which only ends on them; no event, talk or table sets them, so the
+game must, as with 4323. Counters (`3[12]`): 3646 under Gurranq's Ancient Dragon Smithing Stone (102310), five flags from 1051439235 at least 4, and 1035449235
+under Lord of Blood's Favor (100310), Varré's invasions, which need online play.
+
+**Shop rows.** 18 never counted become 16: 15 behind 6953, 11109781 (`5[11]`), 1040529255 (talk state -1) and 1050400800 (`4[15]`), none read here, and
+Sellen's Shard Spiral on 7609.
+
+**Not seen in the game:** any of it. Whether 20000 in `if_distance` is the player was not needed (only 10000 is read). That a grace touched means its area
+reached is the area map's reading of graces.
+
+**Tests.** `flow`: comparisons and placeholders, a 100-flag range, paths meeting keep more ways than reported, the `if_distance` reading; `catalogue`:
+`Run::unfilled`; `gamedata`: `keep`; `logic`: `Cond::Grace`, and `Flag(182)` asking the gate's need. `real_graph.rs` `gifts_opened_on_graces_invasions_and_the_gate`
+holds the opened gifts, at most 6 shut, and Renna's rows open; `real_events.rs` knows the `comparison` byte.
+
+**Proven.** On 2.7.2 with `APOC_ER_STOCK`, rebased on 0d4e385: `cargo test --release --workspace --exclude native`, 406 passed, none failed, in 400 s; clippy and fmt
+clean. `apoc-fs logic`: no problems, goal reached. `apoc-rando check`, seeds 0 to 999, sliders default, two threads beside other work: 5,628 slots, 278 holding key items, placed and proven in 235.9 s, none failing. The full 10,000 were not run here.
+

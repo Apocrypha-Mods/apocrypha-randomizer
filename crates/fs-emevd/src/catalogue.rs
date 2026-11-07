@@ -275,6 +275,23 @@ pub fn runs<'a>(script: &'a Emevd, common: Option<&'a Emevd>) -> Vec<Run<'a>> {
     out
 }
 
+impl Run<'_> {
+    /// For each instruction, whether a placeholder in it was left as written: in
+    /// an event nothing starts, or past the end of a short call. What such a word
+    /// holds when the game runs it is not known.
+    pub fn unfilled(&self) -> Vec<bool> {
+        let mut out = vec![false; self.instructions.len()];
+        for p in &self.event.parameters {
+            let (src, n) = (p.source.max(0) as usize, p.size.max(0) as usize);
+            let short = self.call.as_ref().is_none_or(|c| c.len() < src + n);
+            if short && let Some(u) = out.get_mut(p.instruction as usize) {
+                *u = true;
+            }
+        }
+        out
+    }
+}
+
 /// An event to run: whether it is the script's own, its caller and call, and
 /// how deep calls have gone.
 type Pending<'a> = (&'a Event, bool, Option<(i64, Vec<u8>)>, usize);
@@ -537,6 +554,59 @@ mod tests {
             values(&[&map, &common], Some(&common), 2003, 66, 1),
             vec![4242],
             "the placeholder 0 itself is left out"
+        );
+    }
+
+    #[test]
+    fn a_run_knows_which_placeholders_it_left_as_written() {
+        let words = |w: &[u32]| w.iter().flat_map(|v| v.to_le_bytes()).collect::<Vec<u8>>();
+        let ins = |bank, id, w: &[u32]| Instruction {
+            bank,
+            id,
+            args: words(w),
+            layer: None,
+        };
+        // Event 5 sets the flag its call passes in word 1 of its arguments.
+        let template = |id| Event {
+            id,
+            rest: 0,
+            instructions: vec![ins(1000, 3, &[0]), ins(2003, 66, &[0, 0, 1])],
+            parameters: vec![Parameter {
+                instruction: 1,
+                target: 4,
+                source: 4,
+                size: 4,
+                unk: 0,
+            }],
+        };
+        let map = Emevd {
+            events: vec![
+                Event {
+                    id: 0,
+                    rest: 0,
+                    // A whole call, and one too short to fill the flag.
+                    instructions: vec![ins(2000, 0, &[0, 5, 0, 77]), ins(2000, 0, &[1, 5, 0])],
+                    parameters: vec![],
+                },
+                template(5),
+                // Started by nothing, so run as written.
+                template(6),
+            ],
+            ..Default::default()
+        };
+        let mut got: Vec<(i64, Option<usize>, Vec<bool>)> = runs(&map, None)
+            .iter()
+            .map(|r| (r.event.id, r.call.as_ref().map(Vec::len), r.unfilled()))
+            .collect();
+        got.sort();
+        assert_eq!(
+            got,
+            vec![
+                (0, None, vec![false, false]),
+                (5, Some(4), vec![false, true]),
+                (5, Some(8), vec![false, false]),
+                (6, None, vec![false, true]),
+            ]
         );
     }
 

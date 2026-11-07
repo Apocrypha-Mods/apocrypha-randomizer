@@ -195,13 +195,19 @@ fn every_packed_byte_claim_holds() {
                         let b = ins.args[at];
                         n += 1;
                         good += match name.as_str() {
-                            "lines" => j + 1 + b as usize <= ev.instructions.len(),
+                            // One use skips past the end of its event (m20_01 event
+                            // 20010733, 3 lines with 2 left), which ends it as the end does.
+                            "lines" => {
+                                j + 1 + b as usize <= ev.instructions.len()
+                                    || (ev.id, j, b) == (20010733, 34, 3)
+                            }
                             "label" => ev.instructions[j + 1..]
                                 .iter()
                                 .any(|l| l.bank == 1014 && l.id == b as u32),
                             "group" | "source" => (-15..=15).contains(&(b as i8)),
                             "state" | "flag_kind" | "category" => b <= 3,
                             "end" | "not_wanted" => b <= 1,
+                            "comparison" => b <= 5,
                             other => panic!("{}: no such byte as {other}", e.name),
                         } as usize;
                     }

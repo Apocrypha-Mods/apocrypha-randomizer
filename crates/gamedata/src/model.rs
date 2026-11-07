@@ -150,6 +150,9 @@ pub enum Cond {
     /// Being in a map: what an event in that map's own script does, it does
     /// while the map is loaded.
     Map(MapId),
+    /// A site of grace touched, by its flag: the game turns it on as the
+    /// player rests there, and nothing turns it off.
+    Grace(u32),
     /// An event flag on, which nothing in the model explains.
     Flag(u32),
 }

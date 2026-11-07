@@ -154,7 +154,7 @@ pub fn blockers(game: PathBuf, flags: &[u32]) -> Result<()> {
                             && catalogue::Entry::word(i, e.arg("state").word) == Some(1)
                     })
                 };
-                for (_, ways) in fs_emevd::flow::ways_to(&run.instructions, sets) {
+                for (_, ways) in fs_emevd::flow::ways_in(&run, sets) {
                     for way in ways.iter().take(64) {
                         let tests: Vec<String> = way
                             .iter()
@@ -181,7 +181,11 @@ pub fn shut(game: PathBuf) -> Result<()> {
         gifts += 1;
         missable += usize::from(l.missable);
         let Some(ways) = &l.given_if else { continue };
-        let open = |w: &Vec<Cond>| !w.iter().any(|c| matches!(c, Cond::Flag(_)));
+        // Leyndell's gate flag asks what the gate's edge asks (`logic::LEYNDELL_GATE`).
+        let open = |w: &Vec<Cond>| {
+            !w.iter()
+                .any(|c| matches!(c, Cond::Flag(f) if *f != logic::LEYNDELL_GATE))
+        };
         if ways.iter().any(open) {
             continue;
         }

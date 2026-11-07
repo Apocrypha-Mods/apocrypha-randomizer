@@ -42,6 +42,9 @@ pub enum Reading {
     ObjectAction(u32),
     /// Whether the player is in their own world (`if_my_world`), or asked not to be.
     MyWorld { wanted: bool },
+    /// Two characters or parts within, or beyond, a distance of each other
+    /// (`if_distance`); `side` is its byte 1 (which of the two is not read).
+    Distance { from: u32, to: u32, side: u8 },
 }
 
 impl Test {
@@ -71,6 +74,11 @@ impl Test {
             "if_my_world" => Some(Reading::MyWorld {
                 wanted: e.byte(&ins, "not_wanted")? == 0,
             }),
+            "if_distance" => Some(Reading::Distance {
+                from: word("from")?,
+                to: word("to")?,
+                side: e.byte(&ins, "state")?,
+            }),
             _ => None,
         }
     }
@@ -89,8 +97,17 @@ pub type Way = BTreeSet<Lit>;
 /// How many ways to keep for one instruction: the shortest. Dropping ways only
 /// makes an instruction harder to reach.
 pub const MAX_WAYS: usize = 16;
+/// How many ways a path still being followed keeps, and paths that meet keep
+/// between them. Paths that meet go on as one, so this holds what separate paths
+/// held before: kept to [`MAX_WAYS`], the 16 asking fewest flags on could all die
+/// on a later test, and 28 gifts shut that had been open (Jolán's exchanges among
+/// them). 64 gives the same model as following every path alone.
+pub const PATH_WAYS: usize = 64;
 /// How many instructions to visit in one run, over every path.
 const MAX_STEPS: usize = 200_000;
+/// The most flags a range test is read flag by flag: 3062 is on once any of the
+/// 100 graces 76200 to 76299 is (common event 3062's `1003[3]`).
+const MAX_RANGE: u32 = 128;
 /// Condition groups run from -15 to 15.
 const GROUPS: usize = 31;
 
@@ -127,6 +144,11 @@ impl Expr {
 
 /// Every way to have one of `a` and one of `b`, leaving out contradictions.
 fn both(a: &[Way], b: &[Way]) -> Vec<Way> {
+    both_to(a, b, MAX_WAYS)
+}
+
+/// [`both`], keeping up to `max`.
+fn both_to(a: &[Way], b: &[Way], max: usize) -> Vec<Way> {
     let mut out = Vec::new();
     for x in a {
         for y in b {
@@ -142,7 +164,7 @@ fn both(a: &[Way], b: &[Way]) -> Vec<Way> {
             }
         }
     }
-    trim(out)
+    trim_to(out, max)
 }
 
 /// Those asking the fewest things to hold first, then the shortest, without
@@ -152,7 +174,12 @@ fn both(a: &[Way], b: &[Way]) -> Vec<Way> {
 /// quest event (common 4339) sets 2051459723 on 22 ways or more, and the 16
 /// shortest all ask for 4323, a flag nothing is known to set, while longer
 /// ones ask for it off.
-fn trim(mut ways: Vec<Way>) -> Vec<Way> {
+fn trim(ways: Vec<Way>) -> Vec<Way> {
+    trim_to(ways, MAX_WAYS)
+}
+
+/// [`trim`], keeping up to `max`.
+fn trim_to(mut ways: Vec<Way>, max: usize) -> Vec<Way> {
     let asks = |w: &Way| w.iter().filter(|l| l.holds).count();
     ways.sort_by(|a, b| {
         asks(a)
@@ -166,7 +193,7 @@ fn trim(mut ways: Vec<Way>) -> Vec<Way> {
         if !out.iter().any(|o| o.is_subset(&w)) {
             out.push(w);
         }
-        if out.len() == MAX_WAYS {
+        if out.len() == max {
             break;
         }
     }
@@ -194,7 +221,7 @@ impl Path {
 
     /// The same path, having also met `e`; `None` when it cannot be.
     fn with(&self, e: Expr, at: usize) -> Option<Path> {
-        let needs = both(&self.needs, &e.ways());
+        let needs = both_to(&self.needs, &e.ways(), PATH_WAYS);
         (!needs.is_empty()).then(|| Path {
             at,
             needs,
@@ -230,7 +257,7 @@ fn test_of(ins: &Instruction) -> Lit {
 /// A range test as the exe evaluates it (`EcTestMultiEventFlagState`, +0x580210 in
 /// 2.7.2): 0 all on, 1 all off, 2 any on, 3 any off.
 fn range(state: u8, first: u32, last: u32) -> Option<Expr> {
-    if first == 0 || first > last || last - first >= 64 {
+    if first == 0 || first > last || last - first >= MAX_RANGE {
         return None;
     }
     let lits = |holds| {
@@ -309,9 +336,28 @@ fn flag_test(e: &Entry, ins: &Instruction) -> Option<Expr> {
 /// else the instruction to go to and what must hold to go there.
 type Next = Vec<(Option<usize>, Option<Expr>)>;
 
-/// For each instruction `want` picks out, the ways the run reaches it.
+/// For each instruction `want` picks out, the ways the run reaches it, its
+/// instructions taken as the game runs them.
 pub fn ways_to(
     instructions: &[Instruction],
+    want: impl Fn(&Instruction) -> bool,
+) -> BTreeMap<usize, Vec<Way>> {
+    ways_with(instructions, &[], want)
+}
+
+/// [`ways_to`] for a run of an event: a comparison in an instruction whose
+/// placeholders the run left as written ([`catalogue::Run::unfilled`]) is not
+/// known, and ends the path.
+pub fn ways_in(
+    run: &catalogue::Run,
+    want: impl Fn(&Instruction) -> bool,
+) -> BTreeMap<usize, Vec<Way>> {
+    ways_with(&run.instructions, &run.unfilled(), want)
+}
+
+fn ways_with(
+    instructions: &[Instruction],
+    unfilled: &[bool],
     want: impl Fn(&Instruction) -> bool,
 ) -> BTreeMap<usize, Vec<Way>> {
     let mut found: BTreeMap<usize, Vec<Way>> = BTreeMap::new();
@@ -337,7 +383,8 @@ pub fn ways_to(
                 ways.extend(p.needs.iter().cloned());
                 *ways = trim(std::mem::take(ways));
             }
-            let Some(next) = step(&mut p, instructions, ins) else {
+            let filled = !unfilled.get(p.at).copied().unwrap_or(false);
+            let Some(next) = step(&mut p, instructions, ins, filled) else {
                 break;
             };
             match &next[..] {
@@ -357,7 +404,7 @@ pub fn ways_to(
                         if let Some(path) = path {
                             let needs = todo.entry((path.at, path.groups)).or_default();
                             needs.extend(path.needs);
-                            *needs = trim(std::mem::take(needs));
+                            *needs = trim_to(std::mem::take(needs), PATH_WAYS);
                         }
                     }
                     break;
@@ -368,8 +415,34 @@ pub fn ways_to(
     found
 }
 
-/// One instruction's effect on a path; `None` ends it.
-fn step(p: &mut Path, all: &[Instruction], ins: &Instruction) -> Option<Next> {
+/// Whether a comparison instruction's test holds (`skip_if_compare` and the
+/// like): word 1 against word 2 by the comparison byte, as the exe has it.
+fn compare(e: &Entry, ins: &Instruction, signed: bool) -> Option<bool> {
+    let (a, b) = (
+        Entry::word(ins, e.arg("left").word)?,
+        Entry::word(ins, e.arg("right").word)?,
+    );
+    let order = if signed {
+        (a as i32).cmp(&(b as i32))
+    } else {
+        a.cmp(&b)
+    };
+    use std::cmp::Ordering::*;
+    Some(match e.byte(ins, "comparison")? {
+        0 => order == Equal,
+        1 => order != Equal,
+        2 => order == Greater,
+        3 => order == Less,
+        4 => order != Less,
+        5 => order != Greater,
+        _ => false,
+    })
+}
+
+/// One instruction's effect on a path; `None` ends it. `filled`: whether the
+/// run filled in the instruction's placeholders, so that a comparison of its
+/// words is known.
+fn step(p: &mut Path, all: &[Instruction], ins: &Instruction, filled: bool) -> Option<Next> {
     let here = p.at;
     let on = |to: usize| (to <= all.len()).then_some(to);
     let label = |l: u8| {
@@ -463,6 +536,30 @@ fn step(p: &mut Path, all: &[Instruction], ins: &Instruction) -> Option<Next> {
             0 => vec![(Some(label(e.byte(ins, "label")?)?), None)],
             _ => return straight,
         },
+        // Two numbers the run holds, compared: the way goes one way only.
+        name @ ("skip_if_compare" | "skip_if_compare_b" | "skip_if_compare_unsigned") if filled => {
+            let lines = e.byte(ins, "lines")?;
+            // skip_if_compare reads its count signed.
+            if name == "skip_if_compare" && (lines as i8) < 0 {
+                return None;
+            }
+            match compare(e, ins, !name.ends_with("unsigned"))? {
+                true => vec![(on(here + 1 + lines as usize), None)],
+                false => return straight,
+            }
+        }
+        name @ ("goto_if_compare" | "goto_if_compare_unsigned") if filled => {
+            match compare(e, ins, !name.ends_with("unsigned"))? {
+                true => vec![(Some(label(e.byte(ins, "label")?)?), None)],
+                false => return straight,
+            }
+        }
+        name @ ("end_if_compare" | "end_if_compare_b" | "end_if_compare_unsigned") if filled => {
+            match compare(e, ins, !name.ends_with("unsigned"))? {
+                true => return None,
+                false => return straight,
+            }
+        }
         _ => return None,
     })
 }
@@ -662,9 +759,82 @@ mod tests {
         );
         assert_eq!(of(3, 4, &[0, 8, 1]), None);
         assert_eq!(of(5, 2, &[0, 9]), Some(Reading::ObjectAction(9)));
+        assert_eq!(
+            of(3, 3, &[bytes([0, 1, 0]), 10000, 77, 1.0f32.to_bits(), 1]),
+            Some(Reading::Distance {
+                from: 10000,
+                to: 77,
+                side: 1
+            })
+        );
         // A flag is no unread test, and the unknown stay unknown.
         assert_eq!(Test::Flag(1).reading(), None);
         assert_eq!(of(4, 3, &[0, 77]), None);
+    }
+
+    #[test]
+    fn comparisons_of_numbers_a_run_holds_go_one_way() {
+        let cmp =
+            |id, lead: i8, how: i8, a: u32, b: u32| ins(1000, id, &[bytes([lead, how, 0]), a, b]);
+        let reached = |s: &[Instruction]| !ways(s).is_empty();
+        // Skip the mark when 7 == 7, not when 7 == 8; and != the other way.
+        assert!(!reached(&[cmp(5, 1, 0, 7, 7), mark()]));
+        assert!(reached(&[cmp(5, 1, 0, 7, 8), mark()]));
+        assert!(!reached(&[cmp(5, 1, 1, 7, 8), mark()]));
+        // The way asks nothing of a comparison: it is known.
+        assert_eq!(ways(&[cmp(5, 1, 0, 7, 8), mark()]), vec![Way::new()]);
+        // > signed (-1 > 1 fails) and unsigned (0xFFFFFFFF > 1 holds).
+        assert!(reached(&[cmp(5, 1, 2, u32::MAX, 1), mark()]));
+        assert!(!reached(&[cmp(10, 1, 2, u32::MAX, 1), mark()]));
+        // <, >=, <=.
+        assert!(!reached(&[cmp(5, 1, 3, 1, 2), mark()]));
+        assert!(!reached(&[cmp(5, 1, 4, 2, 2), mark()]));
+        assert!(!reached(&[cmp(5, 1, 5, 2, 2), mark()]));
+        assert!(reached(&[cmp(5, 1, 5, 3, 2), mark()]));
+        // A comparison byte past 5 never holds.
+        assert!(reached(&[cmp(5, 1, 6, 1, 1), mark()]));
+        // Go to label 3, past an end, on 1 != 2; end on 0 == 0.
+        let goto = [
+            cmp(105, 3, 1, 1, 2),
+            ins(1000, 4, &[0]),
+            ins(1014, 3, &[]),
+            mark(),
+        ];
+        assert!(reached(&goto));
+        assert!(!reached(&[cmp(6, 0, 0, 0, 0), mark()]));
+        assert!(reached(&[cmp(11, 0, 0, 0, 1), mark()]));
+        // A comparison of placeholders left as written is not known.
+        let s = [cmp(5, 1, 0, 7, 8), mark()];
+        let left = ways_with(&s, &[true, false], |i| i == &mark());
+        assert!(left.is_empty());
+    }
+
+    #[test]
+    fn a_range_of_a_hundred_flags_is_read_flag_by_flag() {
+        // Skip the mark when every grace of 1000 to 1099 is off.
+        let s = [ins(1003, 3, &[bytes([1, 1, 0]), 1000, 1099]), mark()];
+        let w = ways(&s);
+        assert_eq!(w.len(), MAX_WAYS);
+        assert!(w.iter().all(|w| {
+            w.len() == 1
+                && w.iter()
+                    .all(|l| l.holds && matches!(l.test, Test::Flag(1000..=1099)))
+        }));
+    }
+
+    #[test]
+    fn paths_meeting_keep_more_ways_than_are_reported() {
+        // Five flags each tested and passed by either way, so 32 ways meet; then
+        // a wait for all five on, which only the way asking the most can meet.
+        let mut s: Vec<Instruction> = (1..=5)
+            .map(|f| ins(1003, 1, &[bytes([0, 1, 0]), f]))
+            .collect();
+        s.extend((1..=5).map(|f| if_flag(0, true, f)));
+        s.push(mark());
+        assert_eq!(
+            ways(&s),
+            vec![(1..=5).map(|f| flag(f, true)).collect::<Way>()]
+        );
     }
 
     #[test]

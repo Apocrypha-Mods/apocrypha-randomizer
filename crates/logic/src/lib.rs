@@ -37,7 +37,7 @@ use serde::Deserialize;
 const ELDEN_RING: &str = include_str!("../data/elden_ring.toml");
 
 /// What it takes: every item and boss listed, and `n` of the `any` items.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Need {
     #[serde(default)]
@@ -50,7 +50,7 @@ pub struct Need {
     pub any: Option<AnyOf>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AnyOf {
     pub n: usize,
@@ -426,9 +426,17 @@ pub enum Req<'a> {
     Got(Vec<usize>),
     /// An area reached, by index.
     Area(usize),
+    /// What an area map's need asks: Leyndell's gate's, for the flag a seed turns on
+    /// when that much is held ([`LEYNDELL_GATE`]).
+    Need(&'a Need),
     /// A flag nothing explains: never.
     Never(u32),
 }
+
+/// The flag Leyndell's gate waits on (m60_45_52 event 1045522500). Every seed rewrites
+/// how it comes on (`rando::capital`) to ask what the `altus` to `leyndell` edge asks,
+/// so a gift waiting on it, Enia's Talisman Pouch among them, asks that too.
+pub const LEYNDELL_GATE: u32 = 182;
 
 /// The graph bound to a model: every name resolved, every location in an
 /// area (or none).
@@ -753,6 +761,19 @@ impl<'a> Bound<'a> {
                 flag_locations.entry(f).or_default().push(i);
             }
         }
+        let gate = graph
+            .edges
+            .iter()
+            .find(|e| e.from == "altus" && e.to == "leyndell")
+            .map(|e| &e.need);
+        // Each grace placed in an area, by its flag.
+        let grace_by_flag: HashMap<u32, usize> = model
+            .graces
+            .iter()
+            .zip(&grace_area)
+            .filter_map(|(g, a)| Some((g.flag, (*a)?)))
+            .filter(|&(f, _)| f != 0)
+            .collect();
         let boss_index: HashMap<i32, usize> = model
             .bosses
             .iter()
@@ -769,9 +790,14 @@ impl<'a> Bound<'a> {
                     .map(|w| {
                         w.iter()
                             .map(|c| {
-                                Self::req(c, &boss_index, &flag_locations, &|m| {
-                                    by_map(Some(m)).or_else(|| by_grace(Some(m), None))
-                                })
+                                Self::req(
+                                    c,
+                                    &boss_index,
+                                    &flag_locations,
+                                    &grace_by_flag,
+                                    gate,
+                                    &|m| by_map(Some(m)).or_else(|| by_grace(Some(m), None)),
+                                )
                             })
                             .collect()
                     })
@@ -894,6 +920,8 @@ impl<'a> Bound<'a> {
         c: &'a gamedata::model::Cond,
         boss_index: &HashMap<i32, usize>,
         flag_locations: &HashMap<u32, Vec<usize>>,
+        grace_by_flag: &HashMap<u32, usize>,
+        gate: Option<&'a Need>,
         map_area: &dyn Fn(MapId) -> Option<usize>,
     ) -> Req<'a> {
         use gamedata::model::Cond;
@@ -902,6 +930,10 @@ impl<'a> Bound<'a> {
             Cond::Holds(i) => i.name.as_deref().map_or(Req::Never(0), Req::Holds),
             Cond::Got(f) => Req::Got(flag_locations.get(f).cloned().unwrap_or_default()),
             Cond::Map(m) => map_area(*m).map_or(Req::Never(0), Req::Area),
+            Cond::Grace(f) => grace_by_flag
+                .get(f)
+                .map_or(Req::Never(*f), |&a| Req::Area(a)),
+            Cond::Flag(LEYNDELL_GATE) => gate.map_or(Req::Never(LEYNDELL_GATE), Req::Need),
             Cond::Flag(f) => Req::Never(*f),
         }
     }
@@ -1110,6 +1142,7 @@ impl<'a> Bound<'a> {
             Req::Holds(i) => items.contains(i),
             Req::Got(ls) => ls.iter().any(|&l| taken[l]),
             Req::Area(a) => reached[*a],
+            Req::Need(n) => self.met(n, items, reached),
             Req::Never(_) => false,
         };
         t.unexplained.is_none()
@@ -1554,6 +1587,52 @@ mod tests {
     }
 
     #[test]
+    fn leyndell_s_gate_flag_asks_what_the_gate_asks() {
+        use gamedata::model::Cond;
+        let mut g: Graph = toml::from_str(
+            r#"
+            start = "altus"
+            goal = { bosses = ["Guardian"] }
+            [[area]]
+            id = "altus"
+            name = "Altus"
+            graces = ["West"]
+            [[area]]
+            id = "leyndell"
+            name = "Leyndell"
+            graces = ["East"]
+            [[area]]
+            id = "cave"
+            name = "Cave"
+            maps = ["m31_00"]
+            [[edge]]
+            from = "altus"
+            to = "leyndell"
+            items = ["Key"]
+            [[edge]]
+            from = "leyndell"
+            to = "cave"
+            "#,
+        )
+        .unwrap();
+        let mut m = model();
+        m.locations[0].kind = Kind::Gift;
+        m.locations[0].given_if = Some(vec![vec![Cond::Flag(LEYNDELL_GATE)]]);
+        let got = |g: &Graph, m: &Model| {
+            let b = Bound::new(g, m);
+            assert!(b.problems.is_empty(), "{:?}", b.problems);
+            b.walk(&b.vanilla()).taken[0]
+        };
+        // The gift holds the gate's key, so waiting on the gate it is never got.
+        assert!(!got(&g, &m));
+        g.edges[0].need.items.clear();
+        assert!(got(&g, &m));
+        // Any other flag nothing explains stays shut.
+        m.locations[0].given_if = Some(vec![vec![Cond::Flag(LEYNDELL_GATE + 1)]]);
+        assert!(!got(&g, &m));
+    }
+
+    #[test]
     fn a_gift_is_given_by_any_one_of_its_ways() {
         use gamedata::model::Cond;
         let (mut g, mut m) = (graph(), model());
@@ -1585,6 +1664,12 @@ mod tests {
         assert!(!walk(&g, &m));
         m.locations[0].given_if = Some(vec![vec![Cond::Map(MapId([60, 40, 37, 0]))]]);
         assert!(walk(&g, &m));
+        // A grace rested at: East's, reached with nothing; a grace no area holds is never.
+        m.graces[1].flag = 5;
+        m.locations[0].given_if = Some(vec![vec![Cond::Grace(5)]]);
+        assert!(walk(&g, &m));
+        m.locations[0].given_if = Some(vec![vec![Cond::Grace(6)]]);
+        assert!(!walk(&g, &m));
         // Another location got: the prize's pick-up flag.
         let prize = m.locations.len();
         m.locations.push(at(MapId([60, 40, 37, 0]), [0.0; 3], &[]));

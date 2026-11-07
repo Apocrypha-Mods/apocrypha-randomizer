@@ -18,8 +18,8 @@
 //!   every call between a script's state machines followed. What holds on
 //!   the way to each award (`fs_esd::reach`) becomes the gift's ways
 //!   ([`Location::given_if`]): flags explained as a boss beaten, an item
-//!   handed over, a location got, or a talk script setting them on what it
-//!   asks in turn; a flag nothing explains stays a [`Cond::Flag`].
+//!   handed over, a location got, a grace rested at, or a talk script setting
+//!   them on what it asks in turn; a flag nothing explains stays a [`Cond::Flag`].
 //! - **Shops:** every ShopLineupParam row, placed where the characters stand
 //!   whose talk scripts open a range holding it (`SHOP_RANGES`: shops,
 //!   dragon communion, puppets and exchanges). A row the Twin Maiden Husks
@@ -121,9 +121,11 @@ pub fn extract(s: &Sources) -> Result<Model> {
 
     // Every part with an entity id, and the graces that name the maps.
     let mut placed: HashMap<u32, Placed> = HashMap::new();
+    let mut parts: HashSet<(u32, MapId)> = HashSet::new();
     for (map, msb) in &s.maps {
         for e in &msb.table("PARTS_PARAM_ST").entries {
             if let Some(id) = part("entity_id").get(e, 0).filter(|&v| v != 0) {
+                parts.insert((id as u32, *map));
                 placed.entry(id as u32).or_insert(Placed {
                     map: *map,
                     entry: e,
@@ -314,7 +316,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
     }
     for &(map, script, common) in &scripts[..scripts.len() - 1] {
         for run in catalogue::runs(script, common) {
-            for (at, ways) in fs_emevd::flow::ways_to(&run.instructions, |i| sets(i).is_some()) {
+            for (at, ways) in fs_emevd::flow::ways_in(&run, |i| sets(i).is_some()) {
                 let flag = sets(&run.instructions[at]).unwrap();
                 let all = event_sets.entry(flag).or_default();
                 all.extend(ways.into_iter().map(|way| EventWay { map, way }));
@@ -948,6 +950,13 @@ pub fn extract(s: &Sources) -> Result<Model> {
         after_boss: &after_boss,
         handed: &handed,
         got: model.locations.iter().filter_map(|l| l.flag).collect(),
+        graces: model
+            .graces
+            .iter()
+            .filter(|g| g.map.is_some() && g.flag != 0)
+            .map(|g| g.flag)
+            .collect(),
+        parts,
         talk_sets: &talk_sets,
         event_sets: &event_sets,
         cleared: &cleared,
@@ -969,9 +978,7 @@ pub fn extract(s: &Sources) -> Result<Model> {
             out.extend(explain.ways(atoms, 0));
         }
         l.missable = explain.fleeting.get();
-        out.sort_by_key(open_first);
-        out.dedup();
-        out.truncate(MAX_WAYS);
+        keep(&mut out);
         // A way that asks nothing makes the rest moot; no way at all is never.
         l.given_if = (out.first() != Some(&Vec::new())).then_some(out);
     }
@@ -1153,10 +1160,28 @@ fn open_first(w: &Way) -> (usize, usize) {
     let unexplained = w.iter().filter(|c| matches!(c, Cond::Flag(_))).count();
     (unexplained, w.len())
 }
+
+/// Orders ways by [`open_first`] and keeps at most [`MAX_WAYS`], leaving out
+/// any that asks all another asks and more: the same conditions in another
+/// order would otherwise fill the places of ways that differ.
+fn keep(ways: &mut Vec<Way>) {
+    ways.sort_by_key(open_first);
+    let mut out: Vec<Way> = Vec::new();
+    for w in ways.drain(..) {
+        if out.len() == MAX_WAYS {
+            break;
+        }
+        if !out.iter().any(|o| o.iter().all(|c| w.contains(c))) {
+            out.push(w);
+        }
+    }
+    *ways = out;
+}
+
 /// How deep a flag is followed back to what sets it. Long quests chain further than
-/// four steps, and at the limit a way stays shut, so a deeper one only opens gifts
-/// whose every step was read.
-const MAX_DEPTH: usize = 8;
+/// eight steps (Hyetta's grapes), and at the limit a way stays shut, so a deeper one
+/// only opens gifts whose every step was read.
+const MAX_DEPTH: usize = 16;
 
 /// The Knights of the Great Jar (m60_47_41). Talking to the Jar turns on
 /// 1047419200; then entering the fight's region summons each knight not yet
@@ -1170,6 +1195,8 @@ const JAR_KNIGHTS: [u32; 3] = [1047410701, 1047410702, 1047410703];
 /// object actions by their maps' event tables, and each event asks for nothing
 /// else than holding the necklace there.
 const BELLS: [u32; 2] = [2050403600, 2053463600];
+/// The player's entity id in the event scripts.
+const PLAYER: u32 = 10000;
 /// Flags events turn on and off again at once, which shut nothing for good: 9001,
 /// which common events 901 and 902 hold on only while they run.
 const PASSING: [u32; 1] = [9001];
@@ -1247,6 +1274,10 @@ struct Explain<'a> {
     handed: &'a HashMap<u32, BTreeSet<i32>>,
     /// Flags that picking up a location sets.
     got: HashSet<u32>,
+    /// Graces' flags, of those placed in a map.
+    graces: HashSet<u32>,
+    /// Every part's entity id, with the map it is placed in.
+    parts: HashSet<(u32, MapId)>,
     talk_sets: &'a HashMap<u32, BTreeSet<BTreeSet<Atom>>>,
     event_sets: &'a HashMap<u32, Vec<EventWay>>,
     /// Flags an event can turn off again.
@@ -1292,16 +1323,15 @@ impl Explain<'_> {
                     next.push(both);
                 }
             }
-            next.sort_by_key(open_first);
-            next.dedup();
-            next.truncate(MAX_WAYS);
+            keep(&mut next);
             ways = next;
         }
         ways
     }
 
     /// The ways a flag comes to be on: a boss beaten, an item handed over, a
-    /// location got, or a talk script setting it, on what that talk asks.
+    /// location got, a grace rested at, or a talk script or event setting it,
+    /// on what that asks.
     fn flag(&self, f: u32, depth: usize) -> Vec<Way> {
         if let Some(Some(boss)) = self.after_boss.get(&f) {
             return vec![vec![Cond::Boss(*boss)]];
@@ -1314,6 +1344,10 @@ impl Explain<'_> {
         }
         if self.got.contains(&f) {
             return vec![vec![Cond::Got(f)]];
+        }
+        // Rested at, so reached: Seluvis's quest waits on any grace of Liurnia.
+        if self.graces.contains(&f) {
+            return vec![vec![Cond::Grace(f)]];
         }
         let talk = self.talk_sets.get(&f);
         let events = self.event_sets.get(&f);
@@ -1338,9 +1372,7 @@ impl Explain<'_> {
         for e in events.into_iter().flatten() {
             out.extend(self.event_way(e, f, depth + 1));
         }
-        out.sort_by_key(open_first);
-        out.dedup();
-        out.truncate(MAX_WAYS);
+        keep(&mut out);
         if out.is_empty() {
             // Named, so that what blocks is reported.
             out.push(vec![Cond::Flag(f)]);
@@ -1359,6 +1391,18 @@ impl Explain<'_> {
         use fs_emevd::flow::{Reading, Test};
         let mut ways: Vec<Way> = vec![e.map.map(Cond::Map).into_iter().collect()];
         let mut lost = false;
+        // Each pair a distance is asked of, and whether it must be within or
+        // beyond, by byte 1 and whether the test must hold: a way asking both of
+        // one pair may be one no place meets.
+        let mut sides: HashMap<(u32, u32), BTreeSet<bool>> = HashMap::new();
+        for lit in &e.way {
+            if let Some(Reading::Distance { from, to, side }) = lit.test.reading() {
+                sides
+                    .entry((from, to))
+                    .or_default()
+                    .insert((side != 0) == lit.holds);
+            }
+        }
         for lit in &e.way {
             let options = match (&lit.test, lit.holds) {
                 (Test::Flag(g), true) if *g != f => self.flag(*g, depth),
@@ -1377,6 +1421,18 @@ impl Explain<'_> {
                     // The logic plays alone, always in the player's own world.
                     (Some(Reading::MyWorld { wanted }), holds) if wanted == holds => continue,
                     (Some(Reading::MyWorld { .. }), _) => return Vec::new(),
+                    // The player near a part of the map whose script this is, or
+                    // away from it: either is met by reaching the map, which the
+                    // way already asks.
+                    (Some(Reading::Distance { from, to, .. }), _)
+                        if sides[&(from, to)].len() == 1
+                            && e.map.is_some_and(|m| {
+                                (from == PLAYER && self.parts.contains(&(to, m)))
+                                    || (to == PLAYER && self.parts.contains(&(from, m)))
+                            }) =>
+                    {
+                        continue;
+                    }
                     // Holding a good, however the event asks it.
                     (Some(Reading::Good { id, held }), holds) if held == holds => {
                         vec![vec![Cond::Holds(self.item(ItemKind::Goods, id))]]
@@ -1395,9 +1451,7 @@ impl Explain<'_> {
                     next.push(both);
                 }
             }
-            next.sort_by_key(open_first);
-            next.dedup();
-            next.truncate(MAX_WAYS);
+            keep(&mut next);
             ways = next;
         }
         if lost && !ways.is_empty() {
@@ -1493,5 +1547,32 @@ mod tests {
         assert_eq!(lot_map(50_000), Err(LotSort::LowId));
         assert_eq!(lot_map(101_580), Err(LotSort::Npc));
         assert_eq!(lot_map(9_930_001), Err(LotSort::Test));
+    }
+
+    #[test]
+    fn ways_kept_differ_from_each_other() {
+        let (a, b) = (Cond::Flag(1), Cond::Map(MapId([60, 34, 50, 0])));
+        // The same two in either order, a way asking more, and all but two of
+        // the ways kept, each asking one flag nothing explains: the repeat and the
+        // way asking more leave room for one of them only.
+        let mut ways: Vec<Way> = vec![
+            vec![a.clone(), b.clone()],
+            vec![b.clone(), a.clone()],
+            vec![b.clone(), a.clone(), Cond::Got(3)],
+        ];
+        ways.extend((10..10 + MAX_WAYS as u32 - 2).map(|f| vec![Cond::Flag(f)]));
+        keep(&mut ways);
+        assert_eq!(ways.len(), MAX_WAYS - 1);
+        assert_eq!(
+            ways.iter()
+                .filter(|w| w.contains(&a) && w.contains(&b))
+                .count(),
+            1
+        );
+        // An open way goes first.
+        ways.push(vec![b.clone()]);
+        keep(&mut ways);
+        assert_eq!(ways[0], vec![b.clone()]);
+        assert!(!ways.iter().any(|w| w.len() > 1 && w.contains(&b)));
     }
 }
