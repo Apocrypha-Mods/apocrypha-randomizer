@@ -381,7 +381,10 @@ pub fn extract(s: &Sources) -> Result<Model> {
                 gifts.push(((*map != EVERYWHERE).then_some(*map), name, *lot));
                 gift_ways.entry(*lot).or_default().insert(r.needs.clone());
             }
-            if let (SET_EVENT_FLAG, [Some(flag), Some(1)]) = (command, &r.args[..])
+            // Any value but 0 turns a flag on: ten flags are set with -1, each a
+            // first-talk flag its script then tests for off (Corhyn's 1040529255).
+            if let (SET_EVENT_FLAG, [Some(flag), Some(v)]) = (command, &r.args[..])
+                && *v != 0
                 && let Ok(flag) = u32::try_from(*flag)
             {
                 talk_sets.entry(flag).or_default().insert(r.needs.clone());

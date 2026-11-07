@@ -215,7 +215,36 @@ fn shop_rows_on_flags_events_and_talk_set() {
         .iter()
         .filter(|t| t.unexplained.is_some())
         .count();
-    assert!(never <= 15, "{never} shop rows never counted");
+    assert!(never <= 12, "{never} shop rows never counted");
+    let on_flag = |flag: u32| -> Vec<usize> {
+        (0..m.locations.len())
+            .filter(|&i| m.locations[i].terms.as_ref().and_then(|t| t.on_sale) == Some(flag))
+            .collect()
+    };
+    // The Husks' Glintstone Scrap (11109781, set by their talk's `5[11]`) waits on
+    // either Miner's Bell Bearing [1].
+    let scrap = on_flag(11109781);
+    assert!(!scrap.is_empty());
+    for i in scrap {
+        let t = &b.location_terms[i];
+        assert!(t.unexplained.is_none());
+        let either = t.needs.iter().filter_map(|n| n.any.as_ref()).any(|a| {
+            a.n == 1
+                && a.items
+                    .iter()
+                    .any(|i| i == "Somberstone Miner's Bell Bearing [1]")
+        });
+        assert!(either, "{:?}", t.needs);
+    }
+    // Corhyn's Great Heal and Lightning Fortification: his talk sets 1040529255 with
+    // -1, read as on; missable, as he moves on.
+    let corhyn = on_flag(1040529255);
+    assert_eq!(corhyn.len(), 2);
+    for i in corhyn {
+        let t = &b.location_terms[i];
+        assert!(t.unexplained.is_none() && t.ways.is_some());
+        assert!(t.missable || m.locations[i].missable);
+    }
     // Renna's two rows the Husks sell (1042369416) open on a grace of Liurnia.
     let renna: Vec<usize> = (0..m.locations.len())
         .filter(|&i| m.locations[i].terms.as_ref().and_then(|t| t.on_sale) == Some(1042369416))

@@ -6,6 +6,9 @@ name: Release build
 on:
   push:
     tags: ["v*"]
+  # Run by hand from the Actions tab to try the builds without a tag; the artifacts are
+  # then named after the branch.
+  workflow_dispatch:
 
 permissions:
   contents: read

@@ -7,7 +7,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 0. Setup | done 2026-10-29 | Patch recorded, stock copy made, game boots unmodded and through me3 with an empty attach config (below). |
 | 2. Formats | round trips done; fields in progress | Every PARAM (194 tables), FMG (3,968), EMEVD (589), MSB (1,347) and ESD (365) in the game round-trips byte for byte, and every parser has a mutation fuzz test. Field layouts and the instruction catalogue grow as later phases need them. |
 | 1. Read the game's files | done 2026-11-03 | Every entry extracts and every DCX and BND4 round-trips (below), and the game runs on files we write (step 3, 2026-10-29). Our own name list names 120,287 of the 120,408 entries; the 121 left are files the randomizer never reads, and Nova closed the gate on that (2026-11-03). |
-| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies, and else for what events and talk ask before turning their flag on; 16 rows are never counted (2026-11-07: 15 behind 4 flags nothing sets that was read, 1 waiting on such a flag further back), down from 58. Gifts wait for what their talk asks, and for the quest stages, graces and invasions the events set: 6 of 112 are never counted (2026-11-07), down from 57. 96 quest gifts may be missed and take no key item. Open: the claims settled from scripts and guides but not yet seen in play (`docs/area-map-review.md`), and the play-through review of the counts. |
+| 3. Game model | area map drafted; review in play | `apoc-fs model` finds 3,506 treasures, 133 one-time enemy drops, 2,169 gathering spots, 414 script awards, 112 NPC gifts, 191 boss rewards, 1,293 shop rows and 10 classes. `apoc-fs logic` binds the drafted area map (50 areas, 53 edges) with no unknown names, and the vanilla game walked from the start reaches every area and the Elden Beast. Shop rows wait for their bosses, bell bearings, handed-over books and currencies, and else for what events and talk ask before turning their flag on; 13 rows are never counted (2026-11-07: 12 behind 2 flags nothing read sets, 1 waiting on such a flag further back), down from 58. Gifts wait for what their talk asks, and for the quest stages, graces and invasions the events set: 6 of 112 are never counted (2026-11-07), down from 57. 96 quest gifts may be missed and take no key item. Open: the claims settled from scripts and guides but not yet seen in play (`docs/area-map-review.md`), and the play-through review of the counts. |
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
 | 6. Output and merging | done 2026-10-31 | A seed on Nightreign Movement and ELDEN VINS together ran in the lab: the seed's files served over both, the world loaded, and a moved boss fought under its own name (below). |
@@ -2698,3 +2698,30 @@ On dev at 3b2134d (area music, fog doors, the same bytes across systems, gifts, 
 
 - **Silence stays.** Area music leaves 180, the number the sound areas named for silence (`無音`) hold, where it is in the table and the maps, so no music plays where the game wants none: 46 pieces change places, from 47 (`music::SILENCE`). `real_cosmetics.rs` holds it.
 - **Oops all keeps ignoring ground.** Its one body stands on swamp and lava spots too and may die to them; that ends a fight cheaply and loses no seed.
+
+## Three shop rows the talk opens, and the CI run on three systems (2026-11-07)
+
+No game or lab run. Read from 2.7.2's talk scripts with `apoc-fs talk-dump` and `script-find`.
+
+**The Husks' Glintstone Scrap** (11109781). Their talk (`t600001110`, machine 0x7FFFFFFC, state 14) turns it on with `5[11]`, which sets a
+flag when its condition holds, here 11109751 or 11109755: the flags of Smithing-Stone Miner's Bell Bearing [1] and Somberstone Miner's Bell
+Bearing [1], each the copy common event 50 keeps of the handover (event 60701). An `on_sale` entry now asks for either bearing (`any`, n 1).
+11109780 beside it, on 11109752 or 11109755, holds no row.
+
+**Corhyn's Great Heal and Lightning Fortification** (1040529255). His talk sets the flag with -1. Ten flags in all the talk scripts are set
+so (18 uses), and every one is tested only for off, as a first-talk flag: Corhyn's machine 0x7FFFFFD1 sets 1040529255 after his first
+lines and goes on to 1040522712's, which it could never reach if -1 left the flag off. So any value but 0 now turns a flag on, in the model's
+talk reading (`gamedata`) and in handovers (`fs_esd::handover`). The two rows now wait on the graces the reader finds (76300 to 76307) and are
+missable. Nothing else in `apoc-fs logic`'s output moved.
+
+So shop rows never counted go from 15 to 12, on 6953 (the Steel and Silver Grooved sets and two weapons: no event, talk or table sets it)
+and 1050400800 (Greyoll's Roar, after an event test not read, `4[15]`, paid in Dragon Hearts and not shuffled either way).
+
+**The 6 shut gifts stay.** The Boluses' 10009335 and the summon-sign flags 7607 to 7609 are set by nothing read, so by the game itself;
+3646 (Gurranq) and 1035449235 (Varré, online invasions) are counters, which the area map cannot walk. All 6 are missable, so opening them
+would put no key item there: no seed would change in what it can hold.
+
+**Phase 7.** Locally, as CI runs it (no game files): fmt, clippy, every test and the add-on page's tests pass on Linux, and every test of
+the Windows build (`x86_64-pc-windows-gnu`) passes under Wine (61 test binaries). `release.yml` can now also be started by hand
+(`workflow_dispatch`).
+

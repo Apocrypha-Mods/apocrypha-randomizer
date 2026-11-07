@@ -1020,6 +1020,17 @@ items = ["Somberstone Miner's Bell Bearing [2]"]
 note = "The Husks' Somber Smithing Stone [3] and [4], Cracked Crystal."
 
 [[on_sale]]
+flag = 11109781
+any = { n = 1, items = [
+    "Smithing-Stone Miner's Bell Bearing [1]", "Somberstone Miner's Bell Bearing [1]",
+] }
+note = """
+The Husks' Glintstone Scrap. Their talk (t600001110, machine 0x7FFFFFFC, state 14) turns
+11109781 on with `5[11]` (set a flag when a condition holds) when 11109751 or 11109755 is on,
+the flags of the two bearings above, each the copy common event 50 keeps (event 60701) of the
+handover. 11109780 beside it, on 11109752 or 11109755, holds no row."""
+
+[[on_sale]]
 flag = 11109757
 items = ["Somberstone Miner's Bell Bearing [3]"]
 note = "The Husks' Somber Smithing Stone [5] and [6]."

@@ -98,7 +98,8 @@ fn set(esd: &Esd, s: &State) -> Vec<u32> {
     args(esd, s, SET_EVENT_FLAG)
         .into_iter()
         .filter_map(|a| match a[..] {
-            [Some(f), Some(1)] => u32::try_from(f).ok(),
+            // Any value but 0 turns it on, as -1 does in ten first-talk flags.
+            [Some(f), Some(v)] if v != 0 => u32::try_from(f).ok(),
             _ => None,
         })
         .collect()
