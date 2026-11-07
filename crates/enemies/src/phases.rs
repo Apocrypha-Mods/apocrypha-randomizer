@@ -143,6 +143,24 @@ fn script_mut<'a>(
     }
 }
 
+/// A boss's fight start can keep whoever stands on its spot from dying
+/// (`cannot_die`), and only its stage event, which goes with it, lets them die again:
+/// Malenia's fight start (15002810) does this. A newcomer in that arena could then never
+/// be killed, so in the home arena the fight start no longer turns it on for that spot.
+/// Godrick's arena never turns it on for him.
+fn keep_mortal(script: &mut Emevd, entity: u32) {
+    let cannot_die = catalogue::named("cannot_die");
+    for i in script.events.iter_mut().flat_map(|e| &mut e.instructions) {
+        if (i.bank, i.id) == (cannot_die.bank, cannot_die.id)
+            && i.args.len() >= 8
+            && i.args[0..4] == entity.to_le_bytes()
+            && i.args[4..8] == 1u32.to_le_bytes()
+        {
+            *i = malenia::nothing();
+        }
+    }
+}
+
 /// The scripts to change for where this plan puts each boss with a stage event.
 pub fn scripts(s: &Sources, pool: &Pool, plan: &Plan) -> Result<Vec<(MapId, Emevd)>> {
     let mut out: BTreeMap<MapId, Emevd> = BTreeMap::new();
@@ -160,6 +178,7 @@ pub fn scripts(s: &Sources, pool: &Pool, plan: &Plan) -> Result<Vec<(MapId, Emev
                 .position(|p| p.entity == Some(stage.entity));
             if home.is_some_and(|h| plan.from[h] != h) {
                 let script = script_mut(s, &mut out, stage.home)?;
+                keep_mortal(script, stage.entity);
                 for e in script.events.iter_mut().filter(|e| e.id == 0) {
                     for i in &mut e.instructions {
                         if starts(i, stage.event) {
@@ -195,6 +214,10 @@ pub fn scripts(s: &Sources, pool: &Pool, plan: &Plan) -> Result<Vec<(MapId, Emev
             .cloned()
             .ok_or_else(|| format_err(format!("event {} is not in its arena", stage.event)))?;
         let moved = moved_event(&stock, stage, entity, flag);
+        // Someone else now holds the boss's own spot, if it is in the pool.
+        if pool.spots.iter().any(|p| p.entity == Some(stage.entity)) {
+            keep_mortal(script_mut(s, &mut out, stage.home)?, stage.entity);
+        }
         if boss.script == stage.home {
             // The same script: the event stays and is started as before.
             let home = script_mut(s, &mut out, stage.home)?;
@@ -263,6 +286,31 @@ mod tests {
         assert_eq!(moved.instructions[1], malenia::nothing());
         assert_eq!(moved.instructions[2], malenia::nothing());
         assert!(names_word(&moved.instructions[3], 15_002_802));
+    }
+
+    #[test]
+    fn in_the_home_arena_a_newcomer_is_not_kept_from_dying() {
+        let her = malenia::HER_ENTITY;
+        let mut script = Emevd {
+            events: vec![Event {
+                id: 15_002_810,
+                rest: 0,
+                instructions: vec![
+                    ins(2004, 12, &[her, 1]),
+                    ins(2004, 12, &[her, 0]),
+                    ins(2004, 12, &[10_000, 1]),
+                    ins(2004, 8, &[her, 1]),
+                ],
+                parameters: vec![],
+            }],
+            ..Default::default()
+        };
+        keep_mortal(&mut script, her);
+        let got = &script.events[0].instructions;
+        assert_eq!(got[0], malenia::nothing());
+        assert_eq!(got[1], ins(2004, 12, &[her, 0]));
+        assert_eq!(got[2], ins(2004, 12, &[10_000, 1]), "the player's own");
+        assert_eq!(got[3], ins(2004, 8, &[her, 1]));
     }
 
     #[test]

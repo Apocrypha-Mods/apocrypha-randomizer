@@ -117,6 +117,65 @@ kind = "i32"
 confidence = "confirmed"
 evidence = "-1 in 22,846 of 23,203 enemies; every other value is a row of CharaInitParam: a human enemy's equipment."
 
+# --- Regions (points) ---------------------------------------------------------
+# Read on 2.7.2 (build 25827938, 46,420 regions over 1,248 maps) with
+# `apoc-fs msb-columns` and `apoc-fs hazard-named`; the names are the game's own.
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "type"
+offset = 0x08
+kind = "i32"
+confidence = "probable"
+evidence = """
+36 values, and each type's names agree: 1 invasion points (侵入ポイント, 2,704),
+4 sounds (サウンド…, 766), 5 effects (【…SFX】, 1,748), 21 links to other maps
+(接続), 32 patrol points (walk_route, 15,044), 49 places where enemies'
+fall walls are removed (落下防止壁削除, 55); -1 (8,698) the regions scripts test."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "shape"
+offset = 0x10
+kind = "i32"
+confidence = "probable"
+evidence = """
+0, 1, 2, 3, 5 or 6. The 11,543 shape-0 regions are exactly those with no shape
+data (shape_data's section offset 0): points. 2 has one float in its data (a
+radius, 1.0 to 1.5 on patrol points), 3 two (radius and height), 5 three (width,
+depth, height: 72 by 32 by 40 for a room-sized Env_Box), 6 none used here (a
+composite, at the origin)."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "position"
+offset = 0x14
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = """
+Three floats in the same ranges as the map's parts: a boss's arena regions
+(Margit's summon and cutscene regions) lie within 25 m of his part."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "rotation"
+offset = 0x20
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = "As a part's: the middle float varies (8,522 distinct), the others mostly 0 or -0."
+
+[[field]]
+table = "POINT_PARAM_ST"
+name = "shape_data"
+section = 0x48
+offset = 0x00
+kind = "f32"
+count = 3
+confidence = "probable"
+evidence = "See shape: a radius; a radius and height; or a width, depth and height."
+
 # --- Treasure (event type 4) ----------------------------------------------------
 
 [[field]]

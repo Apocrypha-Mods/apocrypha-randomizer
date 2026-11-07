@@ -2630,3 +2630,59 @@ holds the opened gifts, at most 6 shut, and Renna's rows open; `real_events.rs` 
 **Proven.** On 2.7.2 with `APOC_ER_STOCK`, rebased on 0d4e385: `cargo test --release --workspace --exclude native`, 406 passed, none failed, in 400 s; clippy and fmt
 clean. `apoc-fs logic`: no problems, goal reached. `apoc-rando check`, seeds 0 to 999, sliders default, two threads beside other work: 5,628 slots, 278 holding key items, placed and proven in 235.9 s, none failing. The full 10,000 were not run here.
 
+## Swamps, lava and bodies kept from dying (2026-11-07)
+
+No game or lab run: none of this has been seen in the game. Read from 2.7.2's maps and scripts with `apoc-fs hazards`,
+`apoc-fs hazard-regions` and `msb-columns`; item 3 of "Against the specs".
+
+**What the maps mark.** No field we read says where a swamp is: the ground's material is in the collision files
+(`h*.hkxbhd`), which we do not parse. The regions (46,420 over 1,248 maps) carry the makers' own names, and their type,
+shape, place and size are now read (`fs-msb` layout, probable). Ambient sounds (type 4) are boxes laid over the ground they
+sound: `毒沼(赤)_05` (poison swamp, red: scarlet rot), `毒沼(緑)` (green), `地下迷宮_川_毒_最奥` (the Lake of Rot's, which says only
+poison), `溶岩_中_04` (lava). 62 such sounds mark swamps and 40 lava, and 104 other regions are named for a poison swamp (`バディ
+起動可能領域 大毒沼`, where spirits may be summoned: the great poison swamp). Rot and poison are one kind here, as the names do
+not always part them. Lava is taken from sounds alone, as `溶岩` elsewhere is mostly the Lava Slimes' name. In the open world a
+swamp's sound can sit in the next tile's map, so grounds are tested on the world's plan (Commander O'Neil's is). A box's turn is
+taken as read: enemy parts fall in 4,072 turned boxes that way and 3,854 the other, a weak sign. Probable, not proven: a box can
+reach past a shore, and ground with no such region is missed (the Kindred of Rot stand 9 m from thin rot channels, not in them).
+
+**Water.** Marked only as puddles (`デカ水たまり`, 69 sounds), falling water (`落水`, 256 effects) and the sea (13 sounds); nothing
+marks deep water. Not filtered. **Falls.** No region marks a drop. Collisions' first byte of data reads 8 on 2,900 parts, 13 on 348
+and 15 on 349 in nearly the same maps, 16 on 266, 22 on 313 (mostly the open world): likely kill planes and their cameras, but
+their shapes are in the hit files, so where they lie is unknown. 55 regions of type 49 (`落下防止壁削除`, fall wall removed) show
+the game keeps enemies off ledges with walls only they hit. A moved body stands where the old one stood. Not filtered.
+
+**The rule.** A spot on swamp or lava trades only with spots on the same ground (`Spot::ground`, `crates/enemies/src/hazards.rs`),
+bosses with bosses, ordinary enemies within their size and class (wildlife included), and in the mix a boss only with an
+open-world spot on its own ground. So no body lands there but one that stands on such ground at home; the model limit's swaps
+and the swaps that keep a spot from getting its own kind back keep to it. Onslaught's copies are copies of the spot's own
+body in a ring a few metres round it, so they stand on the same ground. Oops all ignores ground, as the player asked for one
+body on every spot: on these spots it may die to the ground, a cheap end to a fight, not a lost seed. On 2.7.2:
+4 bosses on swamp (the Dragonkin Soldier in the Lake of Rot, the Cleanrot Knights in m31_04 and m31_20, Commander O'Neil) trade
+among themselves; the Magma Wyrm on Mt. Gelmir, the one boss on lava, moves only by the mix, with the one open-world ordinary
+spot on lava; 408 ordinary spots on swamp and 72 on lava, of 21,091.
+
+**Kept from dying.** `2004[12]`, now `cannot_die` in the catalogue (probable): Patches' event turns it on, waits for his health to
+fall to half and turns it off, and he begs; Malenia's fight start turns it on for her and her phase event off; events turn it on
+and off on the player around scripted falls. A spot a script gives it stays: Radahn as Consort, Adula in m60_34_50 and Count Ymir
+are newly left in place (194 bosses move, from 197), with Messmer, Promised Consort Radahn and Patches, kept already for other
+reasons; 23 ordinary spots leave the pool. Malenia and Godrick, whose stage events go with them (`phases`), still move.
+Malenia's fight start stays in her old arena and only her stage event turned it off, so a newcomer there would never have been
+let die; `phases` now drops that instruction from her old arena whenever someone else holds her spot, Oops all included. At her
+new arena she is not given it, so her first phase may die outright and end the fight early. Godrick's arena never turns it on
+for him (no `2004[12]` names 10000800), so his has no such problem.
+
+**Seeds.** With enemies off, nothing changes. Every seed that moves enemies draws a different enemy plan, as the groups changed;
+items do not change.
+
+**Proven** (on dev as of 827d85d). Unit tests for names, shapes, open-world tiles, trading and Malenia's arena. With `APOC_ER_STOCK`,
+`harmful_ground_and_bodies_kept_from_dying` holds the five bosses and the counts above, that 4 seeds with every enemy moved and a
+30% mix never put a body on other ground, the three bosses kept, and Malenia's old arena with the instruction gone.
+The `enemies`, `rando`, `fs-emevd`, `fs-msb` and `fs-tool` tests all pass (unit and real-file), clippy and fmt clean.
+`apoc-rando check`, `--enemies bosses=100,ordinary=100,mix=10`, seeds 0 to 299: 0 failed. `apoc-rando gen` seed 1 with those
+sliders builds (465 maps, 9 scripts, 14,800 new rows), and its spoiler shows the four swamp bosses only among themselves and the
+Magma Wyrm at home; seeds 2 and 3 showed the same before the rebase onto dev.
+
+**For the lab.** Whether a body really dies in these swamps (a newcomer there was the worry); whether `2004[12]` is what it reads
+as (a newcomer on Malenia's spot can be killed, and Patches' spot); Malenia's first phase at a new arena; and a fall from a
+spot near removed fall walls.

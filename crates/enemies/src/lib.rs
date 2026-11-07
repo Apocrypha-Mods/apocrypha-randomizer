@@ -11,6 +11,7 @@
 //!   rest: Margit's health is his row's 2521 times his tier's 1.656.
 
 pub mod companions;
+pub mod hazards;
 pub mod malenia;
 pub mod onslaught;
 pub mod phases;
@@ -26,6 +27,7 @@ use fs_param::layout::for_table;
 use fs_param::{Param, Regulation, Row};
 use gamedata::model::{Kind, Model};
 use gamedata::{MapId, Sources};
+use hazards::Hazard;
 use items::rng::Rng;
 
 const PARTS: &str = "PARTS_PARAM_ST";
@@ -250,6 +252,10 @@ pub struct Spot {
     pub size: Size,
     pub class: Class,
     pub dlc: bool,
+    /// Harmful ground the spot stands on, read from the map's regions
+    /// ([`hazards`]). Such a spot trades only with spots on the same ground, so no
+    /// body lands in a swamp or on lava but one that stands in one at home.
+    pub ground: Option<hazards::Hazard>,
     /// For a boss: the health bar's text, and the map whose script shows it.
     pub boss: Option<BossSpot>,
 }
@@ -424,6 +430,10 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     // and calls a row of the table defeated. One that calls none, or several, says
     // nothing.
     let mut pays: HashMap<u32, BTreeSet<i32>> = HashMap::new();
+    // Bodies a script keeps from dying until something in their arena happens:
+    // `cannot_die` turned on. Elsewhere, or for a newcomer, that might never come.
+    let cannot_die = catalogue::named("cannot_die");
+    let mut undying: HashSet<u32> = HashSet::new();
     for (m, script) in &s.scripts {
         for u in catalogue::uses(script, Some(&s.common_func), bar.bank, bar.id) {
             if let (Some(b), Some(t)) = (u.word(bar.arg("boss").word), u.word(bar.arg("name").word))
@@ -448,6 +458,15 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 }
             }
             for i in &run.instructions {
+                if (i.bank, i.id) == (cannot_die.bank, cannot_die.id) {
+                    let w: Vec<u32> = words(i).collect();
+                    if w.len() >= 2
+                        && w[1] == 1
+                        && !phases::STAGES.iter().any(|st| st.entity == w[0])
+                    {
+                        undying.insert(w[0]);
+                    }
+                }
                 if (i.bank, i.id) == (4, 0) {
                     let w: Vec<u32> = words(i).collect();
                     if w.len() >= 3 && w[2] == 1 {
@@ -499,6 +518,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 .collect()
         })
         .collect();
+    let grounds = hazards::Grounds::read(&s.maps);
     for (map_index, (m, msb)) in s.maps.iter().enumerate() {
         let models = &msb.table(MODELS).entries;
         let tied = tied_parts(msb);
@@ -573,6 +593,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 (false, _) if is_animal(&model_name) => Class::Animal,
                 (false, _) => Class::Plain,
             };
+            let ground = hazards::position(e).and_then(|p| grounds.at(map_index, *m, p));
             let spot = |boss| Spot {
                 map_index,
                 part,
@@ -582,6 +603,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 size,
                 class,
                 dlc: is_dlc(*m),
+                ground,
                 boss,
             };
             if let Some((script, bar_text)) = entity.and_then(|en| bars.get(&en)) {
@@ -600,6 +622,8 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                     Some("a map event ties it to its rider, mount or generator")
                 } else if rises.contains(&en) {
                     Some("it gets up as a next stage, and its script stays here")
+                } else if undying.contains(&en) {
+                    Some("a script keeps it from dying until something in its arena happens")
                 } else if !hostile {
                     Some("friendly until a script turns it, which would not happen elsewhere")
                 } else if placed.contains_key(&en) {
@@ -649,7 +673,7 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
                 && body.think > 1
                 && talk <= 0
                 && hostile
-                && !entity.is_some_and(|en| rises.contains(&en))
+                && !entity.is_some_and(|en| rises.contains(&en) || undying.contains(&en))
                 && !entity.is_some_and(|en| area_bosses.contains(&en))
                 && !STAY_MODELS.contains(&model_name.as_str())
                 && !STAY.iter().any(|n| name.contains(n))
@@ -672,6 +696,9 @@ pub fn pool(s: &Sources, model: &Model) -> Result<Pool> {
     companions::settle(s, &mut out, &helpers);
     Ok(out)
 }
+
+/// Who ordinary enemies may trade with: side of the DLC, size, class and ground.
+type Group = (bool, Size, Class, Option<Hazard>);
 
 /// Which spot each body came from: `from[i]` is the spot whose body now stands
 /// on spot `i`.
@@ -784,14 +811,15 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
         return Plan { from };
     }
 
-    let mut bosses: BTreeMap<bool, Vec<usize>> = BTreeMap::new();
-    let mut ordinary: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
+    // Spots on harmful ground trade only among themselves (`Spot::ground`).
+    let mut bosses: BTreeMap<(bool, Option<Hazard>), Vec<usize>> = BTreeMap::new();
+    let mut ordinary: BTreeMap<Group, Vec<usize>> = BTreeMap::new();
     for (i, s) in pool.spots.iter().enumerate() {
         if s.boss.is_some() {
-            bosses.entry(side(s)).or_default().push(i);
+            bosses.entry((side(s), s.ground)).or_default().push(i);
         } else {
             ordinary
-                .entry((side(s), s.size, s.class))
+                .entry((side(s), s.size, s.class, s.ground))
                 .or_default()
                 .push(i);
         }
@@ -806,7 +834,7 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
     // Mixing: a boss's body goes out into an open world, where there is room,
     // and the ordinary enemy from there takes the arena. Malenia and Godrick keep
     // to arenas, as their next stages need a script to run in (`phases`).
-    for (&dlc, group) in &bosses {
+    for (&(dlc, ground), group) in &bosses {
         let mut fields: Vec<usize> = pool
             .spots
             .iter()
@@ -816,6 +844,7 @@ pub fn shuffle(pool: &Pool, seed: u64, options: &Options) -> Plan {
                     && s.class == Class::Plain
                     && s.map.is_open_world()
                     && side(s) == dlc
+                    && s.ground == ground
             })
             .map(|(i, _)| i)
             .collect();
@@ -867,12 +896,12 @@ pub fn new_models<'a>(pool: &'a Pool, from: &[usize]) -> BTreeMap<usize, BTreeMa
 /// own size elsewhere whose model this map can take, if the other map can take
 /// this one. Swaps keep every body landing once. Bosses are not touched.
 fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
-    let mut by_group: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
+    let mut by_group: BTreeMap<Group, Vec<usize>> = BTreeMap::new();
     let mut by_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
     for (i, s) in pool.spots.iter().enumerate() {
         if s.boss.is_none() {
             by_group
-                .entry((s.dlc, s.size, s.class))
+                .entry((s.dlc, s.size, s.class, s.ground))
                 .or_default()
                 .push(i);
             by_map.entry(s.map_index).or_default().push(i);
@@ -898,16 +927,19 @@ fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
                     continue;
                 }
                 let s = &pool.spots[i];
-                let Some(&j) = by_group[&(s.dlc, s.size, s.class)].iter().find(|&&j| {
-                    let other = pool.spots[j].map_index;
-                    let theirs = pool.spots[from[j]].body.model.as_str();
-                    let there = added.get(&other);
-                    other != m
-                        && pool.spots[from[j]].boss.is_none()
-                        && (pool.listed[m].contains(theirs) || kept.contains(theirs))
-                        && (pool.listed[other].contains(body)
-                            || there.is_none_or(|a| a.contains_key(body) || a.len() < cap))
-                }) else {
+                let Some(&j) = by_group[&(s.dlc, s.size, s.class, s.ground)]
+                    .iter()
+                    .find(|&&j| {
+                        let other = pool.spots[j].map_index;
+                        let theirs = pool.spots[from[j]].body.model.as_str();
+                        let there = added.get(&other);
+                        other != m
+                            && pool.spots[from[j]].boss.is_none()
+                            && (pool.listed[m].contains(theirs) || kept.contains(theirs))
+                            && (pool.listed[other].contains(body)
+                                || there.is_none_or(|a| a.contains_key(body) || a.len() < cap))
+                    })
+                else {
                     continue;
                 };
                 let other = pool.spots[j].map_index;
@@ -935,15 +967,15 @@ fn cap_models(pool: &Pool, from: &mut [usize], cap: usize) {
 /// A spot that was to move but got its own kind back looks as if nothing moved:
 /// trolls, nearly all of Limgrave's large bodies, mostly got trolls (Nova saw the bridge
 /// troll unchanged, 2026-11-05). Each such spot trades with another moving spot of its
-/// size and class where both then hold a kind not their own, within the models-per-map
+/// size, class and ground where both then hold a kind not their own, within the models-per-map
 /// limit (`cap`, 0 for none) on both sides. Some may stay, where no trade fits.
 fn vary(pool: &Pool, from: &mut [usize], cap: usize, dlc_separate: bool, rng: &mut Rng) {
     let model = |i: usize| pool.spots[i].body.model.as_str();
-    let mut groups: BTreeMap<(bool, Size, Class), Vec<usize>> = BTreeMap::new();
+    let mut groups: BTreeMap<Group, Vec<usize>> = BTreeMap::new();
     for (i, s) in pool.spots.iter().enumerate() {
         if s.boss.is_none() && from[i] != i && pool.spots[from[i]].boss.is_none() {
             groups
-                .entry((dlc_separate && s.dlc, s.size, s.class))
+                .entry((dlc_separate && s.dlc, s.size, s.class, s.ground))
                 .or_default()
                 .push(i);
         }
@@ -1439,6 +1471,7 @@ mod tests {
             size,
             class: Class::Plain,
             dlc: false,
+            ground: None,
             boss: boss.then_some(BossSpot {
                 bar_text: i as i32,
                 script: MapId(map),
@@ -1509,6 +1542,34 @@ mod tests {
             }
             assert!(moved > 0);
         }
+    }
+
+    #[test]
+    fn a_spot_on_harmful_ground_takes_only_a_body_from_such_ground() {
+        let mut p = sample();
+        let grounds = [None, Some(Hazard::Swamp), Some(Hazard::Lava)];
+        for (i, s) in p.spots.iter_mut().enumerate() {
+            // Bosses 0..20 and the open world's ordinary spots alike.
+            s.ground = grounds[(i / 2) % 3];
+        }
+        p.spots[19].ground = Some(Hazard::Lava);
+        let mut moved = [0usize; 3];
+        for seed in 0..20 {
+            let plan = shuffle(&p, seed, &opts(100, 100, 100));
+            for (i, &f) in plan.from.iter().enumerate() {
+                assert_eq!(p.spots[i].ground, p.spots[f].ground, "seed {seed} spot {i}");
+                if i != f {
+                    moved[grounds
+                        .iter()
+                        .position(|g| *g == p.spots[i].ground)
+                        .unwrap()] += 1;
+                }
+            }
+        }
+        assert!(
+            moved.iter().all(|&n| n > 0),
+            "every ground still trades: {moved:?}"
+        );
     }
 
     /// Written from Linux and held on every system CI runs, none of which has the game:

@@ -21,6 +21,7 @@ mod flag_readers;
 mod flags;
 mod gaps;
 mod gift_audit;
+mod hazards;
 mod instructions;
 mod item_readers;
 mod labels;
@@ -191,6 +192,10 @@ enum Command {
     Mounts { game: PathBuf },
     /// Open-world enemies on coarse tiles and the human-built bodies in the pool.
     FarCopies { game: PathBuf },
+    /// Which enemy spots stand on harmful ground, read from the maps' regions.
+    Hazards { game: PathBuf },
+    /// Regions named for swamps, lava and fall walls, and collisions by first byte.
+    HazardRegions { game: PathBuf },
     /// Hostile humans' spots and the ordinary spots a boss's events name.
     Helpers { game: PathBuf },
     /// What reads the pick-up flag of each key or quest item.
@@ -546,6 +551,8 @@ fn main() {
         Command::Enemies { game } => enemies::run(game),
         Command::Mounts { game } => mounts::run(game),
         Command::FarCopies { game } => far_copies::run(game),
+        Command::Hazards { game } => hazards::spots(game),
+        Command::HazardRegions { game } => hazards::named(game),
         Command::Helpers { game } => far_copies::helpers(game),
         Command::FlagReaders { game } => flag_readers::run(game),
         Command::Gaps { game, all } => gaps::run(game, all),

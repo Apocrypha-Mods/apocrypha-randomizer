@@ -898,6 +898,29 @@ word = 1
 name = "kind"
 kind = "number"
 
+[[instruction]]
+bank = 2004
+id = 12
+name = "cannot_die"
+length = 8
+confidence = "probable"
+evidence = """
+Word 0 a character, word 1 a state. Read on 2.7.2 from where it stands: Patches'
+event 31003704 turns it on, waits for his health to fall to half (4[2] with 5 and
+0.5) and turns it off, and he begs rather than dies; Malenia's fight start (15002810)
+turns it on for her and her phase event (15002811) off once her second phase is up,
+as her first phase must not die; and several events turn it on and off on the player
+(10000) around a scripted fall or scene. So: while on, the character cannot be
+killed. Not seen in the game."""
+[[instruction.arg]]
+word = 0
+name = "character"
+kind = "entity"
+[[instruction.arg]]
+word = 1
+name = "state"
+kind = "state"
+
 # --- Effects and text ---------------------------------------------------------
 
 [[instruction]]

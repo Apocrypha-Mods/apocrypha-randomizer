@@ -95,6 +95,9 @@ A boss stays put when:
   summoned bodies in map m14). It seems never to fall plainly, so in another arena
   that arena's fight might never end. Malenia alone moves, with her script;
 - it is friendly until a script turns it (Gideon, the friendly Patches);
+- a script keeps it from dying until something in its arena happens (`2004[12]`, §4);
+- it stands on swamp or lava and no other boss does (the Magma Wyrm on Mt. Gelmir, §4), unless
+  the mix trades it with an ordinary enemy on that ground;
 - its talk script gives an item;
 - it is placed twice, or is a stand-in;
 - parts of its fight need its arena's script (§3.1).
@@ -119,12 +122,25 @@ To be filled in as they are found. Not yet seen in the game:
   closes at the old address without the riders' rule and runs with it. Moved enemies have
   attacked and killed the character, and died to its hit and to scripts, with no crash. Not
   yet played through, and a moved enemy's drop has not been picked up.
-- **Water, falls and poison in a boss's arena.** Not filtered. A body that dies there
-  still ends the fight, and the reward stays with the place, so this costs a cheap win, not
-  a seed. No list of such arenas has been read from the game.
-- **Scripted immortality.** Not filtered, as no instruction is identified as it: `2004[10]`
-  and `2004[35]` were read and do not fit. If a newcomer stays immortal at some spot, the fight
-  cannot be won; only play will show it. The defeat events wait only on a fall, a death or no health.
+- **Swamps and lava** (2026-11-07). A spot on poison or rot swamp or on lava trades only
+  with spots on the same ground, bosses and ordinary enemies alike, so no body lands there
+  but one that stands in one at home. The ground is read from regions laid over it (ambient
+  sounds and regions named for a swamp), a probable reading: 5 bosses and 480 ordinary spots.
+  The Magma Wyrm on Mt. Gelmir, the one boss on lava, moves only by the mix, with the one
+  open-world ordinary spot on lava.
+  Onslaught's copies stand round the spot's own body, on its ground. Oops all ignores ground:
+  the one body stands on these spots too, and may die to them.
+- **Water and falls.** Not filtered. The maps mark water only as puddles and falling water,
+  and the drops' kill collisions are in the hit files, which we do not read. Region names say
+  the game keeps enemies from walking off ledges with walls only they hit (55 regions remove
+  them), and a moved body stands where the old one stood. A body that dies there still ends
+  the fight, and the reward stays.
+- **Scripted immortality.** `2004[12]` turned on (`cannot_die`) keeps a body from dying until its
+  arena's script turns it off, read from where it stands and not seen in the game. A boss or
+  enemy whose spot is given it stays (Radahn as Consort, Adula in m60_34_50, Count
+  Ymir, and others kept for other reasons). Malenia moves: her old arena no longer turns it on
+  for whoever stands there, as only her phase event, which goes with her, turned it off. At her
+  new arena she is not given it, so her first phase may simply die; not seen in play.
 - **Models per map.** The game's limit is unknown. Its largest map lists 50, the
   median 8; with no limit a seed adds up to 101 to one map, with 20 at most 24.
 - **Companions at a new place.** They stand within 6 m of the boss at its height, so on uneven

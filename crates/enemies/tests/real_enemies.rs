@@ -727,3 +727,103 @@ fn boss_runes_follow_the_boss() {
     apply(&mut reg, &s, &p, &shuffle(&p, 1, &off), &off).unwrap();
     assert_eq!(rewards(&reg), before);
 }
+
+/// Swamps and lava, read from the regions laid over them (`enemies::hazards`): which
+/// spots stand on them, and that those trade only among themselves. Also the bodies a
+/// script keeps from dying, and Malenia's arena once she has gone.
+#[test]
+fn harmful_ground_and_bodies_kept_from_dying() {
+    use enemies::hazards::Hazard;
+    let Some(s) = sources() else { return };
+    let model = elden_ring::extract(&s).unwrap();
+    let p = pool(&s, &model).unwrap();
+    let count = |boss: bool, g: Option<Hazard>| {
+        p.spots
+            .iter()
+            .filter(|s| s.boss.is_some() == boss && s.ground == g)
+            .count()
+    };
+    let (swamp, lava) = (
+        count(false, Some(Hazard::Swamp)),
+        count(false, Some(Hazard::Lava)),
+    );
+    println!(
+        "ordinary spots: swamp {swamp}, lava {lava}, other {}",
+        count(false, None)
+    );
+    assert!((300..600).contains(&swamp), "{swamp}");
+    assert!((50..120).contains(&lava), "{lava}");
+    let mut on: Vec<(String, String, Hazard)> = p
+        .bosses()
+        .filter_map(|b| Some((b.body.name.clone(), b.map.to_string(), b.ground?)))
+        .collect();
+    on.sort();
+    println!("bosses on harmful ground: {on:?}");
+    let want = [
+        ("Cleanrot Knight", "m31_04_00_00", Hazard::Swamp),
+        ("Cleanrot Knight (Sickle)", "m31_20_00_00", Hazard::Swamp),
+        ("Commander O'Neil", "m60_49_38_00", Hazard::Swamp),
+        ("Dragonkin Soldier", "m12_01_00_00", Hazard::Swamp),
+        ("Magma Wyrm", "m60_35_53_00", Hazard::Lava),
+    ];
+    let want: Vec<(String, String, Hazard)> = want
+        .iter()
+        .map(|(n, m, h)| (n.to_string(), m.to_string(), *h))
+        .collect();
+    assert_eq!(on, want);
+    let options = Options { mix: 30, ..all() };
+    for seed in 0..4 {
+        let plan = shuffle(&p, seed, &options);
+        for (i, &f) in plan.from.iter().enumerate() {
+            assert_eq!(p.spots[i].ground, p.spots[f].ground, "seed {seed}");
+        }
+    }
+
+    // `cannot_die` turned on: these stay, as the newcomer might never be let die.
+    let kept: HashSet<&str> = p
+        .fixed
+        .iter()
+        .filter(|f| f.reason.contains("keeps it from dying"))
+        .map(|f| f.name.as_str())
+        .collect();
+    println!("kept from dying: {kept:?}");
+    for name in [
+        "Radahn, Consort of Miquella",
+        "Glintstone Dragon Adula",
+        "Count Ymir, Mother of Fingers",
+    ] {
+        assert!(kept.contains(name), "{name}");
+    }
+    assert!(p.bosses().any(malenia::is_home), "Malenia still moves");
+
+    // Once she moves, her old arena lets its newcomer die.
+    let her = p.spots.iter().position(malenia::is_home).unwrap();
+    let plan = (0..50)
+        .map(|seed| shuffle(&p, seed, &all()))
+        .find(|plan| plan.from[her] != her)
+        .expect("she moves in one of 50 seeds");
+    let scripts = phases::scripts(&s, &p, &plan).unwrap();
+    let (_, home) = scripts
+        .iter()
+        .find(|(m, _)| m.to_string() == "m15_00_00_00")
+        .unwrap();
+    let cannot_die = fs_emevd::catalogue::named("cannot_die");
+    let on_her = |e: &fs_emevd::Emevd| {
+        e.events
+            .iter()
+            .flat_map(|ev| &ev.instructions)
+            .filter(|i| {
+                (i.bank, i.id) == (cannot_die.bank, cannot_die.id)
+                    && i.args[..8]
+                        == [malenia::HER_ENTITY.to_le_bytes(), 1u32.to_le_bytes()].concat()
+            })
+            .count()
+    };
+    let (_, stock) = s
+        .scripts
+        .iter()
+        .find(|(m, _)| m.to_string() == "m15_00_00_00")
+        .unwrap();
+    assert_eq!(on_her(stock), 1, "the game's own fight start turns it on");
+    assert_eq!(on_her(home), 0);
+}
