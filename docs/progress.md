@@ -2686,3 +2686,10 @@ Magma Wyrm at home; seeds 2 and 3 showed the same before the rebase onto dev.
 **For the lab.** Whether a body really dies in these swamps (a newcomer there was the worry); whether `2004[12]` is what it reads
 as (a newcomer on Malenia's spot can be killed, and Patches' spot); Malenia's first phase at a new arena; and a fall from a
 spot near removed fall walls.
+
+## The five 2026-11-07 changes together
+
+On dev at 3b2134d (area music, fog doors, the same bytes across systems, gifts, hazards):
+- `apoc-rando check`, seeds 0 to 9,999, default options: none failing, in 494 s on all cores.
+- `tools/cross-check.sh`: all 8 cases byte-identical on Linux, on Linux with one thread and under Wine (fog 216 files and cosmetic 130 now, with the new doors and the sound areas).
+- `cargo test --release --workspace --exclude native` with `APOC_ER_STOCK`, clippy and fmt: clean.
