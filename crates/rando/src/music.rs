@@ -8,14 +8,21 @@
 //! its phases (states 1 and 2) as the theme has them.
 //!
 //! **Area music.** MapDefaultInfoParam `bgm_place` is the music a map plays, a number
-//! the same table names as `Bgm_NNN_…` (rows 11000000 on). The numbers in use change
-//! places, one for one, among the maps. Maps that hold 999 (`None`), Stormveil and the
-//! DLC's open world, take their music from their own sound points and keep it.
+//! the same table names as `Bgm_NNN_…` (rows 11000000 on). Maps that hold 999 (`None`),
+//! Stormveil and the DLC's open world, take their music from their sound areas: MSB
+//! points of type 30 whose `bgm_place` (and, on a few, `bgm_place_also`) is a number of
+//! the same kind; elsewhere such an area overrides the map's own number inside it.
+//! Every number in use in either place changes places with another, one for one, so a
+//! number's music goes everywhere that number was: 47 on 2.7.2, 31 from the table and
+//! 16 more from the points. Later versions of a tile take the same swap
+//! ([`crate::far::twin`]).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use fs_bytes::{Result, format_err};
 use fs_emevd::Emevd;
+use fs_msb::Msb;
+use fs_msb::layout::field;
 use fs_param::Regulation;
 use fs_param::layout::for_table;
 use items::rng::Rng;
@@ -32,6 +39,11 @@ const STARTS: [(u32, u32); 2] = [(2000, 0), (2000, 6)];
 const AREA_FIRST: i32 = 11_000_000;
 /// No music of the map's own.
 const NO_PLACE: i64 = 999;
+/// A point that is a sound area.
+const SOUND_AREA: i64 = 30;
+const POINTS: &str = "POINT_PARAM_ST";
+/// The point fields that hold a music number.
+const POINT_PLACES: [&str; 2] = ["bgm_place", "bgm_place_also"];
 
 const SALT_BOSS: u64 = 0x6d75_7369_635f_6273;
 const SALT_AREA: u64 = 0x6d75_7369_635f_6172;
@@ -101,8 +113,8 @@ pub fn shuffle_boss(reg: &mut Regulation, played: &BTreeSet<u32>, seed: u64) -> 
     Ok(rows.len())
 }
 
-/// The area music numbers the table names (`Bgm_NNN_…`).
-fn named_places(reg: &Regulation) -> Result<BTreeSet<i64>> {
+/// The area music numbers the table names (`Bgm_NNN_…`), with the names.
+fn named_places(reg: &Regulation) -> Result<BTreeMap<i64, String>> {
     Ok(reg
         .table(NAMES)?
         .rows
@@ -110,37 +122,100 @@ fn named_places(reg: &Regulation) -> Result<BTreeSet<i64>> {
         .filter(|r| r.data.get(NAME.start..NAME.start + 4) == Some(b"Bgm_"))
         .filter_map(|r| {
             let name = &r.data[NAME];
-            let digits = std::str::from_utf8(name.get(4..7)?).ok()?;
-            digits.parse::<i64>().ok()
+            let end = name.iter().position(|&b| b == 0).unwrap_or(name.len());
+            let text = std::str::from_utf8(&name[..end]).ok()?;
+            Some((text.get(4..7)?.parse().ok()?, text.to_string()))
         })
         .collect())
 }
 
-/// Shuffle the area music among the maps: each number in use that the table names
-/// becomes another, one for one. The maps changed, by number before and after.
-pub fn shuffle_areas(reg: &mut Regulation, seed: u64) -> Result<BTreeMap<i64, i64>> {
-    let named = named_places(reg)?;
-    let f = for_table("MapDefaultInfoParam")
+fn table_field() -> Result<&'static fs_param::layout::Field> {
+    Ok(for_table("MapDefaultInfoParam")
         .ok_or_else(|| format_err("no layout for MapDefaultInfoParam"))?
-        .field("bgm_place");
-    let mut table = reg.table("MapDefaultInfoParam")?;
-    let used: BTreeSet<i64> = table
+        .field("bgm_place"))
+}
+
+/// Every music number a map's sound areas hold (-1 included).
+pub fn map_places(msb: &Msb) -> impl Iterator<Item = i64> + '_ {
+    let ty = field(POINTS, "type");
+    msb.table(POINTS)
+        .entries
+        .iter()
+        .filter(move |e| ty.get(e, 0) == Some(SOUND_AREA))
+        .flat_map(|e| POINT_PLACES.map(|n| field(POINTS, n).get(e, 0)))
+        .flatten()
+}
+
+/// The area music swap, drawn from the seed: each number in use, in the map table or
+/// in the maps' sound areas, that the table names (999 apart), to the number whose
+/// music it now plays. One for one, so the numbers are the same set after.
+pub fn area_swap(reg: &Regulation, maps: &[&Msb], seed: u64) -> Result<BTreeMap<i64, i64>> {
+    let named = named_places(reg)?;
+    let f = table_field()?;
+    let used: BTreeSet<i64> = reg
+        .table("MapDefaultInfoParam")?
         .rows
         .iter()
         .map(|r| f.get(&r.data, 0))
-        .filter(|p| *p != NO_PLACE && named.contains(p))
+        .chain(maps.iter().flat_map(|m| map_places(m)))
+        .filter(|p| *p != NO_PLACE && named.contains_key(p))
         .collect();
     let from: Vec<i64> = used.iter().copied().collect();
     let mut to = from.clone();
     Rng::new(seed ^ SALT_AREA).shuffle(&mut to);
-    let map: BTreeMap<i64, i64> = from.into_iter().zip(to).collect();
+    Ok(from.into_iter().zip(to).collect())
+}
+
+/// Write the swap into the map table; how many rows it changed.
+pub fn apply_table(reg: &mut Regulation, swap: &BTreeMap<i64, i64>) -> Result<usize> {
+    let f = table_field()?;
+    let mut table = reg.table("MapDefaultInfoParam")?;
+    let mut n = 0;
     for r in &mut table.rows {
-        if let Some(&p) = map.get(&f.get(&r.data, 0)) {
+        let old = f.get(&r.data, 0);
+        if let Some(&p) = swap.get(&old) {
             f.set(&mut r.data, 0, p)?;
+            n += usize::from(p != old);
         }
     }
     reg.set_table("MapDefaultInfoParam", &table)?;
-    Ok(map)
+    Ok(n)
+}
+
+/// Write the swap into a map's sound areas; whether any number changed.
+pub fn edit_map(swap: &BTreeMap<i64, i64>, msb: &mut Msb) -> Result<bool> {
+    let ty = field(POINTS, "type");
+    let Some(points) = msb.tables.iter_mut().find(|t| t.name == POINTS) else {
+        return Ok(false);
+    };
+    let mut changed = false;
+    for e in points
+        .entries
+        .iter_mut()
+        .filter(|e| ty.get(e, 0) == Some(SOUND_AREA))
+    {
+        for name in POINT_PLACES {
+            let f = field(POINTS, name);
+            let Some(old) = f.get(e, 0) else { continue };
+            if let Some(&p) = swap.get(&old) {
+                f.set(e, 0, p)?;
+                changed |= p != old;
+            }
+        }
+    }
+    Ok(changed)
+}
+
+/// The swap for the spoiler log by the table's names: where the first played, the
+/// second now plays.
+pub fn area_log(reg: &Regulation, swap: &BTreeMap<i64, i64>) -> Result<Vec<String>> {
+    let names = named_places(reg)?;
+    let name = |p: &i64| names.get(p).cloned().unwrap_or_else(|| p.to_string());
+    Ok(swap
+        .iter()
+        .filter(|(a, b)| a != b)
+        .map(|(a, b)| format!("{} -> {}", name(a), name(b)))
+        .collect())
 }
 
 #[cfg(test)]
@@ -190,5 +265,58 @@ mod tests {
             played(&[&common_func, &map]),
             BTreeSet::from([213_000, 475_000])
         );
+    }
+
+    /// A point of type `ty` whose type data (at 0x68) holds `place` and `also`.
+    fn point(ty: i32, place: i32, also: i16) -> Vec<u8> {
+        let mut e = vec![0u8; 0x68 + 0x20];
+        e[0x08..0x0C].copy_from_slice(&ty.to_le_bytes());
+        e[0x58..0x60].copy_from_slice(&0x68i64.to_le_bytes());
+        e[0x6C..0x70].copy_from_slice(&place.to_le_bytes());
+        e[0x70..0x72].copy_from_slice(&also.to_le_bytes());
+        e[0x72..0x74].copy_from_slice(&23i16.to_le_bytes());
+        e
+    }
+
+    fn map(points: Vec<Vec<u8>>) -> Msb {
+        Msb {
+            tables: vec![fs_msb::Table {
+                version: 74,
+                name: POINTS.into(),
+                entries: points,
+            }],
+        }
+    }
+
+    #[test]
+    fn sound_areas_take_the_swap_and_nothing_else_changes() {
+        let mut m = map(vec![
+            point(30, 100, -1),
+            point(30, -1, 100),
+            point(30, 50, 50),
+            point(30, 7, -1),
+            point(4, 100, 100),
+        ]);
+        assert_eq!(
+            map_places(&m).filter(|&p| p != -1).collect::<Vec<_>>(),
+            [100, 100, 50, 50, 7]
+        );
+        let swap = BTreeMap::from([(100, 50), (50, 100)]);
+        let before = m.clone();
+        assert!(edit_map(&swap, &mut m).unwrap());
+        let e = &m.tables[0].entries;
+        assert_eq!(e[0], point(30, 50, -1));
+        assert_eq!(e[1], point(30, -1, 50));
+        assert_eq!(e[2], point(30, 100, 100));
+        assert_eq!(
+            e[3], before.tables[0].entries[3],
+            "a number not in the swap"
+        );
+        assert_eq!(e[4], before.tables[0].entries[4], "not a sound area");
+        // A swap that sends each number to itself changes nothing.
+        let mut same = before.clone();
+        let identity = BTreeMap::from([(100, 100), (50, 50)]);
+        assert!(!edit_map(&identity, &mut same).unwrap());
+        assert_eq!(same, before);
     }
 }

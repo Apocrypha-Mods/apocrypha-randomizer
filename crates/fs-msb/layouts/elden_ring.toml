@@ -408,6 +408,36 @@ evidence = """
 0, or an id shaped like 10002680: 6,474 distinct, 4,600 of them words of the
 event scripts (probably the areas they test the player against)."""
 
+[[field]]
+table = "POINT_PARAM_ST"
+types = [30]
+name = "bgm_place"
+section = 0x58
+offset = 0x04
+kind = "i32"
+confidence = "probable"
+evidence = """
+A sound area's music (type 30, named サウンド領域, BGM上書き and the like): -1 or a
+number that WwiseValueToStrParam_BgmBossChrIdConv names as Bgm_NNN_ (row 11000000 on),
+as MapDefaultInfoParam bgm_place does. 2.7.2: 253 of 473 type-30 points (421 in tiles,
+52 in their later versions) hold one, 25 numbers, none of them 999; Stormveil's two
+say 100 (Bgm_100_Castle), the DLC's tiles 50 to 563. A point named for silence (無音)
+holds 180."""
+
+[[field]]
+table = "POINT_PARAM_ST"
+types = [30]
+name = "bgm_place_also"
+section = 0x58
+offset = 0x08
+kind = "i16"
+confidence = "probable"
+evidence = """
+-1, or a Bgm_NNN_ number as bgm_place: 2.7.2, 23 of 473 type-30 points, all named for
+overriding (上書き); 21 hold bgm_place's own number, m10_01's one 100
+with bgm_place -1, m34_12's one 20 with bgm_place 180. What sets one apart from the
+other is not known."""
+
 # --- Routes -------------------------------------------------------------------------
 
 [[field]]

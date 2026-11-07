@@ -735,13 +735,35 @@ pub fn build(
         }
         Ok(changed)
     };
+    // One swap over the music numbers of the map table and of every map's sound areas.
+    let music = if options.area_music {
+        let maps: Vec<&fs_msb::Msb> = sources.maps.iter().map(|(_, m)| m).collect();
+        Some(music::area_swap(&reg, &maps, seed)?)
+    } else {
+        None
+    };
     let edit_map = |m: MapId, msb: &mut fs_msb::Msb| -> Result<bool> {
-        match (&doors, &door_ids) {
-            (Some(p), Some(ids)) => fog::write::edit_map(p, ids, m, msb),
-            _ => Ok(false),
+        let mut changed = false;
+        if let Some(swap) = &music {
+            changed |= music::edit_map(swap, msb)?;
         }
+        if let (Some(p), Some(ids)) = (&doors, &door_ids) {
+            changed |= fog::write::edit_map(p, ids, m, msb)?;
+        }
+        Ok(changed)
     };
     let fog_maps = doors.as_ref().map(fog::write::maps).unwrap_or_default();
+    let music_maps: BTreeSet<MapId> = match &music {
+        Some(swap) => sources
+            .maps
+            .iter()
+            .filter(|(_, msb)| {
+                music::map_places(msb).any(|p| swap.get(&p).is_some_and(|q| *q != p))
+            })
+            .map(|(m, _)| *m)
+            .collect(),
+        None => BTreeSet::new(),
+    };
     // Before the enemies move, so the rows they copy carry the colour along.
     if options.enemy_colours {
         let rows = colours::rows_to_colour(model);
@@ -808,25 +830,48 @@ pub fn build(
             "{scripts} map scripts edited for the night, the gestures and the fog gates"
         ));
     }
-    if let Some(p) = &doors {
-        for (m, msb) in &sources.maps {
-            if moved.maps_written.contains(m) || !fog_maps.contains(m) {
-                continue;
-            }
-            let mut edited = msb.clone();
-            if edit_map(*m, &mut edited)? {
-                put_compressed(
-                    files,
-                    sink,
-                    &format!("/map/mapstudio/{m}.msb.dcx"),
-                    &edited.write()?,
-                )?;
+    // The maps the enemies left alone; those they changed were edited as written.
+    let mut music_written = 0;
+    for (m, msb) in &sources.maps {
+        if moved.maps_written.contains(m) || !(fog_maps.contains(m) || music_maps.contains(m)) {
+            continue;
+        }
+        let mut edited = msb.clone();
+        if edit_map(*m, &mut edited)? {
+            put_compressed(
+                files,
+                sink,
+                &format!("/map/mapstudio/{m}.msb.dcx"),
+                &edited.write()?,
+            )?;
+            music_written += usize::from(music_maps.contains(m));
+        }
+    }
+    if let Some(swap) = &music {
+        // Later versions of tiles the enemies left alone take the same swap.
+        let mut twins = Vec::new();
+        for (t, mut msb) in far::unwritten(files, sources, &moved.maps_written)? {
+            if music::edit_map(swap, &mut msb)? {
+                put_compressed(files, sink, &far::map_path(t), &msb.write()?)?;
+                twins.push(t);
             }
         }
+        let rows = music::apply_table(&mut reg, swap)?;
+        say(&format!(
+            "area music shuffled: {} pieces, {rows} map rows, sound areas in {} maps and {} later versions of tiles ({} more maps with enemies)",
+            swap.len(),
+            music_written,
+            twins.len(),
+            music_maps
+                .iter()
+                .filter(|m| moved.maps_written.contains(m))
+                .count()
+        ));
+    }
+    if doors.is_some() {
         let func = fog::write::common_func(&sources.common_func)?;
         put_compressed(files, sink, "/event/common_func.emevd.dcx", &func.write()?)?;
         say(&format!("fog gates: {} maps written", fog_maps.len()));
-        let _ = p;
     }
     if options.all_recipes {
         let n = tweaks::all_recipes(&mut reg)?;
@@ -850,10 +895,6 @@ pub fn build(
         let played = music::played(&scripts);
         let n = music::shuffle_boss(&mut reg, &played, seed)?;
         say(&format!("boss music shuffled: {n} themes"));
-    }
-    if options.area_music {
-        let n = music::shuffle_areas(&mut reg, seed)?;
-        say(&format!("area music shuffled: {} pieces", n.len()));
     }
     if options.no_malenia_heal {
         let n = tweaks::no_malenia_heal(&mut reg)?;
@@ -884,6 +925,12 @@ pub fn build(
     log += enemy_log.as_deref().unwrap_or("");
     if options.random_gestures {
         log += &gestures.log(sources);
+    }
+    if let Some(swap) = &music {
+        log += "\nArea music: where the first played, the second now plays\n";
+        for line in music::area_log(&reg, swap)? {
+            log += &format!("  {line}\n");
+        }
     }
     if let Some(p) = &doors {
         log += "\nFog gates: each door, the area before it, and where it now leads\n";

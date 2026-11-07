@@ -185,7 +185,7 @@ pub struct Options {
     /// Whether Torrent can be called in the Abyssal Woods (Nova, 2026-11-06).
     pub torrent_woods: bool,
     /// Whether boss themes change places among the arenas, and area music among the
-    /// base game's maps (Nova, 2026-11-06).
+    /// maps, Stormveil's and the DLC's sound areas included (Nova, 2026-11-06).
     pub boss_music: bool,
     pub area_music: bool,
     /// Whether each kind of ordinary enemy is drawn in a colour of the seed's (Nova,

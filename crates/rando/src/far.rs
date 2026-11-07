@@ -44,7 +44,8 @@ pub fn twin(m: MapId) -> Option<MapId> {
     (m.is_open_world() && d < 10).then_some(MapId([a, b, c, d + 10]))
 }
 
-fn map_path(m: MapId) -> String {
+/// Where a map's file is, from the game's root.
+pub fn map_path(m: MapId) -> String {
     format!("/map/mapstudio/{m}.msb.dcx")
 }
 
@@ -78,6 +79,26 @@ pub struct Twins {
 
 fn plain(files: &GameFiles, path: &str) -> Result<Vec<u8>> {
     Ok(fs_dcx::decompress(&files.read(path)?)?.1)
+}
+
+/// The twins of the tiles in `sources` that `written` does not hold, as the game has
+/// them, for a change that applies to every map alike (area music).
+pub fn unwritten(
+    files: &GameFiles,
+    sources: &Sources,
+    written: &std::collections::BTreeSet<MapId>,
+) -> Result<Vec<(MapId, Msb)>> {
+    use rayon::prelude::*;
+    let twins: Vec<MapId> = sources
+        .maps
+        .iter()
+        .filter_map(|(m, _)| twin(*m))
+        .filter(|t| !written.contains(t) && files.exists(&map_path(*t)))
+        .collect();
+    twins
+        .par_iter()
+        .map(|&t| Ok((t, Msb::read(&plain(files, &map_path(t))?)?)))
+        .collect()
 }
 
 /// Carry the seed's changes to the tiles in `maps` and `scripts` over to their twins.

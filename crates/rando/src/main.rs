@@ -200,7 +200,8 @@ struct Sliders {
     /// Each boss arena plays another boss's theme.
     #[arg(long)]
     boss_music: bool,
-    /// The music of the base game's areas changes places among them.
+    /// The music of the areas and dungeons, Stormveil and the DLC included, changes
+    /// places among them.
     #[arg(long)]
     area_music: bool,
     /// Each kind of ordinary enemy is drawn in a colour of the seed's.

@@ -574,7 +574,7 @@ function groups() {
       ),
       pick(
         "Area music",
-        "The music of the base game's areas, dungeons and the Roundtable Hold changes places among them. Stormveil and the DLC's open world keep theirs.",
+        "The music of the areas, dungeons, Stormveil, the Roundtable Hold and the Land of Shadow changes places among them: each piece plays everywhere another one played.",
         [
           [false, "As the game"],
           [true, "Shuffled"],

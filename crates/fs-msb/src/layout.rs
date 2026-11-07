@@ -16,6 +16,7 @@ const ELDEN_RING: &str = include_str!("../layouts/elden_ring.toml");
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
+    I16,
     I32,
     U32,
     F32,
@@ -54,6 +55,16 @@ fn one() -> usize {
     1
 }
 
+impl Kind {
+    /// How many bytes a value takes.
+    pub fn width(self) -> usize {
+        match self {
+            Kind::I16 => 2,
+            Kind::I32 | Kind::U32 | Kind::F32 => 4,
+        }
+    }
+}
+
 impl Field {
     /// Where value `index` sits in `entry`, if the entry has it.
     fn at(&self, entry: &[u8], index: usize) -> Option<usize> {
@@ -71,8 +82,9 @@ impl Field {
                     .filter(|&b| b > 0)?
             }
         };
-        let at = base + self.offset + index * 4;
-        (at + 4 <= entry.len()).then_some(at)
+        let w = self.kind.width();
+        let at = base + self.offset + index * w;
+        (at + w <= entry.len()).then_some(at)
     }
 
     /// Whether an entry of this type has the field.
@@ -86,10 +98,11 @@ impl Field {
     /// The value (an f32 as its bits), or `None` if the entry is too short.
     pub fn get(&self, entry: &[u8], index: usize) -> Option<i64> {
         let at = self.at(entry, index)?;
-        let w: [u8; 4] = entry[at..at + 4].try_into().unwrap();
+        let b = &entry[at..at + self.kind.width()];
         Some(match self.kind {
-            Kind::I32 => i64::from(i32::from_le_bytes(w)),
-            Kind::U32 | Kind::F32 => i64::from(u32::from_le_bytes(w)),
+            Kind::I16 => i64::from(i16::from_le_bytes(b.try_into().unwrap())),
+            Kind::I32 => i64::from(i32::from_le_bytes(b.try_into().unwrap())),
+            Kind::U32 | Kind::F32 => i64::from(u32::from_le_bytes(b.try_into().unwrap())),
         })
     }
 
@@ -101,15 +114,22 @@ impl Field {
         let at = self
             .at(entry, index)
             .ok_or_else(|| format_err(format!("the entry has no {}", self.name)))?;
+        let fits = || format_err(format!("{value} does not fit {}", self.name));
         let bytes = match self.kind {
+            Kind::I16 => i16::try_from(value)
+                .map_err(|_| fits())?
+                .to_le_bytes()
+                .to_vec(),
             Kind::I32 => i32::try_from(value)
-                .map_err(|_| format_err(format!("{value} does not fit {}", self.name)))?
-                .to_le_bytes(),
+                .map_err(|_| fits())?
+                .to_le_bytes()
+                .to_vec(),
             Kind::U32 | Kind::F32 => u32::try_from(value)
-                .map_err(|_| format_err(format!("{value} does not fit {}", self.name)))?
-                .to_le_bytes(),
+                .map_err(|_| fits())?
+                .to_le_bytes()
+                .to_vec(),
         };
-        entry[at..at + 4].copy_from_slice(&bytes);
+        entry[at..at + bytes.len()].copy_from_slice(&bytes);
         Ok(())
     }
 }
@@ -202,6 +222,21 @@ mod tests {
             None,
             "an entry too short has no value"
         );
+    }
+
+    #[test]
+    fn a_short_field_takes_two_bytes_and_leaves_its_neighbours() {
+        let f = field("POINT_PARAM_ST", "bgm_place_also");
+        assert_eq!(f.kind, Kind::I16);
+        let mut entry = vec![0xAAu8; 0x68 + 0x20];
+        entry[0x58..0x60].copy_from_slice(&0x68i64.to_le_bytes());
+        f.set(&mut entry, 0, -1).unwrap();
+        assert_eq!(&entry[0x6E..0x74], &[0xAA, 0xAA, 0xFF, 0xFF, 0xAA, 0xAA]);
+        assert_eq!(f.get(&entry, 0), Some(-1));
+        f.set(&mut entry, 0, 561).unwrap();
+        assert_eq!(f.get(&entry, 0), Some(561));
+        assert!(f.set(&mut entry, 0, 40_000).is_err());
+        assert_eq!(f.get(&entry[..0x71], 0), None);
     }
 
     #[test]
