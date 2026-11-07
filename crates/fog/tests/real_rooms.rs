@@ -33,6 +33,20 @@ fn doors_shuffle_and_the_game_can_be_finished() {
         eligible.len()
     );
     assert!(bosses > 60 && mouths > 40, "{bosses} {mouths}");
+    // The dungeons with a second way in, and the open world's fogs, are doors too.
+    for name in [
+        "mouth:m31_06_00_00",
+        "mouth:m31_18_00_00",
+        "mouth:m32_05_00_00",
+        "boss:1044361800",
+        "boss:2046451800",
+        "boss:1043301800",
+    ] {
+        assert!(eligible.iter().any(|d| d.name == name), "{name}");
+    }
+    let open_world = eligible.iter().filter(|d| d.map.is_open_world()).count();
+    eprintln!("{open_world} of them on open-world tiles");
+    assert!(open_world >= 20, "{open_world}");
 
     // As the game has them, the rooms change nothing: the game can be finished.
     let same: Vec<usize> = (0..eligible.len()).collect();
@@ -79,14 +93,55 @@ fn a_seeds_doors_are_written_and_read_back() {
     let eligible = rooms::eligible(all, &base, &model);
     let plan = rooms::plan(&base, &model, eligible, 5).unwrap();
     let ids = fog::write::ids(&plan.doors);
+    // No two doors share an entity, an event or a flag, across maps as within one.
+    let distinct = |mut v: Vec<u32>| {
+        let n = v.len();
+        v.sort_unstable();
+        v.dedup();
+        assert_eq!(v.len(), n);
+    };
+    distinct(
+        ids.iter()
+            .flat_map(|i| [i.outside, i.inside, i.wall])
+            .collect(),
+    );
+    distinct(ids.iter().flat_map(|i| i.events).collect());
+    distinct(ids.iter().filter_map(|i| i.arrival).collect());
     let mut maps = 0;
     for (m, msb) in &s.maps {
         let mut edited = msb.clone();
         if fog::write::edit_map(&plan, &ids, *m, &mut edited).unwrap() {
             let back = fs_msb::Msb::read(&edited.write().unwrap()).unwrap();
             assert_eq!(back, edited, "{m}");
+            // Each door's regions, and a mouth's wall, are in the map as written.
+            for (d, door) in plan.doors.iter().enumerate().filter(|(_, d)| d.map == *m) {
+                assert!(
+                    doors::locate(&back, ids[d].outside).is_some(),
+                    "{}",
+                    door.name
+                );
+                assert!(
+                    doors::locate(&back, ids[d].inside).is_some(),
+                    "{}",
+                    door.name
+                );
+                assert!(doors::locate(&back, ids[d].wall).is_some(), "{}", door.name);
+            }
             maps += 1;
         }
+    }
+    for name in [
+        "m31_18_00_00",
+        "m32_05_00_00",
+        "m31_06_00_00",
+        "m60_44_36_00",
+    ] {
+        assert!(
+            fog::write::maps(&plan)
+                .iter()
+                .any(|m| m.to_string() == name),
+            "{name}"
+        );
     }
     let mut scripts = 0;
     for (m, script) in &s.scripts {

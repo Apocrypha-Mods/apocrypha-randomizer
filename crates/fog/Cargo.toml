@@ -18,3 +18,4 @@ logic.workspace = true
 
 [dev-dependencies]
 fs-dcx = { workspace = true, features = ["kraken"] }
+toml.workspace = true

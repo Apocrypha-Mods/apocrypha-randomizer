@@ -113,10 +113,18 @@ pub fn step(a: [f32; 3], from: [f32; 3], to: [f32; 3], d: f32) -> [f32; 3] {
     [a[0] + dx / len * d, a[1], a[2] + dz / len * d]
 }
 
-/// A map's own number for its entities: `AABB0000` for `mAA_BB_…`.
+/// A map's own number for its entities: `AABB0000` for `mAA_BB_…`; on an open-world
+/// tile `mAA_XX_YY_…`, `1XXYY0000` in the base game (m60) and `2XXYY0000` in the DLC's
+/// (m61), as its fogs are numbered (Margit's 10001850, Mad Pumpkin Head's 1044361800
+/// in m60_44_36, the Red Bear's 2046451800 in m61_46_45).
 pub fn map_base(m: MapId) -> u32 {
-    let [a, b, ..] = m.0;
-    u32::from(a) * 1_000_000 + u32::from(b) * 10_000
+    let [a, b, c, _] = m.0;
+    if m.is_open_world() {
+        let world = if a == 61 { 2 } else { 1 };
+        world * 1_000_000_000 + u32::from(b) * 1_000_000 + u32::from(c) * 10_000
+    } else {
+        u32::from(a) * 1_000_000 + u32::from(b) * 10_000
+    }
 }
 
 /// Every boss entrance fog the maps' scripts start 9005800 for, whose fog and arena
@@ -268,5 +276,7 @@ mod tests {
         assert!((facing([0.0; 3], [0.0, 0.0, 1.0])).abs() < 1e-4);
         assert!((facing([0.0; 3], [1.0, 0.0, 0.0]) - 90.0).abs() < 1e-4);
         assert_eq!(map_base(MapId([30, 2, 0, 0])), 30_020_000);
+        assert_eq!(map_base(MapId([60, 44, 36, 0])), 1_044_360_000);
+        assert_eq!(map_base(MapId([61, 46, 45, 0])), 2_046_450_000);
     }
 }

@@ -340,6 +340,7 @@ dependencies = [
  "gamedata",
  "items",
  "logic",
+ "toml",
 ]
 
 [[package]]

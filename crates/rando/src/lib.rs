@@ -633,7 +633,7 @@ pub fn build(
     } = job;
     let mut graph = graph_for(options)?;
     let doors = if options.fog_gates {
-        let p = fog_plan(sources, model, &graph, seed)?;
+        let p = fog_plan(files, sources, model, &graph, seed)?;
         graph = p.graph.clone();
         say(&format!(
             "fog gates: {} doors, found in {} draws",
@@ -730,8 +730,9 @@ pub fn build(
             changed |= night::edit_script(script);
         }
         changed |= gestures.edit(tile_of(m), script)?;
+        // A later version of a tile takes the tile's doors (`fog_doors`).
         if let (Some(p), Some(ids)) = (&doors, &door_ids) {
-            changed |= fog::write::edit_script(p, ids, m, script)?;
+            changed |= fog::write::edit_script(p, ids, tile_of(m), script)?;
         }
         Ok(changed)
     };
@@ -747,8 +748,9 @@ pub fn build(
         if let Some(swap) = &music {
             changed |= music::edit_map(swap, msb)?;
         }
+        // A later version of a tile takes the tile's doors (`fog_doors`).
         if let (Some(p), Some(ids)) = (&doors, &door_ids) {
-            changed |= fog::write::edit_map(p, ids, m, msb)?;
+            changed |= fog::write::edit_map(p, ids, tile_of(m), msb)?;
         }
         Ok(changed)
     };
@@ -809,7 +811,7 @@ pub fn build(
         put_compressed(files, sink, &format!("/event/{m}.emevd.dcx"), &bytes)?;
         scripts += 1;
         if let Some(t) = far::twin(*m)
-            && gesture_maps.contains_key(m)
+            && (gesture_maps.contains_key(m) || fog_maps.contains(m))
             && !written.contains(&t)
         {
             let (tp, mp) = (
@@ -832,25 +834,33 @@ pub fn build(
     }
     // The maps the enemies left alone; those they changed were edited as written.
     let mut music_written = 0;
+    let mut copied = BTreeSet::new();
     for (m, msb) in &sources.maps {
         if moved.maps_written.contains(m) || !(fog_maps.contains(m) || music_maps.contains(m)) {
             continue;
         }
         let mut edited = msb.clone();
         if edit_map(*m, &mut edited)? {
-            put_compressed(
-                files,
-                sink,
-                &format!("/map/mapstudio/{m}.msb.dcx"),
-                &edited.write()?,
-            )?;
+            let bytes = edited.write()?;
+            put_compressed(files, sink, &far::map_path(*m), &bytes)?;
             music_written += usize::from(music_maps.contains(m));
+            // A later version of a tile with doors is its copy (`fog_doors`), and stays one.
+            if fog_maps.contains(m)
+                && let Some(t) = far::twin(*m)
+                && !moved.maps_written.contains(&t)
+                && files.exists(&far::map_path(t))
+            {
+                put_compressed(files, sink, &far::map_path(t), &bytes)?;
+                copied.insert(t);
+            }
         }
     }
     if let Some(swap) = &music {
-        // Later versions of tiles the enemies left alone take the same swap.
+        // Later versions of tiles nothing else wrote take the same swap.
         let mut twins = Vec::new();
-        for (t, mut msb) in far::unwritten(files, sources, &moved.maps_written)? {
+        let mut done = moved.maps_written.clone();
+        done.extend(copied.iter().copied());
+        for (t, mut msb) in far::unwritten(files, sources, &done)? {
             if music::edit_map(swap, &mut msb)? {
                 put_compressed(files, sink, &far::map_path(t), &msb.write()?)?;
                 twins.push(t);
@@ -946,7 +956,9 @@ pub fn build(
 
 /// [`check`] with fog gates: each seed's doors, then its items placed and proven
 /// through them.
+#[allow(clippy::too_many_arguments)]
 fn check_fog(
+    files: &GameFiles,
     sources: &Sources,
     model: &gamedata::model::Model,
     graph: &logic::Graph,
@@ -956,12 +968,14 @@ fn check_fog(
     say: Say,
 ) -> Result<Vec<String>> {
     let t = Instant::now();
+    let doors = fog_doors(files, sources, model, graph)?;
+    say(&format!("fog gates: {} doors", doors.len()));
     let done = AtomicUsize::new(0);
     let failures: Vec<String> = (from..from + seeds)
         .into_par_iter()
         .filter_map(|seed| {
             let r = (|| -> std::result::Result<(), String> {
-                let p = fog_plan(sources, model, graph, seed).map_err(|e| e.to_string())?;
+                let p = fog::rooms::plan(graph, model, doors.clone(), seed)?;
                 let bound = logic::Bound::new(&p.graph, model);
                 let mut units =
                     items::units(model, &bound, &sources.reg).map_err(|e| e.to_string())?;
@@ -1016,19 +1030,68 @@ fn put_compressed(files: &GameFiles, out: &dyn Sink, path: &str, plain: &[u8]) -
 type ScriptEdit<'a> = dyn Fn(MapId, &mut fs_emevd::Emevd) -> Result<bool> + Sync + 'a;
 type MapEdit<'a> = dyn Fn(MapId, &mut fs_msb::Msb) -> Result<bool> + Sync + 'a;
 
-/// A seed's fog gates: the doors read from the game, those on tiles with later versions
-/// left out (their copies would need the same edits), drawn until the game can be
-/// finished through them.
+/// The doors fog gates may shuffle: those read from the game that the room map takes.
+/// A door on an open-world tile with a later version ([`far::twin`]) is one only if the
+/// later version's map and script are the tile's copies: the seed then writes them as
+/// copies of the tile as it leaves it, door and all. Romina's fog (m61_44_45) is the
+/// one left out on 2.7.2: its tile's later version has neither the fog nor the arena's
+/// region.
+pub fn fog_doors(
+    files: &GameFiles,
+    sources: &Sources,
+    model: &gamedata::model::Model,
+    graph: &logic::Graph,
+) -> Result<Vec<fog::doors::Door>> {
+    let mut doors = fog::doors::boss_fogs(sources);
+    doors.extend(fog::doors::mouths(sources));
+    let mut copies: BTreeMap<MapId, bool> = BTreeMap::new();
+    for d in &doors {
+        if let Some(t) = far::twin(d.map)
+            && !copies.contains_key(&d.map)
+        {
+            copies.insert(d.map, twin_is_copy(files, d.map, t)?);
+        }
+    }
+    doors.retain(|d| copies.get(&d.map).copied().unwrap_or(true));
+    Ok(fog::rooms::eligible(doors, graph, model))
+}
+
+/// Whether tile `m` has no later version `t`, or `t` is its copy: its map and script
+/// each missing where the tile's is, or holding the same bytes.
+fn twin_is_copy(files: &GameFiles, m: MapId, t: MapId) -> Result<bool> {
+    let paths = [
+        |m: MapId| format!("/map/mapstudio/{m}.msb.dcx"),
+        |m: MapId| format!("/event/{m}.emevd.dcx"),
+    ];
+    if !paths.iter().any(|p| files.exists(&p(t))) {
+        return Ok(true);
+    }
+    for path in paths {
+        let (mine, theirs) = (path(m), path(t));
+        match (files.exists(&mine), files.exists(&theirs)) {
+            (false, false) => {}
+            (true, false) | (false, true) => return Ok(false),
+            (true, true) => {
+                if fs_dcx::decompress(&files.read(&mine)?)?.1
+                    != fs_dcx::decompress(&files.read(&theirs)?)?.1
+                {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// A seed's fog gates: [`fog_doors`], drawn until the game can be finished through them.
 pub fn fog_plan(
+    files: &GameFiles,
     sources: &Sources,
     model: &gamedata::model::Model,
     graph: &logic::Graph,
     seed: u64,
 ) -> Result<fog::rooms::Plan> {
-    let mut doors = fog::doors::boss_fogs(sources);
-    doors.extend(fog::doors::mouths(sources));
-    doors.retain(|d| far::twin(d.map).is_none());
-    let doors = fog::rooms::eligible(doors, graph, model);
+    let doors = fog_doors(files, sources, model, graph)?;
     fog::rooms::plan(graph, model, doors, seed).map_err(format_err)
 }
 
@@ -1393,7 +1456,7 @@ pub fn check(
     let model = extract_model(game, &sources, mods)?;
     let graph = graph_for(options)?;
     if options.fog_gates {
-        return check_fog(&sources, &model, &graph, from, seeds, options, say);
+        return check_fog(&files, &sources, &model, &graph, from, seeds, options, say);
     }
     let bound = logic::Bound::new(&graph, &model);
     let mut units = items::units(&model, &bound, &sources.reg)?;

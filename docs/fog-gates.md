@@ -63,6 +63,46 @@ graph, as the item checker does now; a fog seed with items unshuffled is proven 
    start it.
 4. A kept fog after its boss's death still prompts and warps back.
 5. A whole seed walked: five doors in a row, there and back.
+6. On a tile with a later version (Mad Pumpkin Head, m60_44_36; the Red Bear, m61_46_45):
+   with the world in its later state, the fog still prompts and warps, a warp naming the
+   tile's `_00` lands in the version loaded, and the arrival flag (`1XXYY7950` on, base
+   game, `2XXYY7950` in the DLC) turns on and starts the fight.
+7. Perfumer's Grotto and Altus Tunnel, and the Academy Crystal Cave's far end: whether a
+   player can walk from one map into the other, past our wall.
+
+## Doors brought in on 2026-11-07 (none seen in the game)
+
+141 doors on a seed, from 118 (90 boss fogs, 51 mouths; 20 on open-world tiles).
+- **Bosses with more than one entrance fog.** Each fog is a door of its own, and all of
+  a boss's fogs lead into one arena room (`arena:<defeat flag>`), with a circle kept free
+  of key items around each fog's inside. Each fog's outside is its wall's area (the area
+  map's edge for the boss does not say which fog it stands before). The fogs are shuffled
+  all together or not at all: one left as the game has it would be a way into the arena
+  the shuffle does not move. Each fog keeps its own start of 9005800, so each becomes a
+  start of 9005890 with an arrival flag of its own, and a warp in through one fog starts
+  the fight as walking through it would. Gains no door on 2.7.2: the three such bosses the
+  reader finds stand where fogs stay anyway (the Grafted Scion in the chapel, Sir Gideon
+  in the Ashen Capital, the Godskin Duo in Farum Azula, past no return). Count Ymir's and
+  the Fire Giant's fogs are not doors at all: Ymir's three (m61_51_45) are run by an event
+  of the map's own (2051452841), not 9005800, and the Fire Giant's stand in m60_13_13_02,
+  not the map whose script starts them. Each would need a reader of its own.
+- **Dungeons with a second way in** (m31_06, Perfumer's Grotto m31_18, Altus Tunnel m32_05):
+  doors like the other mouths. What the files say is that the maps touch: the Academy
+  Crystal Cave's inner collisions connect to the Academy's map (m14_00), and Perfumer's
+  Grotto's and Altus Tunnel's connect to each other. Whether a player can walk between is
+  not read, so the room map has no edge for it: a way the proof does not count on only lets
+  a player reach more than the proof counts on, as the game's own warp back to a
+  dungeon's entrance after its boss already does.
+- **Fogs on open-world tiles.** 18 stand on tiles with no later version, and were left out
+  only because `far::twin` names a later version for every tile. Two stand on tiles whose
+  later version is the tile's copy, map and script (m60_44_36_10, m61_46_45_10): the seed
+  writes the later version as a copy of the tile as it leaves it, with the doors' regions,
+  events and fight start, as it already does with enemies there. Left out: Romina's fog
+  (m61_44_45), whose later version has neither her fog nor her arena's region, so the door
+  would vanish once the world changes.
+- **Open-world numbers.** An open-world tile's entities and flags are `1XXYY0000` (m60)
+  and `2XXYY0000` (m61), as its fogs are; ours there are that plus 7900 on, and flags plus
+  7950 on, as in other maps.
 
 ## Stages
 
