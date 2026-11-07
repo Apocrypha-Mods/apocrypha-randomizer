@@ -11,7 +11,7 @@ Phase gates from PLAN.md §5 and the evidence that each one passed.
 | 4. Item randomizer | done 2026-10-29 | `apoc-rando check` placed and proved 10,000 seeds (0 to 9,999) finishable in 526 s on four threads, none failing. Seed 1 booted in the lab, and the chapel's first pick-up gave the Twinned Helm its spoiler log names (below). Open: the options the spec will define. |
 | 5. Enemy randomizer | running in the lab; gate open | Moved enemies fight, and die to the player's hit, with no crash (below). Its gate, in-game hazard checks, is open. |
 | 6. Output and merging | done 2026-10-31 | A seed on Nightreign Movement and ELDEN VINS together ran in the lab: the seed's files served over both, the world loaded, and a moved boss fought under its own name (below). |
-| 7. Cross-platform | Linux and Wine match 2026-11-07; macOS by CI only | `tools/cross-check.sh`: 8 seeds over every option group, Linux, Linux on one thread and the Windows build under Wine, every file the same by SHA-256 after one fix (system maths library, below). Pinned hashes of placement, enemy plans and every float the seed writes run in `ci.yml` on all three systems without game files. `release.yml` drafted, not run. Open: a CI run passing on Windows and macOS, and a seed built on real Windows and macOS. |
+| 7. Cross-platform | CI passes on all three 2026-11-07; real Windows and macOS not run | `tools/cross-check.sh`: 8 seeds over every option group, Linux, Linux on one thread and the Windows build under Wine, every file the same by SHA-256 after one fix (system maths library, below). Pinned hashes of placement, enemy plans and every float the seed writes pass in `ci.yml` on Linux, Windows and macOS (run 42367424894), and `release.yml`, started by hand, built and tested all three programs (run 42367822444). Open: a seed built on real Windows and macOS with game files; Nova has neither machine (2026-11-07), so Wine and the pinned hashes stand for them. |
 
 ## Phase 0: setup
 
@@ -2728,3 +2728,9 @@ the Windows build (`x86_64-pc-windows-gnu`) passes under Wine (61 test binaries)
 **Proven.** With `APOC_ER_STOCK` on 2.7.2: `cargo test --release --workspace --exclude native`, 412 passed, none failed; clippy and fmt clean.
 `real_graph.rs` holds at most 12 rows never counted, the Scrap on either bearing and Corhyn's two rows read and missable. `apoc-rando check`,
 seeds 0 to 999, default options: 5,628 slots, 278 holding key items (as before), none failing, in 56 s.
+
+**On GitHub** (dev pushed at ce5ebbb, 91 commits since 2026-11-02): CI run 42367424894 passed on all five jobs (lint, add-on, and tests on
+Linux, Windows and macOS, the pinned cross-system hashes among them). `release.yml` run 42367822444, started by hand, passed on all three and
+kept `apoc-rando` for linux-x86_64 (16.0 MB), windows-x86_64 (2.4 MB) and macos-arm64 (2.6 MB). The Linux program is large because the
+release profile keeps debug info; strip it before a real release. Neither Windows nor macOS was run with game files.
+
