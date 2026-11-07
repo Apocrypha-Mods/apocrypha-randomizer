@@ -2725,3 +2725,6 @@ would put no key item there: no seed would change in what it can hold.
 the Windows build (`x86_64-pc-windows-gnu`) passes under Wine (61 test binaries). `release.yml` can now also be started by hand
 (`workflow_dispatch`).
 
+**Proven.** With `APOC_ER_STOCK` on 2.7.2: `cargo test --release --workspace --exclude native`, 412 passed, none failed; clippy and fmt clean.
+`real_graph.rs` holds at most 12 rows never counted, the Scrap on either bearing and Corhyn's two rows read and missable. `apoc-rando check`,
+seeds 0 to 999, default options: 5,628 slots, 278 holding key items (as before), none failing, in 56 s.
