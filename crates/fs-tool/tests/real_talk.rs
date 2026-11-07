@@ -258,7 +258,8 @@ fn every_shop_menu_is_found_and_takes_a_new_entry() {
         reached.len(),
         shops.len()
     );
-    assert_eq!(menus, 68);
+    // 70 since menus shown with a count are read too (82271d1).
+    assert_eq!(menus, 70);
     // Every range of the named merchants (100000 to 100499, and the
     // expansion's 102000s) is opened from some menu. On 2.7.2, 7 of 48 are not:
     // a nomadic merchant's 100550 to 100579, and lists in the 122000s to
@@ -290,5 +291,6 @@ fn the_husks_take_bell_bearings_for_flags_that_open_shops() {
     let ranges = fs_esd::menu::ranges_by_flag(husks);
     assert_eq!(ranges[&11_109_713].iter().next(), Some(&(100_050, 100_074)));
     assert_eq!(ranges[&11_109_790].iter().next(), Some(&(102_250, 102_289)));
-    assert_eq!(ranges.len(), 16);
+    // 36 since the husks' menu shown with a count is read too (82271d1).
+    assert_eq!(ranges.len(), 36);
 }
