@@ -13,8 +13,8 @@
 //! points of type 30 whose `bgm_place` (and, on a few, `bgm_place_also`) is a number of
 //! the same kind; elsewhere such an area overrides the map's own number inside it.
 //! Every number in use in either place changes places with another, one for one, so a
-//! number's music goes everywhere that number was: 47 on 2.7.2, 31 from the table and
-//! 16 more from the points. Later versions of a tile take the same swap
+//! number's music goes everywhere that number was: 46 on 2.7.2 (silence's 180 stays where it
+//! is). Later versions of a tile take the same swap
 //! ([`crate::far::twin`]).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -39,6 +39,9 @@ const STARTS: [(u32, u32); 2] = [(2000, 0), (2000, 6)];
 const AREA_FIRST: i32 = 11_000_000;
 /// No music of the map's own.
 const NO_PLACE: i64 = 999;
+/// The number the sound areas named for silence (`無音`) hold: it stays where it is, so
+/// silence is never moved and no music lands where the game wants none (Nova).
+const SILENCE: i64 = 180;
 /// A point that is a sound area.
 const SOUND_AREA: i64 = 30;
 const POINTS: &str = "POINT_PARAM_ST";
@@ -147,7 +150,7 @@ pub fn map_places(msb: &Msb) -> impl Iterator<Item = i64> + '_ {
 }
 
 /// The area music swap, drawn from the seed: each number in use, in the map table or
-/// in the maps' sound areas, that the table names (999 apart), to the number whose
+/// in the maps' sound areas, that the table names (999 and silence's 180 apart), to the number whose
 /// music it now plays. One for one, so the numbers are the same set after.
 pub fn area_swap(reg: &Regulation, maps: &[&Msb], seed: u64) -> Result<BTreeMap<i64, i64>> {
     let named = named_places(reg)?;
@@ -158,7 +161,7 @@ pub fn area_swap(reg: &Regulation, maps: &[&Msb], seed: u64) -> Result<BTreeMap<
         .iter()
         .map(|r| f.get(&r.data, 0))
         .chain(maps.iter().flat_map(|m| map_places(m)))
-        .filter(|p| *p != NO_PLACE && named.contains_key(p))
+        .filter(|p| *p != NO_PLACE && *p != SILENCE && named.contains_key(p))
         .collect();
     let from: Vec<i64> = used.iter().copied().collect();
     let mut to = from.clone();

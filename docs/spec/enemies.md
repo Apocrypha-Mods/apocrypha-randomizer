@@ -129,7 +129,7 @@ To be filled in as they are found. Not yet seen in the game:
   The Magma Wyrm on Mt. Gelmir, the one boss on lava, moves only by the mix, with the one
   open-world ordinary spot on lava.
   Onslaught's copies stand round the spot's own body, on its ground. Oops all ignores ground:
-  the one body stands on these spots too, and may die to them.
+  the one body stands on these spots too, and may die to them (kept so by Nova, 2026-11-07).
 - **Water and falls.** Not filtered. The maps mark water only as puddles and falling water,
   and the drops' kill collisions are in the hit files, which we do not read. Region names say
   the game keeps enemies from walking off ledges with walls only they hit (55 regions remove

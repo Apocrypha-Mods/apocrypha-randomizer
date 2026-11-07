@@ -2693,3 +2693,8 @@ On dev at 3b2134d (area music, fog doors, the same bytes across systems, gifts, 
 - `apoc-rando check`, seeds 0 to 9,999, default options: none failing, in 494 s on all cores.
 - `tools/cross-check.sh`: all 8 cases byte-identical on Linux, on Linux with one thread and under Wine (fog 216 files and cosmetic 130 now, with the new doors and the sound areas).
 - `cargo test --release --workspace --exclude native` with `APOC_ER_STOCK`, clippy and fmt: clean.
+
+## Nova's two answers on music and ground (2026-11-07)
+
+- **Silence stays.** Area music leaves 180, the number the sound areas named for silence (`無音`) hold, where it is in the table and the maps, so no music plays where the game wants none: 46 pieces change places, from 47 (`music::SILENCE`). `real_cosmetics.rs` holds it.
+- **Oops all keeps ignoring ground.** Its one body stands on swamp and lava spots too and may die to them; that ends a fight cheaply and loses no seed.

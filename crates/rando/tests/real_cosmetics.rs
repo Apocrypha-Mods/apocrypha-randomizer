@@ -87,7 +87,8 @@ fn music_changes_places_and_nothing_is_lost() {
 
 /// Area music: the swap covers the map table's numbers and the sound areas' (Stormveil's
 /// 100, the DLC's 50 to 563); in the maps only the sound areas' two numbers change, and
-/// the numbers are the same set after, in the table and in the maps alike.
+/// the numbers are the same set after, in the table and in the maps alike. Silence's
+/// 180 stays where it is.
 #[test]
 fn area_music_reaches_the_sound_areas_and_only_their_numbers() {
     let Some(s) = game() else { return };
@@ -108,11 +109,15 @@ fn area_music_reaches_the_sound_areas_and_only_their_numbers() {
         table
             .union(&points)
             .copied()
-            .filter(|&p| p != 999)
+            .filter(|&p| p != 999 && p != 180)
             .collect(),
     );
     assert!(points.contains(&100) && points.contains(&561), "{points:?}");
     assert!(!points.contains(&999));
+    assert!(
+        points.contains(&180) && !swap.contains_key(&180),
+        "silence stays"
+    );
     eprintln!(
         "{} numbers: {} in the table, {} in sound areas, {} only there",
         swap.len(),
@@ -170,7 +175,7 @@ fn area_music_reaches_the_sound_areas_and_only_their_numbers() {
     assert!(
         after
             .iter()
-            .all(|p| *p == -1 || swap.values().any(|q| q == p))
+            .all(|p| *p == -1 || *p == 180 || swap.values().any(|q| q == p))
     );
     assert_eq!(before_all.len(), after_all.len());
     let mut reg = s.reg.clone();
